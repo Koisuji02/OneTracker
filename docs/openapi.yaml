@@ -1,0 +1,144 @@
+# OpenAPI-style description of every EXTERNAL endpoint OneTracker consumes.
+# The app is client-only: these are third-party APIs, listed here so the
+# integration surface is explicit and reviewable.
+openapi: 3.0.3
+info:
+  title: OneTracker — consumed external APIs
+  version: "2.0"
+  description: >
+    OneTracker is a local-first tracker (React + IndexedDB). It talks directly
+    to the public APIs below from the browser. Keys, when required, are stored
+    in localStorage and entered by the user in Settings.
+
+servers: []
+
+paths:
+  # ------------------------------------------------------------- TMDB
+  /tmdb/search/tv:
+    get:
+      tags: [TMDB]
+      summary: Search TV series (anime filtered client-side)
+      description: GET https://api.themoviedb.org/3/search/tv?query=…&language=…
+  /tmdb/search/movie:
+    get:
+      tags: [TMDB]
+      summary: Search movies
+  /tmdb/tv/{id}:
+    get:
+      tags: [TMDB]
+      summary: Series details
+      description: append_to_response=credits,external_ids — seasons, next_episode_to_air, in_production, imdb id
+  /tmdb/tv/{id}/season/{n}:
+    get:
+      tags: [TMDB]
+      summary: Episode list of one season (titles, runtimes, air dates, stills)
+  /tmdb/movie/{id}:
+    get:
+      tags: [TMDB]
+      summary: Movie details (credits appended, imdb_id included)
+
+  # ------------------------------------------------------------- AniList
+  /anilist/graphql:
+    post:
+      tags: [AniList]
+      summary: Anime/manga search, details, season-chain nodes
+      description: >
+        POST https://graphql.anilist.co — keyless GraphQL. Queries used:
+        SEARCH (Page.media), NODE (format/status/episodes/relations for the
+        PREQUEL/SEQUEL season chain), FULL (title, cover, banner, description,
+        genres, characters, averageScore, idMal, nextAiringEpisode).
+
+  # ------------------------------------------------------------- MangaDex
+  /mangadex/manga:
+    get:
+      tags: [MangaDex]
+      summary: Find a manga by title (matched to AniList via attributes.links.al)
+      description: GET https://api.mangadex.org/manga?title=…&limit=5
+  /mangadex/chapter:
+    get:
+      tags: [MangaDex]
+      summary: Latest released chapter (number + readableAt date)
+      description: GET https://api.mangadex.org/chapter?manga=…&order[chapter]=desc
+
+  # ------------------------------------------------------------- Open Library
+  /openlibrary/search.json:
+    get:
+      tags: [OpenLibrary]
+      summary: Book search (subject field used to filter manga out)
+  /openlibrary/works/{id}.json:
+    get:
+      tags: [OpenLibrary]
+      summary: Work details (description, covers, authors)
+  /openlibrary/works/{id}/ratings.json:
+    get:
+      tags: [OpenLibrary]
+      summary: Community rating (average /5)
+
+  # ------------------------------------------------------------- RAWG
+  /rawg/games:
+    get:
+      tags: [RAWG]
+      summary: Game search (requires key)
+  /rawg/games/{id}:
+    get:
+      tags: [RAWG]
+      summary: Game details (description, playtime, metacritic, rating)
+
+  # ------------------------------------------------------------- Comic Vine
+  /comicvine/search:
+    get:
+      tags: [ComicVine]
+      summary: Comic volume search (requires key; JSONP because no CORS)
+      description: resources=volume — name, image, start_year, count_of_issues
+  /comicvine/volume/4050-{id}:
+    get:
+      tags: [ComicVine]
+      summary: Volume details (deck/description, publisher, count_of_issues)
+
+  # ------------------------------------------------------------- Ratings
+  /omdb:
+    get:
+      tags: [Ratings]
+      summary: IMDb / Rotten Tomatoes / Metacritic scores by IMDb id (requires key)
+      description: GET https://www.omdbapi.com/?apikey=…&i=tt…
+  /jikan/{kind}/{malId}:
+    get:
+      tags: [Ratings]
+      summary: MyAnimeList score (keyless)
+      description: GET https://api.jikan.moe/v4/anime/{id} or /manga/{id}
+
+  # ------------------------------------------------------------- Google
+  /google/oauth-token:
+    post:
+      tags: [Google]
+      summary: GIS token client (drive.appdata + userinfo scopes)
+  /google/drive/files:
+    get:
+      tags: [Google]
+      summary: Find the backup file in appDataFolder
+  /google/drive/upload:
+    post:
+      tags: [Google]
+      summary: Create/update onetracker-backup.json (multipart / media PATCH)
+  /google/userinfo:
+    get:
+      tags: [Google]
+      summary: Profile of the connected account (name, email, picture)
+
+tags:
+  - name: TMDB
+    description: "TV series & movies — key required (v3 or v4 token)"
+  - name: AniList
+    description: "Anime & manga — keyless"
+  - name: MangaDex
+    description: "Chapter counts/dates for ongoing manga — keyless"
+  - name: OpenLibrary
+    description: "Books — keyless"
+  - name: RAWG
+    description: "Games — key required"
+  - name: ComicVine
+    description: "Western comics — key required, JSONP transport"
+  - name: Ratings
+    description: "OMDb (key) and Jikan/MAL (keyless)"
+  - name: Google
+    description: "Optional Drive backup + account link"

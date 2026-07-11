@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  /* brand = always-yellow fills (buttons, progress, pills) */
+  --color-brand: #ffd60a;
+  /* accent = yellow-ish text/icons, darkened in light theme for contrast */
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-card: var(--card);
+  --color-card2: var(--card2);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-ink2: var(--ink2);
+  --color-ink3: var(--ink3);
+  --color-ink4: var(--ink4);
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  --accent: #ffd60a;
+  --surface: #0b0b0e;
+  --card: #17171c;
+  --card2: #1f1f26;
+  --line: #2a2a33;
+  --ink: #f4f4f5;
+  --ink2: #a1a1aa;
+  --ink3: #71717a;
+  --ink4: #52525b;
+  color-scheme: dark;
+}
+
+html.light {
+  --accent: #96780a;
+  --surface: #f6f6f3;
+  --card: #ffffff;
+  --card2: #e9e9e4;
+  --line: #dfdfd9;
+  --ink: #17171a;
+  --ink2: #4b4b52;
+  --ink3: #6f6f76;
+  --ink4: #9d9da4;
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--surface);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+/* hide horizontal scrollbars on media rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* subtle vertical scrollbar for desktop */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.fade-up {
+  animation: fadeUp 0.25s ease both;
+}
