@@ -1,0 +1,317 @@
+/**
+ * AniList (graphql.anilist.co, keyless) — the reference database for anime
+ * and manga.
+ *
+ * AniList models every anime season as a SEPARATE media entry (Fire Force,
+ * Fire Force 2, …), linked through PREQUEL/SEQUEL relations. OneTracker
+ * aggregates the whole chain into ONE library item with real seasons:
+ *   1. from the opened entry, walk PREQUEL links up to the first season (root)
+ *   2. from the root, walk SEQUEL links down, one season per TV/ONA entry
+ * The item id is always `anilist:<rootId>` so any season the user opens from
+ * search resolves to the same library entry.
+ *
+ * For ongoing manga, chapter counts come from MangaDex (see mangadex.ts).
+ */
+import type { MediaDetails, SearchResult, Season } from '../types'
+import { mangadexLatest } from './mangadex'
+import { anilistRating, malRating } from './ratings'
+
+const API = 'https://graphql.anilist.co'
+
+async function gql(query: string, variables: Record<string, unknown>): Promise<any> {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ query, variables }),
+  })
+  if (!res.ok) throw new Error(`AniList error ${res.status}`)
+  const json = await res.json()
+  if (json.errors?.length) throw new Error(json.errors[0].message)
+  return json.data
+}
+
+function stripHtml(s: string | null | undefined): string | null {
+  if (!s) return null
+  return s
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .trim()
+}
+
+function pickTitle(t: { english?: string | null; romaji?: string | null } | null | undefined): string {
+  return t?.english || t?.romaji || 'Unknown'
+}
+
+// ------------------------------------------------------------------ search
+
+const SEARCH_QUERY = `
+query ($q: String, $type: MediaType) {
+  Page(perPage: 14) {
+    media(search: $q, type: $type, sort: SEARCH_MATCH) {
+      id
+      title { romaji english }
+      coverImage { large }
+      startDate { year }
+    }
+  }
+}`
+
+async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[]> {
+  const data = await gql(SEARCH_QUERY, { q, type })
+  return (data.Page.media as any[]).map((m) => ({
+    provider: 'anilist' as const,
+    providerId: String(m.id),
+    mediaType: type === 'ANIME' ? ('anime' as const) : ('manga' as const),
+    title: pickTitle(m.title),
+    year: m.startDate?.year ?? null,
+    poster: m.coverImage?.large ?? null,
+  }))
+}
+
+export function searchAnime(q: string): Promise<SearchResult[]> {
+  return search(q, 'ANIME')
+}
+
+export function searchManga(q: string): Promise<SearchResult[]> {
+  return search(q, 'MANGA')
+}
+
+// -------------------------------------------------- anime season-chain walk
+
+/** Lightweight node used to walk the PREQUEL/SEQUEL chain. */
+interface ChainNode {
+  id: number
+  format: string | null
+  status: string | null
+  episodes: number | null
+  duration: number | null
+  title: { romaji?: string | null; english?: string | null } | null
+  nextAiringEpisode: { episode: number; airingAt: number } | null
+  relations: any
+}
+
+const NODE_QUERY = `
+query ($id: Int) {
+  Media(id: $id, type: ANIME) {
+    id
+    format
+    status
+    episodes
+    duration
+    title { romaji english }
+    nextAiringEpisode { episode airingAt }
+    relations { edges { relationType node { id type format } } }
+  }
+}`
+
+/** Only these formats count as "a season" of the same show. */
+const SEASON_FORMATS = new Set(['TV', 'ONA', 'TV_SHORT'])
+
+const nodeCache = new Map<number, ChainNode>()
+
+async function fetchNode(id: number): Promise<ChainNode> {
+  const cached = nodeCache.get(id)
+  if (cached) return cached
+  const data = await gql(NODE_QUERY, { id })
+  const node = data.Media as ChainNode
+  nodeCache.set(id, node)
+  return node
+}
+
+/**
+ * A related entry counts as "a season" only if it looks like one: TV-like
+ * format AND either still airing/announced or at least 4 episodes. This
+ * rejects one-shot specials that AniList links as PREQUEL/SEQUEL (e.g.
+ * "MONSTERS" — a 1-episode ONA marked as prequel of One Piece).
+ */
+function isSeasonNode(n: ChainNode): boolean {
+  if (!SEASON_FORMATS.has(n.format ?? '')) return false
+  if (n.status === 'RELEASING' || n.status === 'NOT_YET_RELEASED') return true
+  return (n.episodes ?? 0) >= 4
+}
+
+/** First valid season among the PREQUEL/SEQUEL edges of a node. */
+async function relatedSeason(
+  node: ChainNode,
+  type: 'PREQUEL' | 'SEQUEL',
+  visited: Set<number>,
+): Promise<ChainNode | null> {
+  const candidates = ((node.relations?.edges ?? []) as any[])
+    .filter(
+      (e) =>
+        e.relationType === type &&
+        e.node?.type === 'ANIME' &&
+        SEASON_FORMATS.has(e.node?.format),
+    )
+    .map((e) => e.node.id as number)
+  for (const id of candidates) {
+    if (visited.has(id)) continue
+    const candidate = await fetchNode(id)
+    if (isSeasonNode(candidate)) return candidate
+  }
+  return null
+}
+
+/** Walk PREQUEL links up to season 1. */
+async function resolveRoot(id: number): Promise<ChainNode> {
+  let cur = await fetchNode(id)
+  const visited = new Set([cur.id])
+  for (let hop = 0; hop < 20; hop++) {
+    const prev = await relatedSeason(cur, 'PREQUEL', visited)
+    if (!prev) break
+    visited.add(prev.id)
+    cur = prev
+  }
+  return cur
+}
+
+/** Walk SEQUEL links down from the root, building the season chain. */
+async function buildChain(root: ChainNode): Promise<ChainNode[]> {
+  const chain: ChainNode[] = [root]
+  const visited = new Set([root.id])
+  let cur = root
+  for (let hop = 0; hop < 20; hop++) {
+    const next = await relatedSeason(cur, 'SEQUEL', visited)
+    if (!next) break
+    visited.add(next.id)
+    cur = next
+    chain.push(cur)
+  }
+  return chain
+}
+
+/** Episodes released so far for one chain node (aired count while airing). */
+function airedEpisodesOf(node: ChainNode): number {
+  return node.episodes ?? (node.nextAiringEpisode ? node.nextAiringEpisode.episode - 1 : 0)
+}
+
+// ----------------------------------------------------------------- details
+
+const FULL_QUERY = `
+query ($id: Int, $type: MediaType) {
+  Media(id: $id, type: $type) {
+    id
+    title { romaji english }
+    coverImage { extraLarge large }
+    bannerImage
+    description(asHtml: false)
+    startDate { year }
+    episodes
+    duration
+    chapters
+    genres
+    status
+    averageScore
+    idMal
+    nextAiringEpisode { episode airingAt }
+    characters(sort: ROLE, perPage: 12) {
+      edges {
+        role
+        node { name { full } image { large } }
+      }
+    }
+  }
+}`
+
+function mapCharacters(m: any) {
+  return ((m.characters?.edges ?? []) as any[]).map((e) => ({
+    name: e.node?.name?.full ?? '',
+    role: e.role === 'MAIN' ? 'Main' : 'Supporting',
+    photo: e.node?.image?.large ?? null,
+  }))
+}
+
+async function animeDetails(id: string): Promise<MediaDetails> {
+  const entry = await fetchNode(Number(id))
+
+  // movies/specials stay standalone — only TV-like entries get aggregated
+  const isSeries = SEASON_FORMATS.has(entry.format ?? '')
+  const root = isSeries ? await resolveRoot(entry.id) : entry
+  const chain = isSeries ? await buildChain(root) : [entry]
+
+  const full = (await gql(FULL_QUERY, { id: root.id, type: 'ANIME' })).Media
+
+  const seasons: Season[] = chain
+    .map((n, i) => ({
+      number: i + 1,
+      name: pickTitle(n.title),
+      episodeCount: airedEpisodesOf(n),
+      poster: null,
+    }))
+    .filter((s) => s.episodeCount > 0)
+
+  const airing = chain.find((n) => n.nextAiringEpisode)
+  const ongoing = chain.some((n) => n.status === 'RELEASING')
+
+  return {
+    id: `anilist:${root.id}`,
+    provider: 'anilist',
+    providerId: String(root.id),
+    mediaType: 'anime',
+    title: pickTitle(full.title),
+    originalTitle: full.title?.romaji ?? null,
+    overview: stripHtml(full.description),
+    poster: full.coverImage?.extraLarge ?? full.coverImage?.large ?? null,
+    backdrop: full.bannerImage ?? null,
+    year: full.startDate?.year ?? null,
+    genres: (full.genres ?? []) as string[],
+    totalEpisodes: seasons.reduce((a, s) => a + s.episodeCount, 0) || airedEpisodesOf(entry) || null,
+    episodeRuntime: full.duration ?? chain.find((n) => n.duration)?.duration ?? null,
+    seasons,
+    ongoing,
+    nextReleaseDate: airing?.nextAiringEpisode
+      ? new Date(airing.nextAiringEpisode.airingAt * 1000).toISOString()
+      : null,
+    cast: mapCharacters(full),
+    airStatus: full.status ?? null,
+    externalRatings: [
+      ...anilistRating(full.averageScore),
+      ...(await malRating(full.idMal, 'anime')),
+    ],
+  }
+}
+
+async function mangaDetails(id: string): Promise<MediaDetails> {
+  const m = (await gql(FULL_QUERY, { id: Number(id), type: 'MANGA' })).Media
+  const ongoing = m.status === 'RELEASING'
+
+  // AniList doesn't know chapter counts of ongoing manga — ask MangaDex.
+  let chapters: number | null = m.chapters ?? null
+  let lastReleaseDate: string | null = null
+  if (ongoing) {
+    const md = await mangadexLatest(id, m.title?.romaji ?? m.title?.english ?? '')
+    if (md) {
+      chapters = Math.max(md.latestChapter, chapters ?? 0)
+      lastReleaseDate = md.latestChapterDate
+    }
+  }
+
+  return {
+    id: `anilist:${id}`,
+    provider: 'anilist',
+    providerId: id,
+    mediaType: 'manga',
+    title: pickTitle(m.title),
+    originalTitle: m.title?.romaji ?? null,
+    overview: stripHtml(m.description),
+    poster: m.coverImage?.extraLarge ?? m.coverImage?.large ?? null,
+    backdrop: m.bannerImage ?? null,
+    year: m.startDate?.year ?? null,
+    genres: (m.genres ?? []) as string[],
+    totalEpisodes: chapters,
+    pages: chapters,
+    seasons: [],
+    ongoing,
+    lastReleaseDate,
+    cast: mapCharacters(m),
+    airStatus: m.status ?? null,
+    externalRatings: [
+      ...anilistRating(m.averageScore),
+      ...(await malRating(m.idMal, 'manga')),
+    ],
+  }
+}
+
+export function anilistDetails(id: string, type: 'ANIME' | 'MANGA'): Promise<MediaDetails> {
+  return type === 'ANIME' ? animeDetails(id) : mangaDetails(id)
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">OneTracker</string>
+    <string name="title_activity_main">OneTracker</string>
+    <string name="package_name">com.onetracker.app</string>
+    <string name="custom_url_scheme">com.onetracker.app</string>
+</resources>
