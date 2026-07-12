@@ -151,7 +151,7 @@ export default function SearchPage() {
 
   return (
     <div>
-      <div className="sticky top-0 z-30 bg-surface/95 px-4 pb-3 pt-6 backdrop-blur">
+      <div className="sticky top-0 z-30 bg-surface/95 px-4 pb-3 pt-safe backdrop-blur">
         <div className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink3" />
           <input

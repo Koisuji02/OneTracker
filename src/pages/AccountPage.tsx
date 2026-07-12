@@ -140,7 +140,7 @@ export default function AccountPage() {
           <Link
             to="/settings"
             aria-label={t('settings.title')}
-            className="absolute right-4 top-6 grid h-10 w-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
+            className="absolute right-4 top-safe-lg grid h-10 w-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
           >
             <Settings size={18} />
           </Link>

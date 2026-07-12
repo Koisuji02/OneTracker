@@ -1,5 +1,14 @@
-import { useEffect } from 'react'
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { App as CapApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+import { useEffect, useRef } from 'react'
+import {
+  HashRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom'
 import BottomNav from './components/BottomNav'
 import { translate } from './i18n'
 import AccountPage from './pages/AccountPage'
@@ -23,6 +32,38 @@ function ScrollToTop() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [pathname])
+  return null
+}
+
+/**
+ * Android hardware back button:
+ * - on a main tab (Series/Movies/Books/Games) → exit the app
+ * - on Search/Profile → go to Series first (one more back exits)
+ * - anywhere else (detail, settings, lists, catalog…) → history back,
+ *   returning exactly to the page the user came from
+ */
+const EXIT_TABS = new Set(['/series', '/movies', '/books', '/games'])
+const HOME_TABS = new Set(['/search', '/account'])
+
+function AndroidBackHandler() {
+  const nav = useNavigate()
+  const { pathname } = useLocation()
+  const pathRef = useRef(pathname)
+  pathRef.current = pathname
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const sub = CapApp.addListener('backButton', () => {
+      const path = pathRef.current
+      if (EXIT_TABS.has(path)) CapApp.exitApp()
+      else if (HOME_TABS.has(path)) nav('/series')
+      else nav(-1)
+    })
+    return () => {
+      sub.then((s) => s.remove())
+    }
+  }, [nav])
+
   return null
 }
 
@@ -79,6 +120,7 @@ export default function App() {
   return (
     <HashRouter>
       <ScrollToTop />
+      <AndroidBackHandler />
       <div className="min-h-full pb-24 md:pb-10 md:pl-20">
         <div className="mx-auto w-full max-w-3xl">
           <Routes>
