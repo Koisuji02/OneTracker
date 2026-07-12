@@ -93,12 +93,17 @@ npm run smoke      # E2E smoke test (dev server must be running)
 
 ## Android (Capacitor)
 
-Requires Android Studio (or at least the Android SDK + JDK).
+Requires JDK 17+ and the Android SDK (Android Studio optional).
 
 ```bash
+npm run android:apk    # build web assets + sync + assemble the debug APK
 npm run android:sync   # build web assets + sync into android/
 npm run android:open   # …and open the project in Android Studio
 ```
+
+The APK lands in `android/app/build/outputs/apk/debug/app-debug.apk`.
+See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for how API keys are baked/overridden
+and how to share the app with other people.
 
 Quick alternatives to test the mobile experience:
 - **Browser responsive mode** (F12 → device toolbar / Ctrl+Shift+M in Firefox).
