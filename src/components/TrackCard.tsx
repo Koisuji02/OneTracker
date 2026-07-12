@@ -16,6 +16,8 @@ interface TrackCardProps {
   progress?: number | null
   onClick: () => void
   onCheck?: () => void
+  /** replaces the check icon with text (e.g. "x2" for rewatch rounds) */
+  checkContent?: string
 }
 
 export default function TrackCard({
@@ -27,6 +29,7 @@ export default function TrackCard({
   progress,
   onClick,
   onCheck,
+  checkContent,
 }: TrackCardProps) {
   return (
     <div
@@ -63,7 +66,21 @@ export default function TrackCard({
         )}
       </div>
 
-      {onCheck && <CheckButton onClick={onCheck} />}
+      {onCheck &&
+        (checkContent ? (
+          <button
+            aria-label="mark rewatched"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCheck()
+            }}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-accent bg-brand text-xs font-black text-black transition-all active:scale-90"
+          >
+            {checkContent}
+          </button>
+        ) : (
+          <CheckButton onClick={onCheck} />
+        ))}
     </div>
   )
 }

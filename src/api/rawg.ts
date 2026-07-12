@@ -29,12 +29,60 @@ export async function searchGames(query: string): Promise<SearchResult[]> {
   }))
 }
 
+/** Resolve an image URL by actually loading it (Steam CDN has no CORS, but <img> loads work). */
+function imageExists(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    const timer = setTimeout(() => resolve(false), 6000)
+    img.onload = () => {
+      clearTimeout(timer)
+      resolve(true)
+    }
+    img.onerror = () => {
+      clearTimeout(timer)
+      resolve(false)
+    }
+    img.src = url
+  })
+}
+
+/**
+ * RAWG's `background_image` is promo art without the title. When the game is
+ * on Steam we can get the REAL vertical box art (with logo, like Stash shows)
+ * from Steam's public CDN — keyless: parse the appid from the store URL.
+ */
+async function steamBoxArt(detail: any, id: string): Promise<string | null> {
+  try {
+    let steamUrl: string | null =
+      ((detail.stores ?? []) as any[]).find(
+        (s) => (s.store?.id === 1 || s.store?.slug === 'steam') && s.url,
+      )?.url ?? null
+    if (!steamUrl) {
+      const su = new URL(`${API}/games/${id}/stores`)
+      su.searchParams.set('key', key())
+      const res = await fetch(su.toString())
+      if (res.ok) {
+        const data = await res.json()
+        steamUrl =
+          ((data.results ?? []) as any[]).find((s) => s.store_id === 1 && s.url)?.url ?? null
+      }
+    }
+    const appId = steamUrl?.match(/\/app\/(\d+)/)?.[1]
+    if (!appId) return null
+    const cover = `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/library_600x900_2x.jpg`
+    return (await imageExists(cover)) ? cover : null
+  } catch {
+    return null
+  }
+}
+
 export async function gameDetails(id: string): Promise<MediaDetails> {
   const url = new URL(`${API}/games/${id}`)
   url.searchParams.set('key', key())
   const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
+  const boxArt = await steamBoxArt(d, id)
   return {
     id: `rawg:${id}`,
     provider: 'rawg',
@@ -42,7 +90,7 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
     mediaType: 'game',
     title: d.name,
     overview: d.description_raw || null,
-    poster: d.background_image ?? null,
+    poster: boxArt ?? d.background_image ?? null,
     backdrop: d.background_image_additional ?? d.background_image ?? null,
     year: d.released ? Number(String(d.released).slice(0, 4)) : null,
     genres: ((d.genres ?? []) as any[]).map((g) => g.name),
