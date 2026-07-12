@@ -54,20 +54,63 @@ function stripHtml(s: string | null | undefined): string | null {
     .trim()
 }
 
+/**
+ * Manga has its own tab (AniList/MangaDex) — keep the Comics row for western
+ * comics by filtering out volumes from manga-focused publishers.
+ */
+const MANGA_PUBLISHERS =
+  /shueisha|kodansha|shogakukan|kadokawa|viz|seven seas|yen press|tokyopop|vertical|square enix manga|j-novel/i
+
 export async function searchComics(query: string): Promise<SearchResult[]> {
   const url =
-    `${API}/search/?api_key=${key()}&resources=volume&limit=14` +
-    `&query=${encodeURIComponent(query)}&field_list=id,name,image,start_year,count_of_issues`
+    `${API}/search/?api_key=${key()}&resources=volume&limit=20` +
+    `&query=${encodeURIComponent(query)}&field_list=id,name,image,start_year,count_of_issues,publisher`
   const data = await jsonp(url)
   if (data.status_code !== 1) throw new Error(`Comic Vine error ${data.status_code}`)
-  return ((data.results ?? []) as any[]).map((v) => ({
-    provider: 'comicvine' as const,
-    providerId: String(v.id),
-    mediaType: 'manga' as const, // chapter-tracked, lives in the Books tab
-    title: v.name,
-    year: v.start_year ? Number(v.start_year) : null,
-    poster: v.image?.medium_url ?? null,
-  }))
+  return ((data.results ?? []) as any[])
+    .filter((v) => !MANGA_PUBLISHERS.test(v.publisher?.name ?? ''))
+    .slice(0, 14)
+    .map((v) => ({
+      provider: 'comicvine' as const,
+      providerId: String(v.id),
+      mediaType: 'manga' as const, // chapter-tracked, lives in the Books tab
+      title: v.name,
+      year: v.start_year ? Number(v.start_year) : null,
+      poster: v.image?.medium_url ?? null,
+    }))
+}
+
+/**
+ * Real issue titles for a volume ("Chapter N" fallback when untitled).
+ * Paginated 100 per request, capped at 500 issues.
+ */
+export async function comicvineIssueTitles(
+  volumeId: string,
+  count: number,
+): Promise<Map<number, string>> {
+  const titles = new Map<number, string>()
+  try {
+    const pages = Math.min(Math.ceil(Math.max(count, 1) / 100), 5)
+    for (let p = 0; p < pages; p++) {
+      const url =
+        `${API}/issues/?api_key=${key()}&filter=volume:${volumeId}` +
+        `&field_list=issue_number,name&sort=issue_number:asc&limit=100&offset=${p * 100}`
+      const data = await jsonp(url)
+      if (data.status_code !== 1) break
+      const results = (data.results ?? []) as any[]
+      for (const issue of results) {
+        const n = Number.parseFloat(issue.issue_number)
+        const name = (issue.name as string | null)?.trim()
+        if (Number.isFinite(n) && n > 0 && name && !titles.has(Math.floor(n))) {
+          titles.set(Math.floor(n), name)
+        }
+      }
+      if (results.length < 100) break
+    }
+  } catch {
+    // best-effort (including missing API key)
+  }
+  return titles
 }
 
 export async function comicDetails(id: string): Promise<MediaDetails> {

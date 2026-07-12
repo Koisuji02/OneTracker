@@ -13,17 +13,32 @@
  * For ongoing manga, chapter counts come from MangaDex (see mangadex.ts).
  */
 import type { MediaDetails, SearchResult, Season } from '../types'
-import { mangadexLatest } from './mangadex'
+import { mangadexFind, mangadexLatest } from './mangadex'
 import { anilistRating, malRating } from './ratings'
 
 const API = 'https://graphql.anilist.co'
 
-async function gql(query: string, variables: Record<string, unknown>): Promise<any> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/**
+ * GraphQL client with 429 backoff: AniList rate-limits aggressively
+ * (~30 req/min) and season-chain walks fire several queries in a row.
+ */
+async function gql(
+  query: string,
+  variables: Record<string, unknown>,
+  attempt = 0,
+): Promise<any> {
   const res = await fetch(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ query, variables }),
   })
+  if (res.status === 429 && attempt < 4) {
+    const retryAfter = Number(res.headers.get('retry-after'))
+    await sleep(Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : (attempt + 1) * 1500)
+    return gql(query, variables, attempt + 1)
+  }
   if (!res.ok) throw new Error(`AniList error ${res.status}`)
   const json = await res.json()
   if (json.errors?.length) throw new Error(json.errors[0].message)
@@ -81,6 +96,7 @@ export function searchManga(q: string): Promise<SearchResult[]> {
 /** Lightweight node used to walk the PREQUEL/SEQUEL chain. */
 interface ChainNode {
   id: number
+  idMal: number | null
   format: string | null
   status: string | null
   episodes: number | null
@@ -94,6 +110,7 @@ const NODE_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
     id
+    idMal
     format
     status
     episodes
@@ -237,6 +254,7 @@ async function animeDetails(id: string): Promise<MediaDetails> {
       name: pickTitle(n.title),
       episodeCount: airedEpisodesOf(n),
       poster: null,
+      malId: n.idMal ?? null,
     }))
     .filter((s) => s.episodeCount > 0)
 
@@ -275,11 +293,13 @@ async function mangaDetails(id: string): Promise<MediaDetails> {
   const m = (await gql(FULL_QUERY, { id: Number(id), type: 'MANGA' })).Media
   const ongoing = m.status === 'RELEASING'
 
-  // AniList doesn't know chapter counts of ongoing manga — ask MangaDex.
+  // MangaDex enrichment: id (chapter titles) always; released-chapter count
+  // and latest date only when the work is still releasing.
+  const mangadexId = await mangadexFind(id, m.title?.romaji ?? m.title?.english ?? '')
   let chapters: number | null = m.chapters ?? null
   let lastReleaseDate: string | null = null
-  if (ongoing) {
-    const md = await mangadexLatest(id, m.title?.romaji ?? m.title?.english ?? '')
+  if (ongoing && mangadexId) {
+    const md = await mangadexLatest(mangadexId)
     if (md) {
       chapters = Math.max(md.latestChapter, chapters ?? 0)
       lastReleaseDate = md.latestChapterDate
@@ -303,6 +323,7 @@ async function mangaDetails(id: string): Promise<MediaDetails> {
     seasons: [],
     ongoing,
     lastReleaseDate,
+    mangadexId,
     cast: mapCharacters(m),
     airStatus: m.status ?? null,
     externalRatings: [

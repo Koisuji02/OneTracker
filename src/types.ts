@@ -15,6 +15,8 @@ export interface Season {
   name?: string
   episodeCount: number
   poster?: string | null
+  /** AniList season chains: MyAnimeList id of this season (for episode titles) */
+  malId?: number | null
 }
 
 export interface EpisodeInfo {
@@ -62,6 +64,8 @@ export interface MediaBase {
   nextReleaseDate?: string | null
   /** manga: publish date of the latest released chapter (ISO) */
   lastReleaseDate?: string | null
+  /** manga: MangaDex id, used for chapter titles */
+  mangadexId?: string | null
 }
 
 export interface MediaDetails extends MediaBase {
@@ -109,6 +113,8 @@ export interface WatchList {
   color: string
   itemIds: string[]
   createdAt: number
+  /** last content change — the profile preview shows the most recent list */
+  updatedAt?: number
 }
 
 export interface SearchResult {

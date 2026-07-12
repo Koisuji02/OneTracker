@@ -386,6 +386,42 @@ export async function rewatchUpTo(item: LibraryItem, season: number, episode: nu
   await recomputeStatus(item.id)
 }
 
+/** Mark/unmark a contiguous chapter range (the "Mark all" button on 100-blocks). */
+export async function setRangeWatched(
+  item: LibraryItem,
+  season: number,
+  from: number,
+  to: number,
+  watched: boolean,
+): Promise<void> {
+  if (watched) {
+    const existing = new Set(
+      (await db.episodes.where('itemId').equals(item.id).toArray()).map((e) => e.id),
+    )
+    const now = Date.now()
+    const rows: WatchedEpisode[] = []
+    for (let e = from; e <= to; e++) {
+      const key = epKey(item.id, season, e)
+      if (existing.has(key)) continue
+      rows.push({
+        id: key,
+        itemId: item.id,
+        season,
+        episode: e,
+        watchedAt: now,
+        runtime: item.mediaType === 'manga' ? null : (item.episodeRuntime ?? defaultEpisodeRuntime(item.mediaType)),
+        count: 1,
+      })
+    }
+    if (rows.length > 0) await db.episodes.bulkPut(rows)
+  } else {
+    const keys: string[] = []
+    for (let e = from; e <= to; e++) keys.push(epKey(item.id, season, e))
+    await db.episodes.bulkDelete(keys)
+  }
+  await recomputeStatus(item.id)
+}
+
 /** Mark/unmark a whole season (used by the "Mark all" season button). */
 export async function setSeasonWatched(
   item: LibraryItem,
@@ -475,6 +511,7 @@ export async function createList(name: string, color: string): Promise<WatchList
     color,
     itemIds: [],
     createdAt: Date.now(),
+    updatedAt: Date.now(),
   }
   await db.lists.put(list)
   return list
@@ -490,7 +527,7 @@ export async function toggleListItem(listId: string, itemId: string): Promise<vo
   const itemIds = list.itemIds.includes(itemId)
     ? list.itemIds.filter((x) => x !== itemId)
     : [...list.itemIds, itemId]
-  await db.lists.update(listId, { itemIds })
+  await db.lists.update(listId, { itemIds, updatedAt: Date.now() })
 }
 
 // ------------------------------------------------------------------ stats

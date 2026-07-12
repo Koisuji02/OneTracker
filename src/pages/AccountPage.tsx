@@ -16,7 +16,6 @@ import {
   Pencil,
   Plus,
   Settings,
-  Sparkles,
   Tv,
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
@@ -97,7 +96,10 @@ export default function AccountPage() {
   const catBooks = started.filter((i) => i.mediaType === 'book' || i.mediaType === 'manga')
   const catGames = started.filter((i) => i.mediaType === 'game')
   const favoritesCount = items.filter((i) => i.favorite).length
-  const firstList = lists[0]
+  // the profile preview shows the most recently modified list
+  const firstList = [...lists].sort(
+    (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt),
+  )[0]
 
   const saveName = () => {
     updateSettings({ profileName: nameDraft.trim() })
@@ -105,8 +107,12 @@ export default function AccountPage() {
   }
 
   const timeRows = [
-    { icon: <Tv size={18} />, label: t('account.tvTime'), value: formatWatchTime(stats.tvMin, t) },
-    { icon: <Sparkles size={18} />, label: t('account.animeTime'), value: formatWatchTime(stats.animeMin, t) },
+    // TV + anime merged under "Series" for now (both live in the Series tab)
+    {
+      icon: <Tv size={18} />,
+      label: t('nav.series'),
+      value: formatWatchTime(stats.tvMin + stats.animeMin, t),
+    },
     { icon: <Clapperboard size={18} />, label: t('account.movieTime'), value: formatWatchTime(stats.movieMin, t) },
     ...(settings.showGames
       ? [{ icon: <Gamepad2 size={18} />, label: t('account.gameTime'), value: formatWatchTime(stats.gameMin, t) }]

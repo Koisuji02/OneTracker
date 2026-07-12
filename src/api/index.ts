@@ -10,7 +10,9 @@
 import { getCachedEpisodes, putCachedEpisodes } from '../db'
 import type { EpisodeInfo, MediaBase, MediaDetails, MediaType, Provider } from '../types'
 import { anilistDetails } from './anilist'
-import { comicDetails } from './comicvine'
+import { comicDetails, comicvineIssueTitles } from './comicvine'
+import { jikanEpisodeTitles } from './jikan'
+import { mangadexChapterTitles } from './mangadex'
 import { bookDetails } from './openlibrary'
 import { gameDetails } from './rawg'
 import { movieDetails, seasonEpisodes, tvDetails } from './tmdb'
@@ -43,12 +45,16 @@ export function getDetails(
 
 /**
  * Episode list for one season, cached in IndexedDB for 7 days.
- * TMDB has real per-episode data; AniList/Comic Vine units are generated
- * as numbered episodes/chapters from the season's count.
+ * TMDB has real per-episode data. AniList anime titles come from Jikan/MAL
+ * (per-season malId), manga chapter titles from MangaDex — all best-effort,
+ * falling back to numbered "Episode N" / "Ch. N" units.
  */
 export async function getEpisodes(item: MediaBase, season: number): Promise<EpisodeInfo[]> {
   const cached = await getCachedEpisodes(item.id, season)
-  if (cached && cached.length > 0) return cached
+  // generated lists cached before title support (all-untitled) get one retry
+  const cacheOk =
+    cached && cached.length > 0 && (item.provider === 'tmdb' || cached.some((e) => e.title))
+  if (cacheOk) return cached
 
   let episodes: EpisodeInfo[] = []
   if (item.provider === 'tmdb') {
@@ -56,13 +62,21 @@ export async function getEpisodes(item: MediaBase, season: number): Promise<Epis
   } else {
     const s = item.seasons?.find((x) => x.number === season)
     const count = s?.episodeCount ?? item.totalEpisodes ?? 0
+    let titles = new Map<number, string>()
+    if (item.mediaType === 'anime' && s?.malId) {
+      titles = await jikanEpisodeTitles(s.malId, count)
+    } else if (item.mediaType === 'manga' && item.provider === 'comicvine') {
+      titles = await comicvineIssueTitles(item.providerId, count)
+    } else if (item.mediaType === 'manga' && item.mangadexId) {
+      titles = await mangadexChapterTitles(item.mangadexId)
+    }
     episodes = Array.from({ length: count }, (_, i) => ({
       season,
       episode: i + 1,
-      title: null,
+      title: titles.get(i + 1) ?? null,
       runtime: item.episodeRuntime ?? null,
     }))
   }
   if (episodes.length > 0) await putCachedEpisodes(item.id, season, episodes)
-  return episodes
+  return episodes ?? []
 }
