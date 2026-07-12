@@ -2,6 +2,7 @@ import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
 import { ApiKeyMissingError } from './errors'
 import { rawgRatings } from './ratings'
+import { steamGridCover } from './steamgriddb'
 
 const API = 'https://api.rawg.io/api'
 
@@ -82,7 +83,9 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
   const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
-  const boxArt = await steamBoxArt(d, id)
+  // box art priority: SteamGridDB (all platforms, has the title/logo)
+  // → Steam CDN vertical capsule → RAWG promo art
+  const boxArt = (await steamGridCover(d.name)) ?? (await steamBoxArt(d, id))
   return {
     id: `rawg:${id}`,
     provider: 'rawg',
@@ -92,6 +95,9 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
     overview: d.description_raw || null,
     poster: boxArt ?? d.background_image ?? null,
     backdrop: d.background_image_additional ?? d.background_image ?? null,
+    platforms: ((d.parent_platforms ?? []) as any[])
+      .map((p) => p.platform?.slug as string)
+      .filter(Boolean),
     year: d.released ? Number(String(d.released).slice(0, 4)) : null,
     genres: ((d.genres ?? []) as any[]).map((g) => g.name),
     playtime: (d.playtime as number | undefined) || null,

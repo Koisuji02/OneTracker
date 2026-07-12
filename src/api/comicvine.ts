@@ -8,6 +8,7 @@
  */
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
+import { mangaTitleKeys, normalizeTitle } from './anilist'
 import { ApiKeyMissingError } from './errors'
 
 const API = 'https://comicvine.gamespot.com/api'
@@ -56,19 +57,27 @@ function stripHtml(s: string | null | undefined): string | null {
 
 /**
  * Manga has its own tab (AniList/MangaDex) — keep the Comics row for western
- * comics by filtering out volumes from manga-focused publishers.
+ * comics with a two-layer filter:
+ * 1. manga-focused publishers blacklist (incl. Italian/EU manga imprints)
+ * 2. cross-check against AniList: a volume whose title matches a manga
+ *    result for the same query is dropped. The AniList response is memoized,
+ *    so this costs nothing extra when the Manga row already searched it.
  */
 const MANGA_PUBLISHERS =
-  /shueisha|kodansha|shogakukan|kadokawa|viz|seven seas|yen press|tokyopop|vertical|square enix manga|j-novel/i
+  /shueisha|kodansha|shogakukan|kadokawa|\bviz\b|viz media|seven seas|yen press|tokyopop|vertical|square enix manga|j-novel|j-pop|planet manga|panini manga|star comics|carlsen|glenat|glénat|egmont manga|ivrea|norma editorial/i
 
 export async function searchComics(query: string): Promise<SearchResult[]> {
   const url =
-    `${API}/search/?api_key=${key()}&resources=volume&limit=20` +
+    `${API}/search/?api_key=${key()}&resources=volume&limit=25` +
     `&query=${encodeURIComponent(query)}&field_list=id,name,image,start_year,count_of_issues,publisher`
-  const data = await jsonp(url)
+  const [data, mangaTitles] = await Promise.all([jsonp(url), mangaTitleKeys(query)])
   if (data.status_code !== 1) throw new Error(`Comic Vine error ${data.status_code}`)
   return ((data.results ?? []) as any[])
-    .filter((v) => !MANGA_PUBLISHERS.test(v.publisher?.name ?? ''))
+    .filter(
+      (v) =>
+        !MANGA_PUBLISHERS.test(v.publisher?.name ?? '') &&
+        !mangaTitles.has(normalizeTitle(v.name ?? '')),
+    )
     .slice(0, 14)
     .map((v) => ({
       provider: 'comicvine' as const,

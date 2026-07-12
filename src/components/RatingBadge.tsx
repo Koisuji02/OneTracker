@@ -54,13 +54,14 @@ function Trophy({ value, tier, size }: { value: string; tier: Exclude<Tier, 'pla
       {/* stem + base */}
       <path d="M17.5 26 H22.5 V31 H17.5 Z" fill={`url(#${gid})`} />
       <rect x="11" y="31" width="18" height="5" rx="1.5" fill={`url(#${gid})`} />
-      {/* number inside the cup */}
+      {/* number inside the cup — sized so it renders as large as the
+          plain-circle number even though the trophy shape is bigger */}
       <text
         x="20"
         y="14"
         textAnchor="middle"
         dominantBaseline="middle"
-        fontSize={value.length > 2 ? 10.5 : 12}
+        fontSize={value.length > 2 ? 12 : 13.5}
         fontWeight="900"
         fill="#ffffff"
         stroke="rgba(0,0,0,0.45)"
@@ -89,7 +90,7 @@ export default function RatingBadge({
       <span
         className={cn(
           'grid shrink-0 place-items-center rounded-full bg-white font-black leading-none text-black shadow-lg',
-          size === 'sm' ? 'h-6 w-6 text-[10px]' : 'h-9 w-9 text-sm',
+          size === 'sm' ? 'h-7 w-7 text-[11px]' : 'h-9 w-9 text-sm',
         )}
         style={{ fontVariantNumeric: 'tabular-nums' }}
       >
@@ -98,5 +99,7 @@ export default function RatingBadge({
     )
   }
 
-  return <Trophy value={label} tier={tier} size={size === 'sm' ? 26 : 38} />
+  // the trophy silhouette is larger than the circle so the number inside
+  // stays as readable as the plain badge's
+  return <Trophy value={label} tier={tier} size={size === 'sm' ? 36 : 46} />
 }

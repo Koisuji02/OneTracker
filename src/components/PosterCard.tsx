@@ -14,6 +14,8 @@ interface PosterCardProps {
   rating?: number | null
   /** bottom-left status: hourglass = in progress / still releasing, flag = fully done */
   statusKind?: 'ongoing' | 'done' | null
+  /** lg = wider cover, used where rating/status badges are shown */
+  size?: 'md' | 'lg'
   className?: string
 }
 
@@ -26,10 +28,18 @@ export default function PosterCard({
   onAdd,
   rating,
   statusKind,
+  size = 'md',
   className,
 }: PosterCardProps) {
   return (
-    <div className={cn('w-28 shrink-0 cursor-pointer select-none', className)} onClick={onClick}>
+    <div
+      className={cn(
+        'shrink-0 cursor-pointer select-none',
+        size === 'lg' ? 'w-36' : 'w-28',
+        className,
+      )}
+      onClick={onClick}
+    >
       <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-line bg-card2">
         {poster ? (
           <img
@@ -66,8 +76,8 @@ export default function PosterCard({
           </span>
         )}
         {statusKind && (
-          <span className="absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-full bg-white text-black shadow-lg">
-            {statusKind === 'done' ? <Flag size={12} strokeWidth={2.5} /> : <Hourglass size={12} strokeWidth={2.5} />}
+          <span className="absolute bottom-1.5 left-1.5 grid h-7 w-7 place-items-center rounded-full bg-white text-black shadow-lg">
+            {statusKind === 'done' ? <Flag size={14} strokeWidth={2.5} /> : <Hourglass size={14} strokeWidth={2.5} />}
           </span>
         )}
       </div>

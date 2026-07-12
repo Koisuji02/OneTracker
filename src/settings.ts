@@ -15,6 +15,7 @@ export interface Settings {
   rawgKey: string
   omdbKey: string
   comicvineKey: string
+  steamgriddbKey: string
   /** avatar: null = default icon · `emoji:<char>:<bg>` preset · otherwise an image URL/dataURL */
   avatar: string | null
   googleClientId: string
@@ -35,6 +36,7 @@ const defaults: Settings = {
   rawgKey: (import.meta.env.VITE_RAWG_KEY as string) ?? '',
   omdbKey: (import.meta.env.VITE_OMDB_KEY as string) ?? '',
   comicvineKey: (import.meta.env.VITE_COMICVINE_KEY as string) ?? '',
+  steamgriddbKey: (import.meta.env.VITE_STEAMGRIDDB_KEY as string) ?? '',
   avatar: null,
   googleClientId: (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ?? '',
   googleEmail: null,
@@ -43,7 +45,14 @@ const defaults: Settings = {
 }
 
 /** API-key fields where a baked-in .env value acts as fallback default. */
-const KEY_FIELDS = ['tmdbKey', 'rawgKey', 'omdbKey', 'comicvineKey', 'googleClientId'] as const
+const KEY_FIELDS = [
+  'tmdbKey',
+  'rawgKey',
+  'omdbKey',
+  'comicvineKey',
+  'steamgriddbKey',
+  'googleClientId',
+] as const
 
 function load(): Settings {
   try {
