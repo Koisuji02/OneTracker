@@ -52,6 +52,7 @@ function CatalogRow({
         items.map((i) => (
           <PosterCard
             key={i.id}
+            size="lg"
             title={i.title}
             poster={i.poster}
             year={i.year}

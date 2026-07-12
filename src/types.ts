@@ -66,6 +66,8 @@ export interface MediaBase {
   lastReleaseDate?: string | null
   /** manga: MangaDex id, used for chapter titles */
   mangadexId?: string | null
+  /** games: RAWG parent-platform slugs (pc, playstation, xbox, nintendo…) */
+  platforms?: string[]
 }
 
 export interface MediaDetails extends MediaBase {

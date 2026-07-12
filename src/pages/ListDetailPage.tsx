@@ -70,7 +70,7 @@ export default function ListDetailPage() {
           <EmptyState icon={<Plus size={32} />} text={t('lists.emptyList')} />
         </button>
       ) : (
-        <div className="grid grid-cols-3 gap-3 px-4 sm:grid-cols-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 px-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {inList.map(
             (i) =>
               i && (

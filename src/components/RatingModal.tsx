@@ -1,16 +1,22 @@
+import { Minus, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { useT } from '../i18n'
 import RatingBadge from './RatingBadge'
 
-/** Emoji face matching the slider value. */
+/** Emoji face matching the slider value — one expression per ~point. */
 function faceFor(v: number): string {
   if (v >= 10) return '💎'
-  if (v >= 8.5) return '🤩'
-  if (v >= 7) return '😄'
+  if (v >= 9.5) return '🤩'
+  if (v >= 8.5) return '😍'
+  if (v >= 7.5) return '😄'
+  if (v >= 6.5) return '😊'
   if (v >= 5.5) return '🙂'
-  if (v >= 4) return '😐'
-  if (v >= 2) return '😞'
-  return '😡'
+  if (v >= 4.5) return '😐'
+  if (v >= 3.5) return '😕'
+  if (v >= 2.5) return '🙁'
+  if (v >= 1.5) return '😞'
+  if (v >= 0.5) return '😡'
+  return '🤬'
 }
 
 interface RatingModalProps {
@@ -21,10 +27,13 @@ interface RatingModalProps {
   onClose: () => void
 }
 
-/** 0–10 slider (one decimal) with a reactive emoji face. */
+/** 0–10 slider (one decimal) with ±0.1 steppers and a reactive emoji face. */
 export default function RatingModal({ title, initial, onSave, onRemove, onClose }: RatingModalProps) {
   const t = useT()
   const [value, setValue] = useState(initial ?? 7)
+
+  const bump = (delta: number) =>
+    setValue((v) => Math.round(Math.min(10, Math.max(0, v + delta)) * 10) / 10)
 
   return (
     <div
@@ -40,8 +49,23 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
         </div>
         <div className="truncate text-center text-base font-bold">{title}</div>
 
-        <div className="mt-5 flex items-center gap-4">
-          <span className="w-12 text-center text-4xl">{faceFor(value)}</span>
+        <div className="mt-5 flex items-center gap-3">
+          <div className="flex shrink-0 flex-col gap-1.5">
+            <button
+              aria-label="+0.1"
+              onClick={() => bump(0.1)}
+              className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
+            >
+              <Plus size={14} strokeWidth={3} />
+            </button>
+            <button
+              aria-label="-0.1"
+              onClick={() => bump(-0.1)}
+              className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
+            >
+              <Minus size={14} strokeWidth={3} />
+            </button>
+          </div>
           <input
             type="range"
             min={0}
@@ -49,9 +73,12 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
             step={0.1}
             value={value}
             onChange={(e) => setValue(Number(e.target.value))}
-            className="flex-1 accent-[var(--brand)]"
+            className="min-w-0 flex-1 accent-[var(--brand)]"
           />
-          <RatingBadge value={value} size="md" />
+          <span className="shrink-0 text-3xl leading-none">{faceFor(value)}</span>
+          <span className="shrink-0">
+            <RatingBadge value={value} size="md" />
+          </span>
         </div>
 
         <div className="mt-6 flex flex-col gap-2.5">

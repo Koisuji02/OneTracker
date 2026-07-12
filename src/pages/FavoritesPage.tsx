@@ -17,7 +17,7 @@ function FavSection({ title, items }: { title: string; items: LibraryItem[] }) {
         <span className="h-4 w-1 rounded-full bg-brand" />
         <h2 className="text-lg font-bold">{title}</h2>
       </div>
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
         {items.map((i) => (
           <PosterCard
             key={i.id}

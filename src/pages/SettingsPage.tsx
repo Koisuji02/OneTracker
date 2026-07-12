@@ -273,13 +273,22 @@ export default function SettingsPage() {
           placeholder="abc12345"
         />
         {settings.showGames && (
-          <InputRow
-            label={t('settings.rawgKey')}
-            hint={t('settings.rawgHint')}
-            value={settings.rawgKey}
-            onChange={(v) => updateSettings({ rawgKey: v })}
-            placeholder="0123456789abcdef…"
-          />
+          <>
+            <InputRow
+              label={t('settings.rawgKey')}
+              hint={t('settings.rawgHint')}
+              value={settings.rawgKey}
+              onChange={(v) => updateSettings({ rawgKey: v })}
+              placeholder="0123456789abcdef…"
+            />
+            <InputRow
+              label={t('settings.sgdbKey')}
+              hint={t('settings.sgdbHint')}
+              value={settings.steamgriddbKey}
+              onChange={(v) => updateSettings({ steamgriddbKey: v })}
+              placeholder="0123456789abcdef…"
+            />
+          </>
         )}
         {settings.showBooks && (
           <InputRow

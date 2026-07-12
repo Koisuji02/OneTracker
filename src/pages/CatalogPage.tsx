@@ -72,7 +72,7 @@ export default function CatalogPage() {
       {list.length === 0 ? (
         <EmptyState icon={def.icon} text={t('account.emptyRow')} />
       ) : (
-        <div className="grid grid-cols-3 gap-3 px-4 sm:grid-cols-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 px-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {list.map((i) => (
             <PosterCard
               key={i.id}

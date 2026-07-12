@@ -30,6 +30,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiKeyMissingError, getDetails, getEpisodes } from '../api'
 import CheckButton from '../components/CheckButton'
+import PlatformChips from '../components/PlatformChips'
 import RatingBadge from '../components/RatingBadge'
 import RatingModal from '../components/RatingModal'
 import RewatchDialog from '../components/RewatchDialog'
@@ -669,6 +670,9 @@ export default function DetailPage() {
           <Heart size={18} fill={libItem?.favorite ? 'currentColor' : 'none'} />
         </button>
       </div>
+
+      {/* game platforms */}
+      {isGame && <PlatformChips slugs={meta.platforms} className="mt-4 px-4" />}
 
       {/* critic ratings */}
       {details?.externalRatings && <RatingsBanners list={details.externalRatings} />}

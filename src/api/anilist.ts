@@ -71,9 +71,24 @@ query ($q: String, $type: MediaType) {
   }
 }`
 
-async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[]> {
+/** Raw search results, memoized 60s — shared by the Manga row and the
+ *  Comics cross-filter so the same query costs one AniList request. */
+const searchCache = new Map<string, { at: number; media: any[] }>()
+
+async function searchMedia(q: string, type: 'ANIME' | 'MANGA'): Promise<any[]> {
+  const cacheKey = `${type}:${q.trim().toLowerCase()}`
+  const hit = searchCache.get(cacheKey)
+  if (hit && Date.now() - hit.at < 60_000) return hit.media
   const data = await gql(SEARCH_QUERY, { q, type })
-  return (data.Page.media as any[]).map((m) => ({
+  const media = data.Page.media as any[]
+  searchCache.set(cacheKey, { at: Date.now(), media })
+  if (searchCache.size > 30) searchCache.delete(searchCache.keys().next().value as string)
+  return media
+}
+
+async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[]> {
+  const media = await searchMedia(q, type)
+  return media.map((m) => ({
     provider: 'anilist' as const,
     providerId: String(m.id),
     mediaType: type === 'ANIME' ? ('anime' as const) : ('manga' as const),
@@ -82,6 +97,34 @@ async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[
     poster: m.coverImage?.large ?? null,
   }))
 }
+
+function normalizeTitle(t: string): string {
+  return t
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+}
+
+/** Normalized titles (romaji + english) of manga matching a query —
+ *  used to keep manga out of the Comics search row. */
+export async function mangaTitleKeys(q: string): Promise<Set<string>> {
+  try {
+    const media = await searchMedia(q, 'MANGA')
+    const keys = new Set<string>()
+    for (const m of media) {
+      for (const t of [m.title?.romaji, m.title?.english]) {
+        if (t) keys.add(normalizeTitle(t))
+      }
+    }
+    return keys
+  } catch {
+    return new Set()
+  }
+}
+
+export { normalizeTitle }
 
 export function searchAnime(q: string): Promise<SearchResult[]> {
   return search(q, 'ANIME')
