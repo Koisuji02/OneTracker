@@ -42,11 +42,20 @@ const defaults: Settings = {
   googlePicture: null,
 }
 
+/** API-key fields where a baked-in .env value acts as fallback default. */
+const KEY_FIELDS = ['tmdbKey', 'rawgKey', 'omdbKey', 'comicvineKey', 'googleClientId'] as const
+
 function load(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...defaults }
-    return { ...defaults, ...(JSON.parse(raw) as Partial<Settings>) }
+    const merged = { ...defaults, ...(JSON.parse(raw) as Partial<Settings>) }
+    // build-time keys (.env → bundle) win over EMPTY stored fields, so an APK
+    // built with keys works out of the box while users can still override them
+    for (const k of KEY_FIELDS) {
+      if (!merged[k] && defaults[k]) merged[k] = defaults[k]
+    }
+    return merged
   } catch {
     return { ...defaults }
   }

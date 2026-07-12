@@ -6,10 +6,17 @@ import { getEpisodes } from '../api'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import TrackCard from '../components/TrackCard'
-import { computeNextEpisode, db, markUpTo, totalEpisodesOf } from '../db'
+import {
+  computeNextEpisode,
+  computeNextRewatch,
+  db,
+  markRewatchUnit,
+  markUpTo,
+  totalEpisodesOf,
+} from '../db'
 import { useT } from '../i18n'
 import { useSettings } from '../settings'
-import type { EpisodeInfo, LibraryItem } from '../types'
+import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
 import { formatDate, seasonEpisodeLabel } from '../util'
 
 function ShowCard({
@@ -81,6 +88,51 @@ function ShowCard({
   )
 }
 
+/**
+ * A completed series being rewatched stays in "Continue watching": the button
+ * shows the rewatch grade (x2, x3…) instead of the check, and each tap marks
+ * the next episode of the round at that grade.
+ */
+function RewatchCard({
+  item,
+  next,
+}: {
+  item: LibraryItem
+  next: { season: number; episode: number; grade: number; done: number }
+}) {
+  const t = useT()
+  const nav = useNavigate()
+  const [epInfo, setEpInfo] = useState<EpisodeInfo | null>(null)
+
+  useEffect(() => {
+    let alive = true
+    getEpisodes(item, next.season)
+      .then((eps) => {
+        if (alive) setEpInfo(eps.find((e) => e.episode === next.episode) ?? null)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [item.id, next.season, next.episode])
+
+  const total = totalEpisodesOf(item)
+
+  return (
+    <TrackCard
+      poster={item.poster}
+      topLabel={item.title}
+      title={seasonEpisodeLabel(next.season, next.episode)}
+      badge={`x${next.grade}`}
+      subtitle={epInfo?.title ?? `${t('detail.episode')} ${next.episode}`}
+      progress={total ? next.done / total : null}
+      onClick={() => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`)}
+      onCheck={() => markRewatchUnit(item, next.season, next.episode, next.grade)}
+      checkContent={`x${next.grade}`}
+    />
+  )
+}
+
 function SectionTitle({ text }: { text: string }) {
   return (
     <div className="mb-3 flex items-center gap-2">
@@ -100,14 +152,24 @@ export default function SeriesPage() {
   const watchedKeys = new Set(eps.map((e) => e.id))
   const counts = new Map<string, number>()
   const lastWatched = new Map<string, number>()
+  const epsByItem = new Map<string, WatchedEpisode[]>()
   for (const e of eps) {
     counts.set(e.itemId, (counts.get(e.itemId) ?? 0) + 1)
     lastWatched.set(e.itemId, Math.max(lastWatched.get(e.itemId) ?? 0, e.watchedAt))
+    const list = epsByItem.get(e.itemId)
+    if (list) list.push(e)
+    else epsByItem.set(e.itemId, [e])
   }
 
   const watching = items
     .filter((i) => i.status === 'watching')
     .sort((a, b) => (lastWatched.get(b.id) ?? 0) - (lastWatched.get(a.id) ?? 0))
+  // completed series with an unfinished rewatch round stay in "Continue"
+  const rewatching = items
+    .filter((i) => i.status === 'completed')
+    .map((item) => ({ item, next: computeNextRewatch(item, epsByItem.get(item.id) ?? []) }))
+    .filter((x): x is { item: LibraryItem; next: NonNullable<ReturnType<typeof computeNextRewatch>> } => x.next != null)
+    .sort((a, b) => (lastWatched.get(b.item.id) ?? 0) - (lastWatched.get(a.item.id) ?? 0))
   const planned = items
     .filter((i) => i.status === 'planned')
     .sort((a, b) => b.addedAt - a.addedAt)
@@ -118,7 +180,7 @@ export default function SeriesPage() {
 
       <section className="px-4">
         <SectionTitle text={t('series.continue')} />
-        {watching.length === 0 ? (
+        {watching.length === 0 && rewatching.length === 0 ? (
           <EmptyState icon={<Tv size={32} />} text={t('series.emptyContinue')} />
         ) : (
           <div className="space-y-3">
@@ -130,6 +192,9 @@ export default function SeriesPage() {
                 watchedCount={counts.get(item.id) ?? 0}
                 showProgress
               />
+            ))}
+            {rewatching.map(({ item, next }) => (
+              <RewatchCard key={`rw-${item.id}`} item={item} next={next} />
             ))}
           </div>
         )}

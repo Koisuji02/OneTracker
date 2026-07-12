@@ -160,6 +160,55 @@ export function isCaughtUp(item: LibraryItem, watchedCount: number): boolean {
   return !!item.ongoing && total != null && watchedCount >= total
 }
 
+/**
+ * Active rewatch round of a completed work: the highest grade reached (g)
+ * defines the round; the next unit to (re)watch is the first one still below
+ * g. Returns null when no rewatch was started or the round is finished.
+ */
+export function computeNextRewatch(
+  item: LibraryItem,
+  episodes: WatchedEpisode[],
+): { season: number; episode: number; grade: number; done: number } | null {
+  if (episodes.length === 0) return null
+  const grade = Math.max(...episodes.map((e) => e.count ?? 1))
+  if (grade < 2) return null
+  const byKey = new Map(episodes.map((e) => [e.id, e]))
+  let done = 0
+  let next: { season: number; episode: number } | null = null
+  for (const s of seasonsOf(item)) {
+    for (let e = 1; e <= s.episodeCount; e++) {
+      const row = byKey.get(epKey(item.id, s.number, e))
+      if (row && (row.count ?? 1) >= grade) done++
+      else if (!next) next = { season: s.number, episode: e }
+    }
+  }
+  return next ? { ...next, grade, done } : null
+}
+
+/** Mark one unit at the given rewatch grade (the xN button on Continue cards). */
+export async function markRewatchUnit(
+  item: LibraryItem,
+  season: number,
+  episode: number,
+  grade: number,
+): Promise<void> {
+  const key = epKey(item.id, season, episode)
+  const row = await db.episodes.get(key)
+  if (row) {
+    await db.episodes.update(key, { count: Math.max(row.count ?? 1, grade), watchedAt: Date.now() })
+  } else {
+    await db.episodes.put({
+      id: key,
+      itemId: item.id,
+      season,
+      episode,
+      watchedAt: Date.now(),
+      runtime: item.episodeRuntime ?? defaultEpisodeRuntime(item.mediaType),
+      count: grade,
+    })
+  }
+}
+
 // ------------------------------------------------------------ library CRUD
 
 /** Add a media item to the library with `planned` status (no-op if present). */
