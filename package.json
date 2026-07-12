@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "android:sync": "npm run build && cap sync android",
-    "android:open": "npm run android:sync && cap open android"
+    "android:open": "npm run android:sync && cap open android",
+    "android:apk": "npm run android:sync && cd android && gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.7",
