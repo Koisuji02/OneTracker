@@ -66,6 +66,7 @@ const en: Dict = {
   'rating.title': 'Your rating',
   'rating.add': 'Rate',
   'rating.remove': 'Remove rating',
+  'rating.mine': 'My rating',
   // lists
   'lists.title': 'Lists',
   'lists.new': 'New list',
@@ -248,6 +249,7 @@ const it: Dict = {
   'rating.title': 'Il tuo voto',
   'rating.add': 'Vota',
   'rating.remove': 'Rimuovi voto',
+  'rating.mine': 'Il mio voto',
   'lists.title': 'Liste',
   'lists.new': 'Nuova lista',
   'lists.name': 'Nome lista',

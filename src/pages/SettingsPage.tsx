@@ -171,7 +171,7 @@ export default function SettingsPage() {
 
   return (
     <div className="pb-10">
-      <header className="flex items-center gap-3 px-4 pb-2 pt-6">
+      <header className="flex items-center gap-3 px-4 pb-2 pt-safe">
         <button
           onClick={() => nav(-1)}
           aria-label="back"

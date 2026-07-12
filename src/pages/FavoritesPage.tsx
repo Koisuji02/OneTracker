@@ -26,6 +26,7 @@ function FavSection({ title, items }: { title: string; items: LibraryItem[] }) {
             poster={i.poster}
             year={i.year}
             rating={i.rating}
+            statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
             onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
           />
         ))}
@@ -52,7 +53,7 @@ export default function FavoritesPage() {
 
   return (
     <div className="pb-8">
-      <header className="flex items-center gap-3 px-4 pb-2 pt-6">
+      <header className="flex items-center gap-3 px-4 pb-2 pt-safe">
         <button
           onClick={() => nav(-1)}
           aria-label="back"

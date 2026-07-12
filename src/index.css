@@ -77,6 +77,21 @@ body {
   background: transparent;
 }
 
+/* Android/iOS safe areas: keep top-of-screen elements below the status bar.
+   --sat is 0 on desktop browsers, so these behave exactly like pt-6 / top-3. */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+}
+.pt-safe {
+  padding-top: calc(1.5rem + var(--sat));
+}
+.top-safe {
+  top: calc(0.75rem + var(--sat));
+}
+.top-safe-lg {
+  top: calc(1.5rem + var(--sat));
+}
+
 @keyframes fadeUp {
   from {
     opacity: 0;

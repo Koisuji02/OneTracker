@@ -30,7 +30,7 @@ export default function ListDetailPage() {
   return (
     <div className="pb-8">
       <header
-        className="flex items-center gap-3 px-4 pb-4 pt-6"
+        className="flex items-center gap-3 px-4 pb-4 pt-safe"
         style={{ background: `linear-gradient(180deg, ${list.color}33, transparent)` }}
       >
         <button
@@ -79,6 +79,7 @@ export default function ListDetailPage() {
                     poster={i.poster}
                     year={i.year}
                     rating={i.rating}
+                    statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
                     onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
                   />
                   <button

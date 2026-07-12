@@ -45,8 +45,12 @@ try {
   const posterCount = await animeSection.locator('img').count()
   if (posterCount > 0) ok(`anime search returned ${posterCount} posters`)
   else fail('anime search', 'no posters found')
-  if ((await page.getByText(/API key TMDB/).count()) > 0) ok('TMDB key-missing warning shown')
-  else fail('TMDB warning', 'warning not shown')
+  // with a baked TMDB key the row shows results; without it, the key warning
+  const tvSection = page.locator('section', { hasText: 'Serie TV' }).first()
+  const tvPosters = await tvSection.locator('img').count()
+  const tvWarning = await page.getByText(/API key TMDB/).count()
+  if (tvPosters > 0 || tvWarning > 0) ok(`tv row rendered (${tvPosters > 0 ? 'results' : 'key warning'})`)
+  else fail('tv row', 'neither results nor key warning')
 
   // 4. open first anime detail (chain-aggregated) + add + favorite
   await animeSection.locator('img').first().click()

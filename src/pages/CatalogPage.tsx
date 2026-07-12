@@ -56,7 +56,7 @@ export default function CatalogPage() {
 
   return (
     <div className="pb-8">
-      <header className="flex items-center gap-3 px-4 pb-4 pt-6">
+      <header className="flex items-center gap-3 px-4 pb-4 pt-safe">
         <button
           onClick={() => nav(-1)}
           aria-label="back"

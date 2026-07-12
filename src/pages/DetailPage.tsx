@@ -71,8 +71,9 @@ import { cn, formatDate } from '../util'
 type Ensure = () => Promise<LibraryItem | null>
 type UnitDialog = { season: number; episode: number; count: number; label: string } | null
 
-/** Small colored pills with critic/community scores (IMDb, RT, MAL…). */
-function RatingsBanners({ list }: { list: ExternalRating[] }) {
+/** Small colored pills with critic/community scores; the user's own rating closes the row. */
+function RatingsBanners({ list, mine }: { list: ExternalRating[]; mine?: number | null }) {
+  const t = useT()
   const styles: Record<string, { bg: string; fg: string; emoji?: string }> = {
     imdb: { bg: '#f5c518', fg: '#000000' },
     rt: { bg: '#fa320a', fg: '#ffffff', emoji: '🍅' },
@@ -82,9 +83,9 @@ function RatingsBanners({ list }: { list: ExternalRating[] }) {
     openlibrary: { bg: '#5b4636', fg: '#ffffff', emoji: '📖' },
     rawg: { bg: '#202020', fg: '#ffffff' },
   }
-  if (list.length === 0) return null
+  if (list.length === 0 && mine == null) return null
   return (
-    <div className="mt-4 flex flex-wrap gap-2 px-4">
+    <div className="mt-4 flex flex-wrap items-center gap-2 px-4">
       {list.map((r) => {
         const s = styles[r.source] ?? { bg: '#333', fg: '#fff' }
         return (
@@ -99,6 +100,12 @@ function RatingsBanners({ list }: { list: ExternalRating[] }) {
           </span>
         )
       })}
+      {mine != null && (
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 text-xs font-black text-ink2 shadow">
+          {t('rating.mine')}
+          <RatingBadge value={mine} />
+        </span>
+      )}
     </div>
   )
 }
@@ -458,7 +465,7 @@ export default function DetailPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="absolute left-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
+          className="absolute left-3 top-safe grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
         >
           <ArrowLeft size={20} />
         </button>
@@ -617,8 +624,8 @@ export default function DetailPage() {
         </button>
       </div>
 
-      {/* critic ratings */}
-      {details?.externalRatings && <RatingsBanners list={details.externalRatings} />}
+      {/* critic ratings + personal rating (last, right-aligned) */}
+      <RatingsBanners list={details?.externalRatings ?? []} mine={libItem?.rating} />
 
       {/* game: personal playtime */}
       {isGame && inLibrary && libItem?.status !== 'planned' && (
