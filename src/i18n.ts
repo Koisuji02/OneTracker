@@ -59,6 +59,8 @@ const en: Dict = {
   'games.markPlayed': 'Mark as played',
   'games.myPlaytime': 'My playtime (hours)',
   'games.hoursPlayed': 'h played',
+  // app
+  'app.exitHint': 'Press back again to exit',
   // rewatch
   'rewatch.again': 'Mark as rewatched',
   'rewatch.unmark': 'Mark as unwatched',
@@ -244,6 +246,7 @@ const it: Dict = {
   'games.markPlayed': 'Segna come giocato',
   'games.myPlaytime': 'Ore di gioco',
   'games.hoursPlayed': 'h giocate',
+  'app.exitHint': 'Premi di nuovo indietro per uscire',
   'rewatch.again': 'Segna come rivisto',
   'rewatch.unmark': 'Segna come non visto',
   'rating.title': 'Il tuo voto',

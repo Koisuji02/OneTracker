@@ -17,6 +17,7 @@
     "@capacitor/android": "^7.6.7",
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.6.7",
+    "@capacitor/toast": "^7.0.4",
     "dexie": "^4.4.4",
     "dexie-react-hooks": "^4.4.0",
     "lucide-react": "^1.24.0",

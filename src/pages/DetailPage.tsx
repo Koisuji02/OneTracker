@@ -46,6 +46,7 @@ import {
   rewatchUpTo,
   setGameStatus,
   setMyPlaytime,
+  setRangeWatched,
   setRating,
   setSeasonWatched,
   setSingleWatched,
@@ -71,9 +72,8 @@ import { cn, formatDate } from '../util'
 type Ensure = () => Promise<LibraryItem | null>
 type UnitDialog = { season: number; episode: number; count: number; label: string } | null
 
-/** Small colored pills with critic/community scores; the user's own rating closes the row. */
-function RatingsBanners({ list, mine }: { list: ExternalRating[]; mine?: number | null }) {
-  const t = useT()
+/** Small colored pills with critic/community scores (IMDb, RT, MAL…). */
+function RatingsBanners({ list }: { list: ExternalRating[] }) {
   const styles: Record<string, { bg: string; fg: string; emoji?: string }> = {
     imdb: { bg: '#f5c518', fg: '#000000' },
     rt: { bg: '#fa320a', fg: '#ffffff', emoji: '🍅' },
@@ -83,7 +83,7 @@ function RatingsBanners({ list, mine }: { list: ExternalRating[]; mine?: number 
     openlibrary: { bg: '#5b4636', fg: '#ffffff', emoji: '📖' },
     rawg: { bg: '#202020', fg: '#ffffff' },
   }
-  if (list.length === 0 && mine == null) return null
+  if (list.length === 0) return null
   return (
     <div className="mt-4 flex flex-wrap items-center gap-2 px-4">
       {list.map((r) => {
@@ -100,12 +100,6 @@ function RatingsBanners({ list, mine }: { list: ExternalRating[]; mine?: number 
           </span>
         )
       })}
-      {mine != null && (
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-line bg-card px-2.5 py-1 text-xs font-black text-ink2 shadow">
-          {t('rating.mine')}
-          <RatingBadge value={mine} />
-        </span>
-      )}
     </div>
   )
 }
@@ -267,11 +261,12 @@ function SeasonBlock({
   )
 }
 
-/** Chapters block (manga/comics): units in accordions of 100. */
+/** Chapters block (manga/comics): units in accordions of 100, with mark-all. */
 function ChapterChunk({
   meta,
   start,
   end,
+  eps,
   watchedMap,
   ensure,
   onDialog,
@@ -280,6 +275,8 @@ function ChapterChunk({
   meta: MediaDetails
   start: number
   end: number
+  /** full chapter list (index = chapter-1) with real titles when available */
+  eps: EpisodeInfo[] | null
   watchedMap: Map<string, WatchedEpisode>
   ensure: Ensure
   onDialog: (d: UnitDialog) => void
@@ -287,10 +284,23 @@ function ChapterChunk({
 }) {
   const t = useT()
   const [open, setOpen] = useState(defaultOpen)
+  const [busy, setBusy] = useState(false)
   let watchedIn = 0
   for (let c = start; c <= end; c++) {
     if (watchedMap.has(epKey(meta.id, 1, c))) watchedIn++
   }
+  const allRead = watchedIn >= end - start + 1
+
+  const markAll = async () => {
+    setBusy(true)
+    try {
+      const item = await ensure()
+      if (item) await setRangeWatched(item, 1, start, end, !allRead)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-card">
       <div
@@ -309,6 +319,21 @@ function ChapterChunk({
         <span className="text-sm text-ink3">
           {watchedIn}/{end - start + 1}
         </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            markAll()
+          }}
+          disabled={busy}
+          className={cn(
+            'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+            allRead
+              ? 'border-accent bg-brand text-black'
+              : 'border-line text-ink2 hover:border-accent hover:text-accent',
+          )}
+        >
+          {busy ? '…' : allRead ? t('detail.unmarkAllSeason') : t('detail.markAllSeason')}
+        </button>
       </div>
       {open && (
         <div className="border-t border-line">
@@ -316,7 +341,7 @@ function ChapterChunk({
             <UnitRow
               key={c}
               number={c}
-              title={`${t('books.chapter')} ${c}`}
+              title={eps?.[c - 1]?.title || `${t('books.chapter')} ${c}`}
               row={watchedMap.get(epKey(meta.id, 1, c))}
               onMark={async () => {
                 const item = await ensure()
@@ -327,7 +352,7 @@ function ChapterChunk({
                   season: 1,
                   episode: c,
                   count: watchedMap.get(epKey(meta.id, 1, c))?.count ?? 1,
-                  label: `${t('books.chapter')} ${c}`,
+                  label: eps?.[c - 1]?.title || `${t('books.chapter')} ${c}`,
                 })
               }
             />
@@ -352,6 +377,7 @@ export default function DetailPage() {
   const [unitDialog, setUnitDialog] = useState<UnitDialog>(null)
   const [singleDialog, setSingleDialog] = useState(false)
   const [ratingOpen, setRatingOpen] = useState(false)
+  const [chapterEps, setChapterEps] = useState<EpisodeInfo[] | null>(null)
 
   const paramId = `${provider}:${id}`
   // season-chain aggregation may resolve to a different (root) id
@@ -383,6 +409,23 @@ export default function DetailPage() {
 
   // fall back to the library snapshot when the API is unavailable
   const meta: MediaDetails | null = details ?? (libItem as MediaDetails | undefined) ?? null
+
+  // manga: load the chapter list once (brings real titles from MangaDex)
+  const isMangaMeta = meta?.mediaType === 'manga'
+  useEffect(() => {
+    let alive = true
+    setChapterEps(null)
+    if (!isMangaMeta || !meta) return
+    getEpisodes(meta, 1)
+      .then((eps) => {
+        if (alive) setChapterEps(eps)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMangaMeta, details?.id, meta?.totalEpisodes])
   const watchedMap = new Map((watchedEps ?? []).map((e) => [e.id, e]))
 
   const ensure: Ensure = useCallback(async () => {
@@ -599,13 +642,16 @@ export default function DetailPage() {
           onClick={() => setRatingOpen(true)}
           aria-label={t('rating.add')}
           className={cn(
-            'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
-            libItem?.rating != null
-              ? 'border-accent'
-              : 'border-line text-ink3 hover:border-accent hover:text-accent',
+            'grid shrink-0 place-items-center transition-transform active:scale-90',
+            libItem?.rating == null &&
+              'h-11 w-11 rounded-full border border-line text-ink3 transition-colors hover:border-accent hover:text-accent',
           )}
         >
-          {libItem?.rating != null ? <RatingBadge value={libItem.rating} /> : <Star size={18} />}
+          {libItem?.rating != null ? (
+            <RatingBadge value={libItem.rating} size="md" />
+          ) : (
+            <Star size={18} />
+          )}
         </button>
         <button
           onClick={async () => {
@@ -624,8 +670,8 @@ export default function DetailPage() {
         </button>
       </div>
 
-      {/* critic ratings + personal rating (last, right-aligned) */}
-      <RatingsBanners list={details?.externalRatings ?? []} mine={libItem?.rating} />
+      {/* critic ratings */}
+      {details?.externalRatings && <RatingsBanners list={details.externalRatings} />}
 
       {/* game: personal playtime */}
       {isGame && inLibrary && libItem?.status !== 'planned' && (
@@ -676,6 +722,7 @@ export default function DetailPage() {
                 meta={meta}
                 start={start}
                 end={end}
+                eps={chapterEps}
                 watchedMap={watchedMap}
                 ensure={ensure}
                 onDialog={setUnitDialog}

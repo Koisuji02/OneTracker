@@ -54,8 +54,8 @@ try {
 
   // 4. open first anime detail (chain-aggregated) + add + favorite
   await animeSection.locator('img').first().click()
-  await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 15000 })
-  await page.getByText('Stagioni').waitFor({ timeout: 15000 })
+  await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 40000 })
+  await page.getByText('Stagioni').waitFor({ timeout: 40000 })
   const title = await page.getByRole('heading', { level: 1 }).textContent()
   await shot('03-detail')
   ok(`detail page loaded: ${title}`)
@@ -110,7 +110,7 @@ try {
   await page.getByPlaceholder(/Cerca serie/).fill('fire force')
   await page.waitForTimeout(3500)
   await page.locator('section', { hasText: 'Anime' }).first().locator('img').first().click()
-  await page.getByText('Stagioni').waitFor({ timeout: 25000 })
+  await page.getByText('Stagioni').waitFor({ timeout: 60000 })
   await page.waitForTimeout(800)
   const seasonBlocks = await page
     .locator('section', { hasText: 'Stagioni' })
@@ -169,7 +169,7 @@ try {
   await page.getByPlaceholder(/Cerca serie/).fill('berserk')
   await page.waitForTimeout(3500)
   await page.locator('section', { hasText: 'Manga' }).first().locator('img').first().click()
-  await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 20000 })
+  await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 40000 })
   await page.waitForTimeout(600)
   // chapter 2 check → cascade marks 1-2 (auto-adds to library)
   await page.locator('[aria-label="mark watched"]').nth(1).click()

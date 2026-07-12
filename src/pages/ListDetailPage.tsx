@@ -66,7 +66,9 @@ export default function ListDetailPage() {
       </header>
 
       {inList.length === 0 ? (
-        <EmptyState icon={<Plus size={32} />} text={t('lists.emptyList')} />
+        <button onClick={() => setPicking(true)} className="block w-full text-left">
+          <EmptyState icon={<Plus size={32} />} text={t('lists.emptyList')} />
+        </button>
       ) : (
         <div className="grid grid-cols-3 gap-3 px-4 sm:grid-cols-4 md:grid-cols-5">
           {inList.map(

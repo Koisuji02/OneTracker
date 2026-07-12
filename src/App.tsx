@@ -1,5 +1,6 @@
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
+import { Toast } from '@capacitor/toast'
 import { useEffect, useRef } from 'react'
 import {
   HashRouter,
@@ -24,7 +25,7 @@ import SearchPage from './pages/SearchPage'
 import SeriesPage from './pages/SeriesPage'
 import SettingsPage from './pages/SettingsPage'
 import { MoviesPage } from './pages/SinglesPages'
-import { updateSettings, useSettings, type Language } from './settings'
+import { getSettings, updateSettings, useSettings, type Language } from './settings'
 import { applyTheme } from './themes'
 
 function ScrollToTop() {
@@ -37,27 +38,39 @@ function ScrollToTop() {
 
 /**
  * Android hardware back button:
- * - on a main tab (Series/Movies/Books/Games) → exit the app
- * - on Search/Profile → go to Series first (one more back exits)
- * - anywhere else (detail, settings, lists, catalog…) → history back,
- *   returning exactly to the page the user came from
+ * - on a home tab (Series/Movies/Books/Games) → double-press to exit
+ *   (first press shows the classic Android toast hint)
+ * - everywhere else (Search, Profile, detail, settings, lists, catalog…) →
+ *   real history back, returning exactly to the previous page
  */
 const EXIT_TABS = new Set(['/series', '/movies', '/books', '/games'])
-const HOME_TABS = new Set(['/search', '/account'])
+const DOUBLE_BACK_MS = 2000
 
 function AndroidBackHandler() {
   const nav = useNavigate()
   const { pathname } = useLocation()
   const pathRef = useRef(pathname)
   pathRef.current = pathname
+  const lastBackRef = useRef(0)
 
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     const sub = CapApp.addListener('backButton', () => {
       const path = pathRef.current
-      if (EXIT_TABS.has(path)) CapApp.exitApp()
-      else if (HOME_TABS.has(path)) nav('/series')
-      else nav(-1)
+      if (EXIT_TABS.has(path)) {
+        const now = Date.now()
+        if (now - lastBackRef.current < DOUBLE_BACK_MS) {
+          CapApp.exitApp()
+        } else {
+          lastBackRef.current = now
+          Toast.show({
+            text: translate(getSettings().language, 'app.exitHint'),
+            duration: 'short',
+          })
+        }
+      } else {
+        nav(-1)
+      }
     })
     return () => {
       sub.then((s) => s.remove())
