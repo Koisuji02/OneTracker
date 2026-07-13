@@ -28,6 +28,11 @@ function loadGis(): Promise<void> {
 
 let token: { value: string; exp: number } | null = null
 
+/** True while the in-memory OAuth token is still valid (no popup needed). */
+export function hasFreshToken(): boolean {
+  return !!token && Date.now() < token.exp - 60_000
+}
+
 export async function getAccessToken(): Promise<string> {
   const clientId = getSettings().googleClientId.trim()
   if (!clientId) throw new Error('missing-client-id')

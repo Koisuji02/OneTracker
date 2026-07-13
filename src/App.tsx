@@ -10,7 +10,9 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom'
+import { buildBackup } from './backup'
 import BottomNav from './components/BottomNav'
+import { hasFreshToken, saveToDrive } from './drive'
 import { translate } from './i18n'
 import AccountPage from './pages/AccountPage'
 import AvatarPage from './pages/AvatarPage'
@@ -21,11 +23,12 @@ import FavoritesPage from './pages/FavoritesPage'
 import GamesPage from './pages/GamesPage'
 import ListDetailPage from './pages/ListDetailPage'
 import ListsPage from './pages/ListsPage'
+import OnboardingPage from './pages/OnboardingPage'
 import SearchPage from './pages/SearchPage'
 import SeriesPage from './pages/SeriesPage'
 import SettingsPage from './pages/SettingsPage'
 import { MoviesPage } from './pages/SinglesPages'
-import { getSettings, updateSettings, useSettings, type Language } from './settings'
+import { getSettings, useSettings } from './settings'
 import { applyTheme } from './themes'
 
 function ScrollToTop() {
@@ -80,45 +83,35 @@ function AndroidBackHandler() {
   return null
 }
 
-function FirstRun() {
-  return (
-    <div className="flex min-h-full flex-col items-center justify-center gap-8 px-6 text-center">
-      <div className="grid h-20 w-20 place-items-center rounded-3xl bg-brand shadow-[0_0_60px_-10px_#ffd60a80]">
-        <svg viewBox="0 0 64 64" className="h-12 w-12">
-          <rect x="10" y="16" width="44" height="30" rx="6" fill="none" stroke="#0b0b0e" strokeWidth="4" />
-          <path d="M22 52h20" stroke="#0b0b0e" strokeWidth="4" strokeLinecap="round" />
-          <path d="M27 25l12 6-12 6z" fill="#0b0b0e" />
-        </svg>
-      </div>
-      <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">
-          {translate('en', 'firstRun.welcome')}
-        </h1>
-        <p className="mt-2 text-ink3">{translate('en', 'firstRun.subtitle')}</p>
-      </div>
-      <div className="w-full max-w-xs">
-        <p className="mb-3 text-xs font-bold uppercase tracking-wider text-ink3">
-          {translate('en', 'firstRun.choose')} / {translate('it', 'firstRun.choose')}
-        </p>
-        <div className="flex flex-col gap-3">
-          {(
-            [
-              ['en', 'English', '🇬🇧'],
-              ['it', 'Italiano', '🇮🇹'],
-            ] as Array<[Language, string, string]>
-          ).map(([lang, label, flag]) => (
-            <button
-              key={lang}
-              onClick={() => updateSettings({ language: lang })}
-              className="flex items-center justify-center gap-2.5 rounded-full border border-line bg-card py-3.5 font-bold transition-colors hover:border-accent hover:text-accent"
-            >
-              <span className="text-lg">{flag}</span> {label}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
+/**
+ * When a Google account is connected, the library auto-syncs to Drive:
+ * every 10 minutes and whenever the app goes to the background — but only
+ * while the OAuth token is still fresh, so no consent popups ever appear
+ * outside of an explicit user action.
+ */
+function DriveAutoSync() {
+  const { googleEmail } = useSettings()
+  useEffect(() => {
+    if (!googleEmail) return
+    const sync = async () => {
+      if (!hasFreshToken()) return
+      try {
+        await saveToDrive(await buildBackup())
+      } catch {
+        // silent best-effort
+      }
+    }
+    const interval = setInterval(sync, 10 * 60 * 1000)
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') sync()
+    }
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [googleEmail])
+  return null
 }
 
 export default function App() {
@@ -128,12 +121,13 @@ export default function App() {
     applyTheme(settings.theme)
   }, [settings.theme])
 
-  if (!settings.language) return <FirstRun />
+  if (!settings.onboarded) return <OnboardingPage />
 
   return (
     <HashRouter>
       <ScrollToTop />
       <AndroidBackHandler />
+      <DriveAutoSync />
       <div className="min-h-full pb-24 md:pb-10 md:pl-20">
         <div className="mx-auto w-full max-w-3xl">
           <Routes>

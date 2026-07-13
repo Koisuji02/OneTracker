@@ -31,10 +31,18 @@ try {
   await shot('01-firstrun')
   ok('first-run language picker shown')
 
-  // 2. pick Italiano → series page
+  // 2. wizard: Italiano → Books ON → Games skip → Guest → series page
   await page.getByRole('button', { name: /Italiano/ }).click()
+  await page.getByText('Leggi anche?').waitFor({ timeout: 5000 })
+  await shot('01b-wizard-books')
+  await page.getByRole('button', { name: 'Sì, attiva' }).click()
+  await page.getByText('E giochi?').waitFor({ timeout: 5000 })
+  await page.getByRole('button', { name: 'Non ora' }).click()
+  await page.getByText("Un'ultima cosa").waitFor({ timeout: 5000 })
+  await shot('01c-wizard-account')
+  await page.getByText('Continua come Ospite').click()
   await page.getByRole('heading', { name: 'Serie' }).waitFor({ timeout: 5000 })
-  ok('language set to Italian, series page rendered')
+  ok('wizard completed (IT, books on, games off, guest)')
 
   // 3. search (AniList needs no key) + TMDB warning
   await page.goto(`${BASE}/#/search`)
@@ -59,7 +67,7 @@ try {
   const title = await page.getByRole('heading', { level: 1 }).textContent()
   await shot('03-detail')
   ok(`detail page loaded: ${title}`)
-  await page.getByRole('button', { name: /Aggiungi a Da guardare/ }).click()
+  await page.getByRole('button', { name: 'Aggiungi', exact: true }).click()
   await page.waitForTimeout(600)
   await page.locator('[aria-label="favorite"]').click()
   await page.waitForTimeout(400)
@@ -162,13 +170,13 @@ try {
   if ((await page.locator('.grid img').count()) > 0) ok('list created with one item')
   else fail('lists', 'no item in list grid')
 
-  // 13. books + manga chapter checklist + MangaDex totals
-  await page.goto(`${BASE}/#/settings`)
-  await page.getByRole('switch').first().click() // enable books
+  // 13. manga chapter checklist + MangaDex totals (books enabled by wizard)
   await page.goto(`${BASE}/#/search`)
   await page.getByPlaceholder(/Cerca serie/).fill('berserk')
   await page.waitForTimeout(3500)
-  await page.locator('section', { hasText: 'Manga' }).first().locator('img').first().click()
+  const mangaImg = page.locator('section', { hasText: 'Manga' }).first().locator('img').first()
+  await mangaImg.waitFor({ timeout: 90000 }) // AniList 429 backoff can be slow
+  await mangaImg.click()
   await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 40000 })
   await page.waitForTimeout(600)
   // chapter 2 check → cascade marks 1-2 (auto-adds to library)
@@ -215,6 +223,13 @@ try {
   await page.waitForTimeout(800)
   await shot('13-desktop-catalog')
   ok('desktop catalog grid rendered')
+  // 17. TV Time import (plugin JSON zip, real TMDB resolution)
+  await page.goto(`${BASE}/#/settings`)
+  await page.locator('input[accept*="zip"]').setInputFiles('exportJSON.zip')
+  await page.getByText(/Importati:/).waitFor({ timeout: 420000 })
+  const importText = await page.getByText(/Importati:/).textContent()
+  await shot('14-tvtime-import')
+  ok(`TV Time import: ${importText?.trim().slice(0, 90)}`)
 } catch (e) {
   fail('smoke test aborted', e)
   await shot('99-failure')

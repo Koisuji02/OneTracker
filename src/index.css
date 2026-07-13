@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme {
-  /* brand = always-yellow fills (buttons, progress, pills) */
-  --color-brand: #ffd60a;
+  /* brand = the theme's fill color (buttons, progress, pills, checks) */
+  --color-brand: var(--brand);
   /* accent = yellow-ish text/icons, darkened in light theme for contrast */
   --color-accent: var(--accent);
   --color-surface: var(--surface);
@@ -17,6 +17,7 @@
 }
 
 :root {
+  --brand: #ffd60a;
   --accent: #ffd60a;
   --surface: #0b0b0e;
   --card: #17171c;
@@ -30,6 +31,7 @@
 }
 
 html.light {
+  --brand: #ffd60a;
   --accent: #96780a;
   --surface: #f6f6f3;
   --card: #ffffff;

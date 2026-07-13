@@ -138,6 +138,32 @@ export async function movieDetails(id: string): Promise<MediaDetails> {
   }
 }
 
+/** Resolve a TVDB / IMDb id to TMDB ids (used by the TV Time importer). */
+export async function findByExternalId(
+  externalId: string | number,
+  source: 'tvdb_id' | 'imdb_id',
+): Promise<{ tvId: string | null; movieId: string | null }> {
+  const d = await tmdbFetch(`/find/${externalId}`, { external_source: source })
+  return {
+    tvId: d.tv_results?.[0]?.id != null ? String(d.tv_results[0].id) : null,
+    movieId: d.movie_results?.[0]?.id != null ? String(d.movie_results[0].id) : null,
+  }
+}
+
+/** Best-effort movie id by title (+year) for exports without external ids. */
+export async function searchMovieId(title: string, year?: number | null): Promise<string | null> {
+  const params: Record<string, string> = { query: title, include_adult: 'false' }
+  if (year) params.primary_release_year = String(year)
+  const d = await tmdbFetch('/search/movie', params)
+  let id = d.results?.[0]?.id
+  if (id == null && year) {
+    // year mismatch in the export — retry without it
+    const d2 = await tmdbFetch('/search/movie', { query: title, include_adult: 'false' })
+    id = d2.results?.[0]?.id
+  }
+  return id != null ? String(id) : null
+}
+
 export async function seasonEpisodes(tvId: string, season: number): Promise<EpisodeInfo[]> {
   const d = await tmdbFetch(`/tv/${tvId}/season/${season}`)
   return ((d.episodes ?? []) as any[]).map((e) => ({

@@ -15,6 +15,7 @@
 import type { MediaDetails, SearchResult, Season } from '../types'
 import { mangadexFind, mangadexLatest } from './mangadex'
 import { anilistRating, malRating } from './ratings'
+import { tmdbTvPosterByTitle } from './tmdbPoster'
 
 const API = 'https://graphql.anilist.co'
 
@@ -210,6 +211,19 @@ function isSeasonNode(n: ChainNode): boolean {
   return (n.episodes ?? 0) >= 4
 }
 
+/**
+ * Related-but-DIFFERENT series (Naruto → Naruto Shippuden, Dragon Ball → Z)
+ * must NOT be merged: a sequel is aggregated only when its title clearly
+ * reads as "another season/part/arc of the same show".
+ */
+const SEASON_TITLE_RE =
+  /\b(season|part|cour|arc|act|saga)\b|\b\d+(?:st|nd|rd|th)\s+season\b|final\s+season|\b(ni|san|yon|go|roku|nana|hachi|kyuu?|juu)\s*no\s+shou?\b/i
+
+function looksLikeSeasonTitle(n: ChainNode): boolean {
+  const titles = [n.title?.english, n.title?.romaji].filter(Boolean) as string[]
+  return titles.some((t) => SEASON_TITLE_RE.test(t))
+}
+
 /** First valid season among the PREQUEL/SEQUEL edges of a node. */
 async function relatedSeason(
   node: ChainNode,
@@ -227,7 +241,10 @@ async function relatedSeason(
   for (const id of candidates) {
     if (visited.has(id)) continue
     const candidate = await fetchNode(id)
-    if (isSeasonNode(candidate)) return candidate
+    // walking forward, the LATER entry (the candidate) must read as a season
+    if (isSeasonNode(candidate) && (type === 'PREQUEL' || looksLikeSeasonTitle(candidate))) {
+      return candidate
+    }
   }
   return null
 }
@@ -237,6 +254,9 @@ async function resolveRoot(id: number): Promise<ChainNode> {
   let cur = await fetchNode(id)
   const visited = new Set([cur.id])
   for (let hop = 0; hop < 20; hop++) {
+    // walking backward, the LATER entry (cur) must read as a season —
+    // "Naruto Shippuden" doesn't, so it never collapses into "Naruto"
+    if (!looksLikeSeasonTitle(cur)) break
     const prev = await relatedSeason(cur, 'PREQUEL', visited)
     if (!prev) break
     visited.add(prev.id)
@@ -324,6 +344,12 @@ async function animeDetails(id: string): Promise<MediaDetails> {
   const airing = chain.find((n) => n.nextAiringEpisode)
   const ongoing = chain.some((n) => n.status === 'RELEASING')
 
+  // classic database poster (with the show's logo) from TMDB when available;
+  // AniList's clean key-visual artwork stays as fallback
+  const tmdbArt =
+    (await tmdbTvPosterByTitle(pickTitle(full.title), full.startDate?.year)) ??
+    (await tmdbTvPosterByTitle(full.title?.romaji ?? '', full.startDate?.year))
+
   return {
     id: `anilist:${root.id}`,
     provider: 'anilist',
@@ -332,8 +358,8 @@ async function animeDetails(id: string): Promise<MediaDetails> {
     title: pickTitle(full.title),
     originalTitle: full.title?.romaji ?? null,
     overview: stripHtml(full.description),
-    poster: full.coverImage?.extraLarge ?? full.coverImage?.large ?? null,
-    backdrop: full.bannerImage ?? null,
+    poster: tmdbArt?.poster ?? full.coverImage?.extraLarge ?? full.coverImage?.large ?? null,
+    backdrop: full.bannerImage ?? tmdbArt?.backdrop ?? null,
     year: full.startDate?.year ?? null,
     genres: (full.genres ?? []) as string[],
     totalEpisodes: seasons.reduce((a, s) => a + s.episodeCount, 0) || airedEpisodesOf(entry) || null,

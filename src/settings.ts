@@ -7,6 +7,8 @@ export type Theme = string
 export interface Settings {
   /** null = not chosen yet (first launch) */
   language: Language | null
+  /** first-run wizard completed (language → books → games → account) */
+  onboarded: boolean
   theme: Theme
   profileName: string
   showBooks: boolean
@@ -15,7 +17,6 @@ export interface Settings {
   rawgKey: string
   omdbKey: string
   comicvineKey: string
-  steamgriddbKey: string
   /** avatar: null = default icon · `emoji:<char>:<bg>` preset · otherwise an image URL/dataURL */
   avatar: string | null
   googleClientId: string
@@ -28,6 +29,7 @@ const STORAGE_KEY = 'onetracker.settings'
 
 const defaults: Settings = {
   language: null,
+  onboarded: false,
   theme: 'dark',
   profileName: '',
   showBooks: false,
@@ -36,7 +38,6 @@ const defaults: Settings = {
   rawgKey: (import.meta.env.VITE_RAWG_KEY as string) ?? '',
   omdbKey: (import.meta.env.VITE_OMDB_KEY as string) ?? '',
   comicvineKey: (import.meta.env.VITE_COMICVINE_KEY as string) ?? '',
-  steamgriddbKey: (import.meta.env.VITE_STEAMGRIDDB_KEY as string) ?? '',
   avatar: null,
   googleClientId: (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ?? '',
   googleEmail: null,
@@ -50,7 +51,6 @@ const KEY_FIELDS = [
   'rawgKey',
   'omdbKey',
   'comicvineKey',
-  'steamgriddbKey',
   'googleClientId',
 ] as const
 
@@ -58,7 +58,10 @@ function load(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return { ...defaults }
-    const merged = { ...defaults, ...(JSON.parse(raw) as Partial<Settings>) }
+    const stored = JSON.parse(raw) as Partial<Settings>
+    const merged = { ...defaults, ...stored }
+    // users from before the wizard existed shouldn't see it again
+    if (stored.language && stored.onboarded === undefined) merged.onboarded = true
     // build-time keys (.env → bundle) win over EMPTY stored fields, so an APK
     // built with keys works out of the box while users can still override them
     for (const k of KEY_FIELDS) {

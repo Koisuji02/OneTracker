@@ -59,13 +59,13 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `searchBooks(q)` | `SearchResult[]` | Open Library; **manga filtered out** (subject + AniList title match incl. "Vol. N" editions) |
 | `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP); manga publishers + AniList title match filtered |
 | `searchGames(q)` | `SearchResult[]` | RAWG |
+| `getDetails(provider, mediaType, providerId)` | `MediaDetails` | routes to the right provider; includes cast, seasons, ongoing flag, release dates and `externalRatings` |
+| `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; anime titles via Jikan, manga via MangaDex, comics via Comic Vine issues; 7-day cache |
 
 Cross-filter helpers (`src/api/anilist.ts`): `mangaTitleKeys(q)` / `animeTitleKeys(q)`
 return normalized AniList titles for a query (memoized — zero extra requests when the
 Anime/Manga rows already searched it); `matchesTitleSet(title, keys)` also matches
 volume-stripped bases ("Berserk, Vol. 3" → "berserk").
-| `getDetails(provider, mediaType, providerId)` | `MediaDetails` | routes to the right provider; includes cast, seasons, ongoing flag, release dates and `externalRatings` |
-| `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; AniList/Comic Vine generated 1..N; 7-day cache |
 
 Providers throw `ApiKeyMissingError('tmdb'|'rawg'|'omdb'|'comicvine')` when their key
 is missing — the UI turns that into a "add your key in Settings" banner.
@@ -96,12 +96,21 @@ released chapter number + its publish date.
 | books | Open Library community rating (keyless) |
 | games | Metacritic + RAWG score (inside the RAWG payload) |
 
-### Game box art (`src/api/steamgriddb.ts`)
+### Titled artwork (`src/api/wikipedia.ts`, `src/api/tmdbPoster.ts`)
 
 RAWG's `background_image` is promo art without the title. `gameDetails()` resolves
-the poster as: **SteamGridDB** 600×900 titled box art (any platform, free key) →
-Steam CDN vertical capsule (appid parsed from the RAWG store link) → RAWG art.
-RAWG `parent_platforms` slugs are stored on items and shown as platform chips.
+the poster as: Steam CDN vertical capsule (appid from the RAWG store link) →
+**Wikipedia infobox box art** (`pilicense=any`, keyless, any platform) → RAWG art.
+(SteamGridDB and IGDB were evaluated and rejected: both APIs block browser CORS.)
+Anime posters upgrade to the classic TMDB poster (with logo) matched by
+title+year, falling back to AniList artwork. RAWG `parent_platforms` slugs are
+stored on items and shown as platform chips.
+
+### TV Time import (`src/importTvTime.ts`)
+
+`importTvTimeZip(file, onProgress)` auto-detects the zip format (GDPR CSVs or
+plugin JSON), resolves TVDB→TMDB via `/find`, movies via IMDb id or title+year,
+and merges episode rows keeping the highest rewatch count (idempotent re-import).
 
 ## Backup (`src/backup.ts`)
 
