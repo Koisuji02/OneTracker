@@ -32,8 +32,14 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 | Books | [Open Library](https://openlibrary.org/) | none |
 | Comics | [Comic Vine](https://comicvine.gamespot.com/api/) | required (free) |
 | Games | [RAWG](https://rawg.io/apidocs) | required (free) |
+| Game box art (all platforms) | [SteamGridDB](https://www.steamgriddb.com/) | required (free) |
 | IMDb / Rotten Tomatoes scores | [OMDb](https://www.omdbapi.com/) | required (free) |
 | MyAnimeList scores | [Jikan](https://jikan.moe/) | none |
+
+Search rows are kept exclusive with **zero extra requests**: the AniList response
+for a query is memoized and shared, so anime titles are filtered out of the TV row
+(only when the result is also Animation — live-action adaptations stay) and manga
+titles (including single "Vol. N" editions) out of the Books and Comics rows.
 
 Keys go in **Settings → API keys** (stored in localStorage) or in `.env` (see `.env.example`).
 

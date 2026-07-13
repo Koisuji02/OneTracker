@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
-import { db, deleteList, toggleListItem } from '../db'
+import { db, deleteList, rewatchGrades, toggleListItem } from '../db'
 import { useT } from '../i18n'
 
 export default function ListDetailPage() {
@@ -19,8 +19,10 @@ export default function ListDetailPage() {
   const [filter, setFilter] = useState('')
   const list = useLiveQuery(() => db.lists.get(id), [id])
   const items = useLiveQuery(() => db.items.toArray(), [])
+  const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
-  if (!list || !items) return null
+  if (!list || !items || !eps) return null
+  const grades = rewatchGrades(items, eps)
   const byId = new Map(items.map((i) => [i.id, i]))
   const inList = list.itemIds.map((x) => byId.get(x)).filter(Boolean)
   const pickPool = items
@@ -82,6 +84,7 @@ export default function ListDetailPage() {
                     year={i.year}
                     rating={i.rating}
                     statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
+                    rewatchCount={grades.get(i.id)}
                     onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
                   />
                   <button

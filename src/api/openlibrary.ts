@@ -1,4 +1,5 @@
 import type { MediaDetails, SearchResult } from '../types'
+import { mangaTitleKeys, matchesTitleSet } from './anilist'
 import { openLibraryRating } from './ratings'
 
 const API = 'https://openlibrary.org'
@@ -12,12 +13,17 @@ export async function searchBooks(query: string): Promise<SearchResult[]> {
   url.searchParams.set('q', query)
   url.searchParams.set('limit', '20')
   url.searchParams.set('fields', 'key,title,first_publish_year,cover_i,author_name,subject')
-  const res = await fetch(url.toString())
+  // manga lives in its own tab: filter by subject AND by AniList title match
+  // (memoized, shared with the Manga row) so single manga volumes stay out too
+  const [res, mangaTitles] = await Promise.all([fetch(url.toString()), mangaTitleKeys(query)])
   if (!res.ok) throw new Error(`Open Library error ${res.status}`)
   const data = await res.json()
   return ((data.docs ?? []) as any[])
-    // manga lives in its own tab (AniList) — keep books and western comics here
-    .filter((d) => !((d.subject ?? []) as string[]).some((s) => /manga/i.test(s)))
+    .filter(
+      (d) =>
+        !((d.subject ?? []) as string[]).some((s) => /manga/i.test(s)) &&
+        !matchesTitleSet(d.title ?? '', mangaTitles),
+    )
     .slice(0, 14)
     .map((d) => ({
     provider: 'openlibrary' as const,

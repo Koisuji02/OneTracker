@@ -185,6 +185,28 @@ export function computeNextRewatch(
   return next ? { ...next, grade, done } : null
 }
 
+/**
+ * Full-watchthrough grade per item, for the xN cover badge:
+ * - unit-tracked media: the MINIMUM count across watched units (x2 only when
+ *   every episode/chapter was seen at least twice — a finished round)
+ * - movies/books/games: `watchCount` (games: replays)
+ * Only grades ≥ 2 are returned.
+ */
+export function rewatchGrades(items: LibraryItem[], eps: WatchedEpisode[]): Map<string, number> {
+  const minByItem = new Map<string, number>()
+  for (const e of eps) {
+    const c = e.count ?? 1
+    const cur = minByItem.get(e.itemId)
+    minByItem.set(e.itemId, cur == null ? c : Math.min(cur, c))
+  }
+  const grades = new Map<string, number>()
+  for (const item of items) {
+    const g = hasUnits(item.mediaType) ? (minByItem.get(item.id) ?? 1) : (item.watchCount ?? 1)
+    if (g >= 2) grades.set(item.id, g)
+  }
+  return grades
+}
+
 /** Mark one unit at the given rewatch grade (the xN button on Continue cards). */
 export async function markRewatchUnit(
   item: LibraryItem,

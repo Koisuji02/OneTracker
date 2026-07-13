@@ -16,30 +16,36 @@ paths:
   # ------------------------------------------------------------- TMDB
   /tmdb/search/tv:
     get:
+      responses: { "200": { description: OK } }
       tags: [TMDB]
       summary: Search TV series (anime filtered client-side)
       description: GET https://api.themoviedb.org/3/search/tv?query=…&language=…
   /tmdb/search/movie:
     get:
+      responses: { "200": { description: OK } }
       tags: [TMDB]
       summary: Search movies
   /tmdb/tv/{id}:
     get:
+      responses: { "200": { description: OK } }
       tags: [TMDB]
       summary: Series details
       description: append_to_response=credits,external_ids — seasons, next_episode_to_air, in_production, imdb id
   /tmdb/tv/{id}/season/{n}:
     get:
+      responses: { "200": { description: OK } }
       tags: [TMDB]
       summary: Episode list of one season (titles, runtimes, air dates, stills)
   /tmdb/movie/{id}:
     get:
+      responses: { "200": { description: OK } }
       tags: [TMDB]
       summary: Movie details (credits appended, imdb_id included)
 
   # ------------------------------------------------------------- AniList
   /anilist/graphql:
     post:
+      responses: { "200": { description: OK } }
       tags: [AniList]
       summary: Anime/manga search, details, season-chain nodes
       description: >
@@ -51,11 +57,13 @@ paths:
   # ------------------------------------------------------------- MangaDex
   /mangadex/manga:
     get:
+      responses: { "200": { description: OK } }
       tags: [MangaDex]
       summary: Find a manga by title (matched to AniList via attributes.links.al)
       description: GET https://api.mangadex.org/manga?title=…&limit=5
   /mangadex/chapter:
     get:
+      responses: { "200": { description: OK } }
       tags: [MangaDex]
       summary: Latest released chapter (number + readableAt date)
       description: GET https://api.mangadex.org/chapter?manga=…&order[chapter]=desc
@@ -63,46 +71,67 @@ paths:
   # ------------------------------------------------------------- Open Library
   /openlibrary/search.json:
     get:
+      responses: { "200": { description: OK } }
       tags: [OpenLibrary]
       summary: Book search (subject field used to filter manga out)
   /openlibrary/works/{id}.json:
     get:
+      responses: { "200": { description: OK } }
       tags: [OpenLibrary]
       summary: Work details (description, covers, authors)
   /openlibrary/works/{id}/ratings.json:
     get:
+      responses: { "200": { description: OK } }
       tags: [OpenLibrary]
       summary: Community rating (average /5)
 
   # ------------------------------------------------------------- RAWG
   /rawg/games:
     get:
+      responses: { "200": { description: OK } }
       tags: [RAWG]
       summary: Game search (requires key)
   /rawg/games/{id}:
     get:
+      responses: { "200": { description: OK } }
       tags: [RAWG]
       summary: Game details (description, playtime, metacritic, rating)
+
+  # ------------------------------------------------------------- SteamGridDB
+  /steamgriddb/search/autocomplete/{term}:
+    get:
+      responses: { "200": { description: OK } }
+      tags: [SteamGridDB]
+      summary: Find a game id by title (Bearer key)
+  /steamgriddb/grids/game/{id}:
+    get:
+      responses: { "200": { description: OK } }
+      tags: [SteamGridDB]
+      summary: 600x900 titled box art for a game (any platform)
 
   # ------------------------------------------------------------- Comic Vine
   /comicvine/search:
     get:
+      responses: { "200": { description: OK } }
       tags: [ComicVine]
       summary: Comic volume search (requires key; JSONP because no CORS)
       description: resources=volume — name, image, start_year, count_of_issues
   /comicvine/volume/4050-{id}:
     get:
+      responses: { "200": { description: OK } }
       tags: [ComicVine]
       summary: Volume details (deck/description, publisher, count_of_issues)
 
   # ------------------------------------------------------------- Ratings
   /omdb:
     get:
+      responses: { "200": { description: OK } }
       tags: [Ratings]
       summary: IMDb / Rotten Tomatoes / Metacritic scores by IMDb id (requires key)
       description: GET https://www.omdbapi.com/?apikey=…&i=tt…
   /jikan/{kind}/{malId}:
     get:
+      responses: { "200": { description: OK } }
       tags: [Ratings]
       summary: MyAnimeList score (keyless)
       description: GET https://api.jikan.moe/v4/anime/{id} or /manga/{id}
@@ -110,18 +139,22 @@ paths:
   # ------------------------------------------------------------- Google
   /google/oauth-token:
     post:
+      responses: { "200": { description: OK } }
       tags: [Google]
       summary: GIS token client (drive.appdata + userinfo scopes)
   /google/drive/files:
     get:
+      responses: { "200": { description: OK } }
       tags: [Google]
       summary: Find the backup file in appDataFolder
   /google/drive/upload:
     post:
+      responses: { "200": { description: OK } }
       tags: [Google]
       summary: Create/update onetracker-backup.json (multipart / media PATCH)
   /google/userinfo:
     get:
+      responses: { "200": { description: OK } }
       tags: [Google]
       summary: Profile of the connected account (name, email, picture)
 
@@ -138,6 +171,8 @@ tags:
     description: "Games — key required"
   - name: ComicVine
     description: "Western comics — key required, JSONP transport"
+  - name: SteamGridDB
+    description: "Titled game box art, all platforms — key required"
   - name: Ratings
     description: "OMDb (key) and Jikan/MAL (keyless)"
   - name: Google
