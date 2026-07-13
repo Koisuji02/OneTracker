@@ -6,6 +6,7 @@
  */
 const API = 'https://api.jikan.moe/v4'
 
+import { fetchTimeout } from './http'
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 export async function jikanEpisodeTitles(
@@ -16,7 +17,7 @@ export async function jikanEpisodeTitles(
   try {
     const pages = Math.min(Math.ceil(Math.max(count, 1) / 100), 12)
     for (let p = 1; p <= pages; p++) {
-      const res = await fetch(`${API}/anime/${malId}/episodes?page=${p}`)
+      const res = await fetchTimeout(`${API}/anime/${malId}/episodes?page=${p}`)
       if (!res.ok) break
       const d = await res.json()
       for (const ep of (d.data ?? []) as any[]) {

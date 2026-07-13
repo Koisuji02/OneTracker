@@ -1,3 +1,4 @@
+import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 import type { CastMember, EpisodeInfo, MediaDetails, SearchResult } from '../types'
 import { animeTitleKeys, matchesTitleSet } from './anilist'
@@ -21,7 +22,7 @@ async function tmdbFetch(path: string, params: Record<string, string> = {}): Pro
   // v4 read access token vs v3 api key
   if (key.startsWith('ey')) init.headers = { Authorization: `Bearer ${key}` }
   else url.searchParams.set('api_key', key)
-  const res = await fetch(url.toString(), init)
+  const res = await fetchTimeout(url.toString(), init)
   if (!res.ok) throw new Error(`TMDB error ${res.status}`)
   return res.json()
 }

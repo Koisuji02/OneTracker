@@ -9,6 +9,7 @@
  * - books        → Open Library community rating (keyless)
  * - games        → Metacritic + RAWG rating (already in the RAWG payload)
  */
+import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 import type { ExternalRating } from '../types'
 
@@ -17,7 +18,7 @@ export async function omdbRatings(imdbId: string | null | undefined): Promise<Ex
   const key = getSettings().omdbKey.trim()
   if (!key || !imdbId) return []
   try {
-    const res = await fetch(`https://www.omdbapi.com/?apikey=${key}&i=${imdbId}`)
+    const res = await fetchTimeout(`https://www.omdbapi.com/?apikey=${key}&i=${imdbId}`)
     if (!res.ok) return []
     const d = await res.json()
     const out: ExternalRating[] = []
@@ -42,7 +43,7 @@ export async function malRating(
 ): Promise<ExternalRating[]> {
   if (!malId) return []
   try {
-    const res = await fetch(`https://api.jikan.moe/v4/${kind}/${malId}`)
+    const res = await fetchTimeout(`https://api.jikan.moe/v4/${kind}/${malId}`)
     if (!res.ok) return []
     const d = await res.json()
     const score = d.data?.score
@@ -61,7 +62,7 @@ export function anilistRating(averageScore: number | null | undefined): External
 /** Open Library community rating for a work. */
 export async function openLibraryRating(workId: string): Promise<ExternalRating[]> {
   try {
-    const res = await fetch(`https://openlibrary.org/works/${workId}/ratings.json`)
+    const res = await fetchTimeout(`https://openlibrary.org/works/${workId}/ratings.json`)
     if (!res.ok) return []
     const d = await res.json()
     const avg = d.summary?.average

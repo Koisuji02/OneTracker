@@ -1,3 +1,4 @@
+import { fetchTimeout } from './http'
 import type { MediaDetails, SearchResult } from '../types'
 import { mangaTitleKeys, matchesTitleSet } from './anilist'
 import { openLibraryRating } from './ratings'
@@ -36,7 +37,7 @@ export async function searchBooks(query: string): Promise<SearchResult[]> {
 }
 
 export async function bookDetails(id: string): Promise<MediaDetails> {
-  const res = await fetch(`${API}/works/${id}.json`)
+  const res = await fetchTimeout(`${API}/works/${id}.json`)
   if (!res.ok) throw new Error(`Open Library error ${res.status}`)
   const d = await res.json()
   const description =
@@ -51,7 +52,7 @@ export async function bookDetails(id: string): Promise<MediaDetails> {
       .slice(0, 2)
     authors = await Promise.all(
       keys.map(async (k) => {
-        const r = await fetch(`${API}${k}.json`)
+        const r = await fetchTimeout(`${API}${k}.json`)
         if (!r.ok) return ''
         const a = await r.json()
         return (a.name as string) ?? ''
