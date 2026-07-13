@@ -22,6 +22,7 @@ import {
   searchMovies,
   searchTv,
 } from '../api'
+import { enrichAnimeCovers, enrichGameCovers } from '../api/covers'
 import MediaRow from '../components/MediaRow'
 import PosterCard from '../components/PosterCard'
 import { addToLibrary, db } from '../db'
@@ -90,7 +91,13 @@ export default function SearchPage() {
   const configs = useMemo<RowConfig[]>(() => {
     const list: RowConfig[] = [
       { key: 'tv', label: t('search.tv'), icon: <Tv size={18} />, run: searchTv },
-      { key: 'anime', label: t('search.anime'), icon: <Sparkles size={18} />, run: searchAnime },
+      {
+        key: 'anime',
+        label: t('search.anime'),
+        icon: <Sparkles size={18} />,
+        // same classic posters the detail pages show (shared cover cache)
+        run: (q) => searchAnime(q).then(enrichAnimeCovers),
+      },
       { key: 'movies', label: t('search.movies'), icon: <Clapperboard size={18} />, run: searchMovies },
     ]
     if (settings.showBooks) {
@@ -99,7 +106,13 @@ export default function SearchPage() {
       list.push({ key: 'comics', label: t('search.comics'), icon: <BookText size={18} />, run: searchComics })
     }
     if (settings.showGames) {
-      list.push({ key: 'games', label: t('search.games'), icon: <Gamepad2 size={18} />, run: searchGames })
+      list.push({
+        key: 'games',
+        label: t('search.games'),
+        icon: <Gamepad2 size={18} />,
+        // titled box art from the shared cover cache
+        run: (q) => searchGames(q).then(enrichGameCovers),
+      })
     }
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps

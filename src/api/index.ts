@@ -43,25 +43,29 @@ function fetchDetails(
   }
 }
 
-/** Details younger than this are served straight from IndexedDB. */
-const DETAILS_TTL = 1000 * 60 * 60 * 24 // 24h
+/** Cache older than this triggers a QUIET background revalidation. */
+const REVALIDATE_TTL = 1000 * 60 * 60 * 6 // 6h
 
 /**
- * Cached details lookup: fresh cache hits cost ZERO network requests
- * (metadata, cast, critic ratings, chapter counts all included); stale
- * entries refetch and fall back to the cached copy when the network or a
- * provider fails — so a rate-limited MangaDex can't blank a detail page.
+ * Stale-while-revalidate details lookup:
+ * - a cached entry is ALWAYS served instantly (zero wait, zero requests)
+ * - when it's older than 6h, a background refetch runs and `onUpdate`
+ *   delivers the fresh data (new episodes/chapters appear live) — these
+ *   APIs expose no Last-Modified/ETag, so SWR is the conditional-probe
+ *   equivalent: at most one refresh per title per 6h window
+ * - on a cache miss the fetch is synchronous; failures fall back to any
+ *   cached copy, so a rate-limited provider can't blank a detail page.
  */
 export async function getDetails(
   provider: Provider,
   mediaType: MediaType,
   providerId: string,
+  onUpdate?: (fresh: MediaDetails) => void,
 ): Promise<MediaDetails> {
   const cacheId = `${provider}:${providerId}`
   const cached = await db.detailsCache.get(cacheId)
-  if (cached && Date.now() - cached.fetchedAt < DETAILS_TTL) return cached.details
 
-  try {
+  const revalidate = async (): Promise<MediaDetails> => {
     const details = await fetchDetails(provider, mediaType, providerId)
     const now = Date.now()
     await db.detailsCache.put({ id: details.id, details, fetchedAt: now })
@@ -71,10 +75,17 @@ export async function getDetails(
       await db.detailsCache.put({ id: cacheId, details, fetchedAt: now })
     }
     return details
-  } catch (err) {
-    if (cached) return cached.details
-    throw err
   }
+
+  if (cached) {
+    if (Date.now() - cached.fetchedAt > REVALIDATE_TTL) {
+      revalidate()
+        .then((fresh) => onUpdate?.(fresh))
+        .catch(() => {})
+    }
+    return cached.details
+  }
+  return revalidate()
 }
 
 /**

@@ -54,6 +54,19 @@ const KEY_FIELDS = [
   'googleClientId',
 ] as const
 
+/**
+ * Build-time defaults, exported so the Settings UI can HIDE the baked keys:
+ * the form shows an empty field while a default is silently in use, and a
+ * typed value overrides it.
+ */
+export const ENV_DEFAULTS = {
+  tmdbKey: defaults.tmdbKey,
+  rawgKey: defaults.rawgKey,
+  omdbKey: defaults.omdbKey,
+  comicvineKey: defaults.comicvineKey,
+  googleClientId: defaults.googleClientId,
+} as const
+
 function load(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)

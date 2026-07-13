@@ -35,12 +35,20 @@ export interface DetailsCacheEntry {
   fetchedAt: number
 }
 
+/** Resolved cover URL shared between search rows and detail pages. */
+export interface CoverCacheEntry {
+  key: string
+  url: string | null
+  fetchedAt: number
+}
+
 class OneTrackerDB extends Dexie {
   items!: Table<LibraryItem, string>
   episodes!: Table<WatchedEpisode, string>
   episodeCache!: Table<EpisodeCacheEntry, string>
   lists!: Table<WatchList, string>
   detailsCache!: Table<DetailsCacheEntry, string>
+  covers!: Table<CoverCacheEntry, string>
 
   constructor() {
     super('onetracker')
@@ -103,13 +111,22 @@ class OneTrackerDB extends Dexie {
         if (rows.length > 0) await tx.table('episodes').bulkPut(rows)
         await tx.table('items').bulkPut(items)
       })
-    // v4: details cache (metadata + ratings, 24h stale-while-revalidate)
+    // v4: details cache (metadata + ratings, stale-while-revalidate)
     this.version(4).stores({
       items: 'id, mediaType, status, favorite, addedAt',
       episodes: 'id, itemId, watchedAt',
       episodeCache: 'id, itemId',
       lists: 'id, createdAt',
       detailsCache: 'id',
+    })
+    // v5: shared cover cache (same artwork in search rows and detail pages)
+    this.version(5).stores({
+      items: 'id, mediaType, status, favorite, addedAt',
+      episodes: 'id, itemId, watchedAt',
+      episodeCache: 'id, itemId',
+      lists: 'id, createdAt',
+      detailsCache: 'id',
+      covers: 'key',
     })
   }
 }

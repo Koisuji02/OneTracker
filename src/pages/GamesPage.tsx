@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PageHeader from '../components/PageHeader'
 import TrackCard from '../components/TrackCard'
-import { PLATFORM_LABELS } from '../components/PlatformChips'
+import { platformLabel } from '../components/PlatformChips'
 import { db, setGameStatus } from '../db'
 import { useT } from '../i18n'
 import type { LibraryItem } from '../types'
@@ -22,7 +22,7 @@ function GameCard({ item, playing }: { item: LibraryItem; playing: boolean }) {
     if (item.playtime) parts.push(`~${item.playtime} h`)
   }
   if (item.platforms?.length) {
-    parts.push(item.platforms.map((s) => PLATFORM_LABELS[s] ?? s.toUpperCase()).slice(0, 4).join('/'))
+    parts.push(item.platforms.slice(0, 4).map(platformLabel).join('/'))
   }
 
   const progress =
