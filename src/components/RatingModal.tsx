@@ -41,7 +41,7 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
       onClick={onClose}
     >
       <div
-        className="fade-up w-full max-w-sm rounded-t-3xl border border-line bg-card p-5 sm:rounded-3xl"
+        className="fade-up pb-safe-sheet w-full max-w-sm rounded-t-3xl border border-line bg-card p-5 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 text-center text-xs font-bold uppercase tracking-wider text-ink3">

@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- OneTracker "1T" monogram — every stroke is one of the trackable media:
+       ▶ play flag (series) · film-strip crossbar (movies) · TV antennas ·
+       book pages in the 1's stem · comic speech bubble in the T's stem ·
+       gamepad D-pad in the 1's base. Yellow on true AMOLED black. -->
+  <rect width="512" height="512" rx="104" fill="#000000"/>
+
+  <!-- ================= digit 1 ================= -->
+  <!-- flag: play triangle (series/movies) -->
+  <path d="M88 200 L164 138 L164 262 Z" fill="#ffd60a"/>
+  <!-- stem: book spine -->
+  <rect x="132" y="138" width="66" height="238" rx="8" fill="#ffd60a"/>
+  <!-- bookmark engraved in the stem (books) -->
+  <path d="M150 236 h30 v72 l-15 -14 l-15 14 z" fill="#000"/>
+  <!-- base: gamepad bar with a D-pad -->
+  <rect x="100" y="376" width="130" height="52" rx="16" fill="#ffd60a"/>
+  <path d="M158 385 h14 v10 h10 v14 h-10 v10 h-14 v-10 h-10 v-14 h10 z" fill="#000"/>
+
+  <!-- ================= letter T ================= -->
+  <!-- TV antennas above the crossbar -->
+  <path d="M340 122 L308 74 M340 122 L376 74" stroke="#ffd60a" stroke-width="15" stroke-linecap="round"/>
+  <circle cx="306" cy="72" r="10" fill="#ffd60a"/>
+  <circle cx="378" cy="72" r="10" fill="#ffd60a"/>
+  <!-- crossbar: film strip -->
+  <rect x="230" y="122" width="222" height="76" rx="12" fill="#ffd60a"/>
+  <rect x="244" y="131" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="283" y="131" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="322" y="131" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="361" y="131" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="400" y="131" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="244" y="176" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="283" y="176" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="322" y="176" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="361" y="176" width="22" height="13" rx="3" fill="#000"/>
+  <rect x="400" y="176" width="22" height="13" rx="3" fill="#000"/>
+  <!-- stem with a comic speech bubble engraved -->
+  <rect x="308" y="198" width="66" height="230" rx="8" fill="#ffd60a"/>
+  <path d="M341 288 m-19 0 a19 15 0 1 1 38 0 a19 15 0 0 1 -28 13 l-12 10 l3 -14 a19 15 0 0 1 -1 -9 z" fill="#000"/>
+</svg>

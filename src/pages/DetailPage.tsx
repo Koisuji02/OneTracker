@@ -502,7 +502,13 @@ export default function DetailPage() {
       {/* hero */}
       <div className="relative h-52 w-full overflow-hidden md:h-72 md:rounded-b-3xl">
         {meta.backdrop ? (
-          <img src={meta.backdrop} alt="" className="h-full w-full object-cover" />
+          <img
+            src={meta.backdrop}
+            alt=""
+            fetchPriority="high"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
         ) : (
           <div className="h-full w-full bg-gradient-to-br from-card2 to-surface" />
         )}
@@ -520,7 +526,13 @@ export default function DetailPage() {
       <div className="relative -mt-20 flex items-end gap-4 px-4">
         <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl border border-line bg-card2 shadow-2xl">
           {meta.poster ? (
-            <img src={meta.poster} alt={meta.title} className="h-full w-full object-cover" />
+            <img
+              src={meta.poster}
+              alt={meta.title}
+              fetchPriority="high"
+              decoding="async"
+              className="h-full w-full object-cover"
+            />
           ) : (
             <div className="grid h-full w-full place-items-center text-ink4">
               <ImageOff size={24} />
@@ -820,7 +832,7 @@ export default function DetailPage() {
           onClick={() => setGameDialog(false)}
         >
           <div
-            className="fade-up w-full max-w-sm rounded-t-3xl border border-line bg-card p-5 sm:rounded-3xl"
+            className="fade-up pb-safe-sheet w-full max-w-sm rounded-t-3xl border border-line bg-card p-5 sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 truncate text-center text-base font-bold">{meta.title}</div>
