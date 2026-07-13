@@ -12,6 +12,7 @@ import {
   Moon,
   Sun,
   Trash2,
+  Tv,
   Upload,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -20,6 +21,7 @@ import { useNavigate } from 'react-router-dom'
 import { applyBackup, buildBackup, downloadBackup } from '../backup'
 import { db } from '../db'
 import { connectGoogle, disconnectGoogle, restoreFromDrive, saveToDrive } from '../drive'
+import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
 import { updateSettings, useSettings, type Language } from '../settings'
 import { THEMES } from '../themes'
@@ -133,8 +135,11 @@ export default function SettingsPage() {
   const nav = useNavigate()
   const settings = useSettings()
   const fileRef = useRef<HTMLInputElement>(null)
+  const tvtimeRef = useRef<HTMLInputElement>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [importProg, setImportProg] = useState<ImportProgress | null>(null)
+  const [importResult, setImportResult] = useState<TvTimeImportResult | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -166,6 +171,23 @@ export default function SettingsPage() {
       setToast(t('settings.imported'))
     } catch {
       setToast(t('common.error'))
+    }
+  }
+
+  const onTvTimeZip = async (file: File) => {
+    setImportResult(null)
+    setImportProg({ done: 0, total: 1, label: '…' })
+    try {
+      const result = await importTvTimeZip(file, setImportProg)
+      setImportResult(result)
+    } catch (e) {
+      setToast(
+        e instanceof Error && e.message === 'unrecognized-format'
+          ? t('tvtimport.invalid')
+          : t('common.error'),
+      )
+    } finally {
+      setImportProg(null)
     }
   }
 
@@ -273,22 +295,13 @@ export default function SettingsPage() {
           placeholder="abc12345"
         />
         {settings.showGames && (
-          <>
-            <InputRow
-              label={t('settings.rawgKey')}
-              hint={t('settings.rawgHint')}
-              value={settings.rawgKey}
-              onChange={(v) => updateSettings({ rawgKey: v })}
-              placeholder="0123456789abcdef…"
-            />
-            <InputRow
-              label={t('settings.sgdbKey')}
-              hint={t('settings.sgdbHint')}
-              value={settings.steamgriddbKey}
-              onChange={(v) => updateSettings({ steamgriddbKey: v })}
-              placeholder="0123456789abcdef…"
-            />
-          </>
+          <InputRow
+            label={t('settings.rawgKey')}
+            hint={t('settings.rawgHint')}
+            value={settings.rawgKey}
+            onChange={(v) => updateSettings({ rawgKey: v })}
+            placeholder="0123456789abcdef…"
+          />
         )}
         {settings.showBooks && (
           <InputRow
@@ -370,6 +383,64 @@ export default function SettingsPage() {
             }
           />
         )}
+      </Section>
+
+      <Section title={t('tvtimport.title')}>
+        {importProg ? (
+          <div className="px-4 py-4">
+            <div className="flex items-center gap-3">
+              <Loader2 size={18} className="animate-spin text-accent" />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {importProg.label}
+              </span>
+              <span className="text-xs text-ink3">
+                {importProg.done}/{importProg.total}
+              </span>
+            </div>
+            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-card2">
+              <div
+                className="h-full rounded-full bg-brand transition-all"
+                style={{
+                  width: `${Math.round((importProg.done / Math.max(1, importProg.total)) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
+        ) : (
+          <>
+            <ActionRow
+              label={t('tvtimport.action')}
+              icon={<Tv size={18} />}
+              onClick={() => tvtimeRef.current?.click()}
+            />
+            <div className="px-4 pb-3 pt-1 text-[11px] text-ink4">{t('tvtimport.hint')}</div>
+          </>
+        )}
+        {importResult && (
+          <div className="border-t border-line px-4 py-3 text-sm">
+            <span className="font-bold text-accent">{t('tvtimport.done')}: </span>
+            {importResult.shows} {t('nav.series').toLowerCase()} · {importResult.episodes}{' '}
+            {t('common.episodes')} · {importResult.movies} {t('nav.movies').toLowerCase()}
+            {importResult.skipped.length > 0 && (
+              <div className="mt-1 text-xs text-ink3">
+                {importResult.skipped.length} {t('tvtimport.skipped')}:{' '}
+                {importResult.skipped.slice(0, 8).join(', ')}
+                {importResult.skipped.length > 8 && '…'}
+              </div>
+            )}
+          </div>
+        )}
+        <input
+          ref={tvtimeRef}
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) onTvTimeZip(f)
+            e.target.value = ''
+          }}
+        />
       </Section>
 
       <Section title={t('settings.data')}>

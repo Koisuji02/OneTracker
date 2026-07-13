@@ -2,7 +2,7 @@ import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
 import { ApiKeyMissingError } from './errors'
 import { rawgRatings } from './ratings'
-import { steamGridCover } from './steamgriddb'
+import { wikipediaBoxArt } from './wikipedia'
 
 const API = 'https://api.rawg.io/api'
 
@@ -83,9 +83,10 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
   const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
-  // box art priority: SteamGridDB (all platforms, has the title/logo)
-  // → Steam CDN vertical capsule → RAWG promo art
-  const boxArt = (await steamGridCover(d.name)) ?? (await steamBoxArt(d, id))
+  // box art priority: Steam CDN vertical capsule (has the title/logo, only
+  // for games on Steam with modern assets) → Wikipedia infobox box art
+  // (any platform, keyless) → RAWG promo art
+  const boxArt = (await steamBoxArt(d, id)) ?? (await wikipediaBoxArt(d.name))
   return {
     id: `rawg:${id}`,
     provider: 'rawg',

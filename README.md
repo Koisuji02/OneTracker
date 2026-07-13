@@ -20,6 +20,10 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 - **Catalog** rows (Series / Movies / Books / Games) with everything started or finished — hourglass = in progress/ongoing, flag = completed — expandable to **full grid views**.
 - **Custom lists** with a name and color, preview box on the profile, dedicated pages with a library picker.
 
+**Import from TV Time** — Settings → Import: drop the official GDPR zip or the JSON plugin export zip; shows resolve via their TVDB ids, movies via IMDb ids or title+year, rewatch counts and favorites included, merging idempotently into the library.
+
+**First-run wizard** — language → Books opt-in → Games opt-in → account: continue as Guest or connect Google (library backed up to Drive and auto-restored when signing in on a new device; auto-sync while the app is open).
+
 **Search** — live search-as-you-type in horizontal bands per catalog, with quick-add. Results are kept when you navigate into an item and back. Bands are exclusive: anime are filtered out of the TV band (they have their own), manga out of the Books band (western comics stay).
 
 ## Data sources
@@ -32,7 +36,7 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 | Books | [Open Library](https://openlibrary.org/) | none |
 | Comics | [Comic Vine](https://comicvine.gamespot.com/api/) | required (free) |
 | Games | [RAWG](https://rawg.io/apidocs) | required (free) |
-| Game box art (all platforms) | [SteamGridDB](https://www.steamgriddb.com/) | required (free) |
+| Game box art (console/older titles) | Wikipedia infobox images | none |
 | IMDb / Rotten Tomatoes scores | [OMDb](https://www.omdbapi.com/) | required (free) |
 | MyAnimeList scores | [Jikan](https://jikan.moe/) | none |
 

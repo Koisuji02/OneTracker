@@ -60,7 +60,7 @@ import { useSettings } from '../settings'
 import type {
   EpisodeInfo,
   ExternalRating,
-  ItemStatus,
+
   LibraryItem,
   MediaDetails,
   MediaType,
@@ -377,6 +377,7 @@ export default function DetailPage() {
   const [error, setError] = useState<'keymissing' | 'error' | null>(null)
   const [unitDialog, setUnitDialog] = useState<UnitDialog>(null)
   const [singleDialog, setSingleDialog] = useState(false)
+  const [gameDialog, setGameDialog] = useState(false)
   const [ratingOpen, setRatingOpen] = useState(false)
   const [chapterEps, setChapterEps] = useState<EpisodeInfo[] | null>(null)
 
@@ -572,33 +573,22 @@ export default function DetailPage() {
               </button>
             )}
             {isGame && (
-              <div className="flex flex-1 gap-1.5">
-                {(
-                  [
-                    ['planned', t('games.toPlay')],
-                    ['watching', t('games.playing')],
-                    ['completed', t('games.completed')],
-                  ] as Array<[ItemStatus, string]>
-                ).map(([s, label]) => (
-                  <button
-                    key={s}
-                    onClick={() =>
-                      s === 'completed' && libItem?.status === 'completed'
-                        ? setSingleDialog(true)
-                        : setGameStatus(canonicalId, s)
-                    }
-                    className={cn(
-                      'flex-1 rounded-full border px-1 py-2.5 text-xs font-bold transition-colors',
-                      libItem?.status === s
-                        ? 'border-accent bg-brand text-black'
-                        : 'border-line text-ink3 hover:border-accent hover:text-accent',
-                    )}
-                  >
-                    {label}
-                    {s === 'completed' && (libItem?.watchCount ?? 1) >= 2 && ` x${libItem?.watchCount}`}
-                  </button>
-                ))}
-              </div>
+              <button
+                onClick={() => setGameDialog(true)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+                  libItem?.status === 'completed'
+                    ? 'border border-accent bg-brand/10 text-accent'
+                    : 'bg-brand text-black',
+                )}
+              >
+                {libItem?.status === 'planned' && t('games.toPlay')}
+                {libItem?.status === 'watching' && t('games.playing')}
+                {libItem?.status === 'completed' &&
+                  ((libItem?.watchCount ?? 1) >= 2
+                    ? `${t('games.replayed')} x${libItem?.watchCount}`
+                    : t('games.completed'))}
+              </button>
             )}
             {(episodic || isManga) && (
               <div className="flex-1">
@@ -823,6 +813,66 @@ export default function DetailPage() {
           onRewatch={() => rewatchSingle(canonicalId)}
           onClose={() => setSingleDialog(false)}
         />
+      )}
+      {gameDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center"
+          onClick={() => setGameDialog(false)}
+        >
+          <div
+            className="fade-up w-full max-w-sm rounded-t-3xl border border-line bg-card p-5 sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 truncate text-center text-base font-bold">{meta.title}</div>
+            <div className="flex flex-col gap-2.5">
+              {(
+                [
+                  ['planned', t('games.toPlay')],
+                  ['watching', t('games.playing')],
+                ] as Array<['planned' | 'watching', string]>
+              ).map(([s, label]) => (
+                <button
+                  key={s}
+                  onClick={() => {
+                    setGameStatus(canonicalId, s)
+                    setGameDialog(false)
+                  }}
+                  className={cn(
+                    'rounded-full border py-3 text-sm font-bold transition-colors',
+                    libItem?.status === s
+                      ? 'border-accent bg-brand text-black'
+                      : 'border-line text-ink2 hover:border-accent hover:text-accent',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  if (libItem?.status === 'completed') rewatchSingle(canonicalId)
+                  else setGameStatus(canonicalId, 'completed')
+                  setGameDialog(false)
+                }}
+                className={cn(
+                  'rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+                  libItem?.status === 'completed'
+                    ? 'bg-brand text-black'
+                    : 'border border-line text-ink2 hover:border-accent hover:text-accent',
+                )}
+              >
+                {libItem?.status === 'completed'
+                  ? `${t('games.replayed')} x${(libItem?.watchCount ?? 1) + 1}`
+                  : t('games.completed')}
+              </button>
+              <button
+                onClick={() => setGameDialog(false)}
+                className="py-1 text-sm font-semibold text-ink3"
+              >
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {ratingOpen && (
         <RatingModal
