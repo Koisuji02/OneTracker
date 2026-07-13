@@ -1,3 +1,5 @@
+<p align="center"><img src="public/logo.svg" alt="OneTracker" width="128"/></p>
+
 # OneTracker
 
 A modern, local-first tracker for **TV series, anime, movies, manga/comics, books and games**, built as a personal replacement for TV Time (shut down July 15, 2026). Yellow-and-black UI inspired by TV Time and Stash, 8 switchable themes, English/Italian. Runs as a web app on PC and as a native Android app via Capacitor. All data stays on your device, with JSON export/import and optional Google Drive backup — no server anywhere.

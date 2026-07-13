@@ -177,7 +177,7 @@ try {
   const mangaImg = page.locator('section', { hasText: 'Manga' }).first().locator('img').first()
   await mangaImg.waitFor({ timeout: 90000 }) // AniList 429 backoff can be slow
   await mangaImg.click()
-  await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 40000 })
+  await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 120000 })
   await page.waitForTimeout(600)
   // chapter 2 check → cascade marks 1-2 (auto-adds to library)
   await page.locator('[aria-label="mark watched"]').nth(1).click()
@@ -223,16 +223,25 @@ try {
   await page.waitForTimeout(800)
   await shot('13-desktop-catalog')
   ok('desktop catalog grid rendered')
-  // 17. TV Time import (plugin JSON zip, real TMDB resolution)
+  // 17. TV Time import (plugin JSON zip, real TMDB resolution) — optional:
+  // runs only when a TV Time export zip is available (TVTIME_ZIP env or repo root)
+  const { existsSync } = await import('node:fs')
+  const tvtimeZip = process.env.TVTIME_ZIP ?? 'exportJSON.zip'
+  if (!existsSync(tvtimeZip)) {
+    console.log('SKIP  TV Time import (no export zip found)')
+    throw { skipImport: true }
+  }
   await page.goto(`${BASE}/#/settings`)
-  await page.locator('input[accept*="zip"]').setInputFiles('exportJSON.zip')
+  await page.locator('input[accept*="zip"]').setInputFiles(tvtimeZip)
   await page.getByText(/Importati:/).waitFor({ timeout: 420000 })
   const importText = await page.getByText(/Importati:/).textContent()
   await shot('14-tvtime-import')
   ok(`TV Time import: ${importText?.trim().slice(0, 90)}`)
 } catch (e) {
-  fail('smoke test aborted', e)
-  await shot('99-failure')
+  if (!e?.skipImport) {
+    fail('smoke test aborted', e)
+    await shot('99-failure')
+  }
 }
 
 await browser.close()

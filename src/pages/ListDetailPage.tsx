@@ -120,7 +120,7 @@ export default function ListDetailPage() {
                 />
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-6">
+            <div className="pb-safe-sheet min-h-0 flex-1 overflow-y-auto px-4">
               {pickPool.map((i) => {
                 const included = list.itemIds.includes(i.id)
                 return (

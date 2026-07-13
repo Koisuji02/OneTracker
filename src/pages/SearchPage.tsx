@@ -80,9 +80,11 @@ export default function SearchPage() {
     searchMemory = { q, rows }
   }, [q, rows])
 
-  const libraryIds = useLiveQuery(async () => {
+  // id → poster of tracked items: search results reuse the SAME cover the
+  // rest of the app shows (titled box art etc.), keeping artwork consistent
+  const libraryPosters = useLiveQuery(async () => {
     const items = await db.items.toArray()
-    return new Set(items.map((i) => i.id))
+    return new Map(items.map((i) => [i.id, i.poster ?? null]))
   }, [])
 
   const configs = useMemo<RowConfig[]>(() => {
@@ -195,17 +197,20 @@ export default function SearchPage() {
                   (row.items.length === 0 && row.status === 'done' ? (
                     <span className="py-4 text-sm text-ink4">{t('search.noResults')}</span>
                   ) : (
-                    row.items.map((r) => (
-                      <PosterCard
-                        key={`${r.provider}:${r.providerId}`}
-                        title={r.title}
-                        year={r.year}
-                        poster={r.poster}
-                        inLibrary={libraryIds?.has(`${r.provider}:${r.providerId}`) ?? false}
-                        onAdd={() => quickAdd(r)}
-                        onClick={() => nav(`/media/${r.provider}/${r.mediaType}/${r.providerId}`)}
-                      />
-                    ))
+                    row.items.map((r) => {
+                      const id = `${r.provider}:${r.providerId}`
+                      return (
+                        <PosterCard
+                          key={id}
+                          title={r.title}
+                          year={r.year}
+                          poster={libraryPosters?.get(id) ?? r.poster}
+                          inLibrary={libraryPosters?.has(id) ?? false}
+                          onAdd={() => quickAdd(r)}
+                          onClick={() => nav(`/media/${r.provider}/${r.mediaType}/${r.providerId}`)}
+                        />
+                      )
+                    })
                   ))}
               </MediaRow>
             )

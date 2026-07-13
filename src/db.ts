@@ -28,11 +28,19 @@ import type {
   WatchedEpisode,
 } from './types'
 
+/** Cached MediaDetails (metadata + cast + ratings) per provider id. */
+export interface DetailsCacheEntry {
+  id: string
+  details: MediaDetails
+  fetchedAt: number
+}
+
 class OneTrackerDB extends Dexie {
   items!: Table<LibraryItem, string>
   episodes!: Table<WatchedEpisode, string>
   episodeCache!: Table<EpisodeCacheEntry, string>
   lists!: Table<WatchList, string>
+  detailsCache!: Table<DetailsCacheEntry, string>
 
   constructor() {
     super('onetracker')
@@ -95,6 +103,14 @@ class OneTrackerDB extends Dexie {
         if (rows.length > 0) await tx.table('episodes').bulkPut(rows)
         await tx.table('items').bulkPut(items)
       })
+    // v4: details cache (metadata + ratings, 24h stale-while-revalidate)
+    this.version(4).stores({
+      items: 'id, mediaType, status, favorite, addedAt',
+      episodes: 'id, itemId, watchedAt',
+      episodeCache: 'id, itemId',
+      lists: 'id, createdAt',
+      detailsCache: 'id',
+    })
   }
 }
 
@@ -307,12 +323,52 @@ export async function recomputeStatus(itemId: string): Promise<void> {
  * Refresh the stored metadata snapshot from freshly fetched details (new
  * episodes/chapters, ongoing flag, release dates, artwork…) and re-derive
  * status. Library state (favorite, rating, progress…) is untouched.
+ *
+ * The merge is CONSERVATIVE: a fetch where an enrichment source failed
+ * (e.g. MangaDex rate-limited → chapters null) must never destroy good
+ * stored data, so null/empty values don't overwrite existing ones and
+ * manga chapter totals only grow.
  */
 export async function refreshItemMetadata(details: MediaDetails): Promise<void> {
   const existing = await db.items.get(details.id)
   if (!existing) return
   const { cast: _cast, airStatus: _s, externalRatings: _r, id: _id, ...base } = details
-  await db.items.update(details.id, base)
+
+  const patch: Partial<LibraryItem> = { ...base }
+  const keepIfNullish = [
+    'poster',
+    'backdrop',
+    'overview',
+    'episodeRuntime',
+    'runtime',
+    'pages',
+    'playtime',
+    'mangadexId',
+    'lastReleaseDate',
+    'year',
+    'ongoing',
+  ] as const
+  for (const k of keepIfNullish) {
+    if (patch[k] == null && existing[k] != null) delete patch[k]
+  }
+  if ((!patch.seasons || patch.seasons.length === 0) && existing.seasons?.length) {
+    delete patch.seasons
+  }
+  if ((!patch.genres || patch.genres.length === 0) && existing.genres?.length) {
+    delete patch.genres
+  }
+  if (patch.totalEpisodes == null && existing.totalEpisodes != null) {
+    delete patch.totalEpisodes
+  } else if (
+    existing.mediaType === 'manga' &&
+    patch.totalEpisodes != null &&
+    existing.totalEpisodes != null
+  ) {
+    // released chapter counts only ever grow
+    patch.totalEpisodes = Math.max(patch.totalEpisodes, existing.totalEpisodes)
+  }
+
+  await db.items.update(details.id, patch)
   await recomputeStatus(details.id)
 }
 

@@ -93,6 +93,10 @@ body {
 .top-safe-lg {
   top: calc(1.5rem + var(--sat));
 }
+/* bottom sheets must clear the Android gesture/nav bar */
+.pb-safe-sheet {
+  padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}
 
 @keyframes fadeUp {
   from {
