@@ -12,6 +12,7 @@
  *
  * For ongoing manga, chapter counts come from MangaDex (see mangadex.ts).
  */
+import { fetchTimeout } from './http'
 import type { MediaDetails, SearchResult, Season } from '../types'
 import { animeCoverKey, rememberCover } from './covers'
 import { mangadexFind, mangadexLatest } from './mangadex'
@@ -31,7 +32,7 @@ async function gql(
   variables: Record<string, unknown>,
   attempt = 0,
 ): Promise<any> {
-  const res = await fetch(API, {
+  const res = await fetchTimeout(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ query, variables }),

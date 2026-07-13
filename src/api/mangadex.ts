@@ -7,13 +7,14 @@
  */
 const API = 'https://api.mangadex.org'
 
+import { fetchTimeout } from './http'
 /** Find the MangaDex id for an AniList manga (null when not found). */
 export async function mangadexFind(anilistId: string, title: string): Promise<string | null> {
   try {
     const mu = new URL(`${API}/manga`)
     mu.searchParams.set('title', title)
     mu.searchParams.set('limit', '5')
-    const res = await fetch(mu.toString())
+    const res = await fetchTimeout(mu.toString())
     if (!res.ok) return null
     const data = await res.json()
     const list = (data.data ?? []) as any[]
@@ -45,7 +46,7 @@ export async function mangadexLatest(mangadexId: string): Promise<MangaDexLatest
     cu.searchParams.set('manga', mangadexId)
     cu.searchParams.append('order[chapter]', 'desc')
     cu.searchParams.set('limit', '10')
-    const res = await fetch(cu.toString())
+    const res = await fetchTimeout(cu.toString())
     if (!res.ok) return null
     const data = await res.json()
     for (const ch of (data.data ?? []) as any[]) {
@@ -76,7 +77,7 @@ export async function mangadexChapterTitles(mangadexId: string): Promise<Map<num
     fu.searchParams.append('order[chapter]', 'asc')
     fu.searchParams.append('contentRating[]', 'safe')
     fu.searchParams.append('contentRating[]', 'suggestive')
-    const res = await fetch(fu.toString())
+    const res = await fetchTimeout(fu.toString())
     if (!res.ok) return titles
     const data = await res.json()
     for (const ch of (data.data ?? []) as any[]) {

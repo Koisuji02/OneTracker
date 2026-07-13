@@ -4,6 +4,7 @@
  * Lives in its own module (no anilist import) to avoid a circular dependency:
  * tmdb.ts imports anilist.ts for the anime cross-filter.
  */
+import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 
 export async function tmdbTvPosterByTitle(
@@ -18,7 +19,7 @@ export async function tmdbTvPosterByTitle(
     url.searchParams.set('query', title)
     url.searchParams.set('include_adult', 'false')
     if (!isV4) url.searchParams.set('api_key', key)
-    const res = await fetch(
+    const res = await fetchTimeout(
       url.toString(),
       isV4 ? { headers: { Authorization: `Bearer ${key}` } } : undefined,
     )

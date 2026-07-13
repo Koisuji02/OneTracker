@@ -4,6 +4,7 @@
  * is almost always the official cover. `pilicense=any` is required because
  * box art is fair-use, which the default (free-only) filter would hide.
  */
+import { fetchTimeout } from './http'
 export async function wikipediaBoxArt(title: string): Promise<string | null> {
   try {
     const u = new URL('https://en.wikipedia.org/w/api.php')
@@ -20,7 +21,7 @@ export async function wikipediaBoxArt(title: string): Promise<string | null> {
       pithumbsize: '600',
       pilicense: 'any',
     }).toString()
-    const res = await fetch(u.toString())
+    const res = await fetchTimeout(u.toString())
     if (!res.ok) return null
     const d = await res.json()
     return (d.query?.pages?.[0]?.thumbnail?.source as string | undefined) ?? null

@@ -1,3 +1,4 @@
+import { fetchTimeout } from './http'
 import { db } from '../db'
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
@@ -19,7 +20,7 @@ export async function searchGames(query: string): Promise<SearchResult[]> {
   url.searchParams.set('key', key())
   url.searchParams.set('search', query)
   url.searchParams.set('page_size', '14')
-  const res = await fetch(url.toString())
+  const res = await fetchTimeout(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const data = await res.json()
   return ((data.results ?? []) as any[]).map((g) => ({
@@ -63,7 +64,7 @@ async function steamBoxArt(detail: any, id: string): Promise<string | null> {
     if (!steamUrl) {
       const su = new URL(`${API}/games/${id}/stores`)
       su.searchParams.set('key', key())
-      const res = await fetch(su.toString())
+      const res = await fetchTimeout(su.toString())
       if (res.ok) {
         const data = await res.json()
         steamUrl =
@@ -82,7 +83,7 @@ async function steamBoxArt(detail: any, id: string): Promise<string | null> {
 export async function gameDetails(id: string): Promise<MediaDetails> {
   const url = new URL(`${API}/games/${id}`)
   url.searchParams.set('key', key())
-  const res = await fetch(url.toString())
+  const res = await fetchTimeout(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
   // box art: reuse whatever the shared cover cache already resolved (search
