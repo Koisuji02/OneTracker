@@ -1,5 +1,6 @@
 import { getSettings } from '../settings'
 import type { CastMember, EpisodeInfo, MediaDetails, SearchResult } from '../types'
+import { animeTitleKeys, matchesTitleSet } from './anilist'
 import { ApiKeyMissingError } from './errors'
 import { omdbRatings } from './ratings'
 
@@ -31,19 +32,25 @@ function yearOf(date: string | null | undefined): number | null {
   return Number.isFinite(y) ? y : null
 }
 
-/** Anime (Animation genre + east-asian original language) has its own tab. */
-function isAnimeResult(r: any): boolean {
-  return (
+/**
+ * Anime has its own tab, so animated results are dropped from the TV row when
+ * they look like anime: east-asian original language OR a title matching an
+ * AniList anime result for the same query (memoized — shared with the Anime
+ * row, zero extra requests). The Animation-genre guard keeps live-action
+ * adaptations (e.g. Netflix's One Piece) in the TV row.
+ */
+export async function searchTv(query: string): Promise<SearchResult[]> {
+  const [data, animeTitles] = await Promise.all([
+    tmdbFetch('/search/tv', { query, include_adult: 'false' }),
+    animeTitleKeys(query),
+  ])
+  const isAnime = (r: any) =>
     Array.isArray(r.genre_ids) &&
     r.genre_ids.includes(16) &&
-    ['ja', 'zh', 'ko'].includes(r.original_language)
-  )
-}
-
-export async function searchTv(query: string): Promise<SearchResult[]> {
-  const data = await tmdbFetch('/search/tv', { query, include_adult: 'false' })
+    (['ja', 'zh', 'ko'].includes(r.original_language) ||
+      matchesTitleSet(r.name ?? '', animeTitles))
   return (data.results as any[])
-    .filter((r) => !isAnimeResult(r))
+    .filter((r) => !isAnime(r))
     .slice(0, 14)
     .map((r) => ({
     provider: 'tmdb' as const,

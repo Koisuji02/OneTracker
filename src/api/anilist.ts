@@ -107,11 +107,10 @@ function normalizeTitle(t: string): string {
     .trim()
 }
 
-/** Normalized titles (romaji + english) of manga matching a query —
- *  used to keep manga out of the Comics search row. */
-export async function mangaTitleKeys(q: string): Promise<Set<string>> {
+/** Normalized titles (romaji + english) of AniList results for a query. */
+async function titleKeys(q: string, type: 'ANIME' | 'MANGA'): Promise<Set<string>> {
   try {
-    const media = await searchMedia(q, 'MANGA')
+    const media = await searchMedia(q, type)
     const keys = new Set<string>()
     for (const m of media) {
       for (const t of [m.title?.romaji, m.title?.english]) {
@@ -122,6 +121,27 @@ export async function mangaTitleKeys(q: string): Promise<Set<string>> {
   } catch {
     return new Set()
   }
+}
+
+/** Used to keep manga out of the Comics and Books search rows. */
+export function mangaTitleKeys(q: string): Promise<Set<string>> {
+  return titleKeys(q, 'MANGA')
+}
+
+/** Used to keep anime out of the TV Series search row. */
+export function animeTitleKeys(q: string): Promise<Set<string>> {
+  return titleKeys(q, 'ANIME')
+}
+
+/** Volume/tome suffixes stripped before matching ("Berserk, Vol. 3" → "berserk"). */
+const VOLUME_TAIL = /\b(vol(ume)?s?|volumen|tome|tomo|band|omnibus|deluxe|book)\b.*$|\s+\d+$/
+
+/** True when a title (or its volume-stripped base) matches a title set. */
+export function matchesTitleSet(title: string, keys: Set<string>): boolean {
+  const norm = normalizeTitle(title)
+  if (keys.has(norm)) return true
+  const base = norm.replace(VOLUME_TAIL, '').trim()
+  return base.length > 2 && keys.has(base)
 }
 
 export { normalizeTitle }

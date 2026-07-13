@@ -23,7 +23,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import Avatar from '../components/Avatar'
 import MediaRow from '../components/MediaRow'
 import PosterCard from '../components/PosterCard'
-import { computeStats, db, isEpisodic } from '../db'
+import { computeStats, db, isEpisodic, rewatchGrades } from '../db'
 import { useT } from '../i18n'
 import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
@@ -36,11 +36,13 @@ function CatalogRow({
   icon,
   to,
   items,
+  grades,
 }: {
   title: string
   icon: React.ReactNode
   to: string
   items: LibraryItem[]
+  grades: Map<string, number>
 }) {
   const t = useT()
   const nav = useNavigate()
@@ -58,6 +60,7 @@ function CatalogRow({
             year={i.year}
             rating={i.rating}
             statusKind={i.status === 'completed' ? 'done' : 'ongoing'}
+            rewatchCount={grades.get(i.id)}
             onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
           />
         ))
@@ -76,13 +79,16 @@ export default function AccountPage() {
   const stats = useLiveQuery(() => computeStats(), [])
   const items = useLiveQuery(() => db.items.toArray(), [])
   const lists = useLiveQuery(() => db.lists.orderBy('createdAt').toArray(), [])
+  const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
   useEffect(() => {
     const timer = setInterval(() => setSlot(Math.floor(Date.now() / ROTATION_MS)), 60_000)
     return () => clearInterval(timer)
   }, [])
 
-  if (!items || !stats || !lists) return null
+  if (!items || !stats || !lists || !eps) return null
+
+  const grades = rewatchGrades(items, eps)
 
   const favoriteArt = items.filter((i) => i.favorite && (i.backdrop || i.poster))
   const bgItem = favoriteArt.length > 0 ? favoriteArt[slot % favoriteArt.length] : null
@@ -288,18 +294,19 @@ export default function AccountPage() {
 
       {/* catalog */}
       <div className="mt-8 space-y-7">
-        <CatalogRow title={t('nav.series')} icon={<Tv size={18} />} to="/catalog/series" items={catSeries} />
+        <CatalogRow title={t('nav.series')} icon={<Tv size={18} />} to="/catalog/series" items={catSeries} grades={grades} />
         <CatalogRow
           title={t('nav.movies')}
           icon={<Clapperboard size={18} />}
           to="/catalog/movies"
           items={catMovies}
+          grades={grades}
         />
         {settings.showBooks && (
-          <CatalogRow title={t('nav.books')} icon={<BookOpen size={18} />} to="/catalog/books" items={catBooks} />
+          <CatalogRow title={t('nav.books')} icon={<BookOpen size={18} />} to="/catalog/books" items={catBooks} grades={grades} />
         )}
         {settings.showGames && (
-          <CatalogRow title={t('nav.games')} icon={<Gamepad2 size={18} />} to="/catalog/games" items={catGames} />
+          <CatalogRow title={t('nav.games')} icon={<Gamepad2 size={18} />} to="/catalog/games" items={catGames} grades={grades} />
         )}
       </div>
     </div>

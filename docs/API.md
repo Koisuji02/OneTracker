@@ -53,12 +53,17 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 
 | Function | Returns | Notes |
 |---|---|---|
-| `searchTv(q)` | `SearchResult[]` | TMDB; **anime filtered out** (genre 16 + lang ja/zh/ko) |
+| `searchTv(q)` | `SearchResult[]` | TMDB; **anime filtered out**: Animation genre AND (ja/zh/ko language OR AniList anime-title match) |
 | `searchMovies(q)` | `SearchResult[]` | TMDB (anime movies included by design) |
-| `searchAnime(q)` / `searchManga(q)` | `SearchResult[]` | AniList |
-| `searchBooks(q)` | `SearchResult[]` | Open Library; **manga filtered out** (subject) |
-| `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP) |
+| `searchAnime(q)` / `searchManga(q)` | `SearchResult[]` | AniList (responses memoized 60s, shared with the cross-filters) |
+| `searchBooks(q)` | `SearchResult[]` | Open Library; **manga filtered out** (subject + AniList title match incl. "Vol. N" editions) |
+| `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP); manga publishers + AniList title match filtered |
 | `searchGames(q)` | `SearchResult[]` | RAWG |
+
+Cross-filter helpers (`src/api/anilist.ts`): `mangaTitleKeys(q)` / `animeTitleKeys(q)`
+return normalized AniList titles for a query (memoized — zero extra requests when the
+Anime/Manga rows already searched it); `matchesTitleSet(title, keys)` also matches
+volume-stripped bases ("Berserk, Vol. 3" → "berserk").
 | `getDetails(provider, mediaType, providerId)` | `MediaDetails` | routes to the right provider; includes cast, seasons, ongoing flag, release dates and `externalRatings` |
 | `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; AniList/Comic Vine generated 1..N; 7-day cache |
 
@@ -90,6 +95,13 @@ released chapter number + its publish date.
 | anime / manga | AniList `averageScore` + MyAnimeList via Jikan (keyless) |
 | books | Open Library community rating (keyless) |
 | games | Metacritic + RAWG score (inside the RAWG payload) |
+
+### Game box art (`src/api/steamgriddb.ts`)
+
+RAWG's `background_image` is promo art without the title. `gameDetails()` resolves
+the poster as: **SteamGridDB** 600×900 titled box art (any platform, free key) →
+Steam CDN vertical capsule (appid parsed from the RAWG store link) → RAWG art.
+RAWG `parent_platforms` slugs are stored on items and shown as platform chips.
 
 ## Backup (`src/backup.ts`)
 

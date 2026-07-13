@@ -8,7 +8,7 @@ import { ArrowLeft, BookOpen, Clapperboard, Gamepad2, Tv } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
-import { db, isEpisodic } from '../db'
+import { db, isEpisodic, rewatchGrades } from '../db'
 import { useT } from '../i18n'
 import type { LibraryItem } from '../types'
 
@@ -43,10 +43,12 @@ export default function CatalogPage() {
   const t = useT()
   const nav = useNavigate()
   const items = useLiveQuery(() => db.items.toArray(), [])
+  const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
   const def = KINDS[kind]
-  if (!items || !def) return null
+  if (!items || !eps || !def) return null
 
+  const grades = rewatchGrades(items, eps)
   const list = items
     .filter((i) => i.status !== 'planned' && def.filter(i))
     .sort(
@@ -82,6 +84,7 @@ export default function CatalogPage() {
               year={i.year}
               rating={i.rating}
               statusKind={i.status === 'completed' ? 'done' : 'ongoing'}
+              rewatchCount={grades.get(i.id)}
               onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
             />
           ))}

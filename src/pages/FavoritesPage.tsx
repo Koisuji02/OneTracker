@@ -3,12 +3,20 @@ import { ArrowLeft, Heart } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
-import { db, isEpisodic } from '../db'
+import { db, isEpisodic, rewatchGrades } from '../db'
 import { useT } from '../i18n'
 import { useSettings } from '../settings'
 import type { LibraryItem } from '../types'
 
-function FavSection({ title, items }: { title: string; items: LibraryItem[] }) {
+function FavSection({
+  title,
+  items,
+  grades,
+}: {
+  title: string
+  items: LibraryItem[]
+  grades: Map<string, number>
+}) {
   const nav = useNavigate()
   if (items.length === 0) return null
   return (
@@ -27,6 +35,7 @@ function FavSection({ title, items }: { title: string; items: LibraryItem[] }) {
             year={i.year}
             rating={i.rating}
             statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
+            rewatchCount={grades.get(i.id)}
             onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
           />
         ))}
@@ -43,9 +52,11 @@ export default function FavoritesPage() {
     () => db.items.filter((i) => i.favorite).toArray(),
     [],
   )
+  const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
-  if (!favorites) return null
+  if (!favorites || !eps) return null
 
+  const grades = rewatchGrades(favorites, eps)
   const favSeries = favorites.filter((i) => isEpisodic(i.mediaType))
   const favMovies = favorites.filter((i) => i.mediaType === 'movie')
   const favBooks = favorites.filter((i) => i.mediaType === 'book' || i.mediaType === 'manga')
@@ -70,10 +81,10 @@ export default function FavoritesPage() {
         </div>
       ) : (
         <>
-          <FavSection title={t('account.favSeries')} items={favSeries} />
-          <FavSection title={t('account.favMovies')} items={favMovies} />
-          {settings.showBooks && <FavSection title={t('account.favBooks')} items={favBooks} />}
-          {settings.showGames && <FavSection title={t('account.favGames')} items={favGames} />}
+          <FavSection title={t('account.favSeries')} items={favSeries} grades={grades} />
+          <FavSection title={t('account.favMovies')} items={favMovies} grades={grades} />
+          {settings.showBooks && <FavSection title={t('account.favBooks')} items={favBooks} grades={grades} />}
+          {settings.showGames && <FavSection title={t('account.favGames')} items={favGames} grades={grades} />}
         </>
       )}
     </div>

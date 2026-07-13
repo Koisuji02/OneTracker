@@ -14,6 +14,8 @@ interface PosterCardProps {
   rating?: number | null
   /** bottom-left status: hourglass = in progress / still releasing, flag = fully done */
   statusKind?: 'ongoing' | 'done' | null
+  /** completed watchthroughs ≥2 — shows an "x2" dot next to the status icon */
+  rewatchCount?: number | null
   /** lg = wider cover, used where rating/status badges are shown */
   size?: 'md' | 'lg'
   className?: string
@@ -28,6 +30,7 @@ export default function PosterCard({
   onAdd,
   rating,
   statusKind,
+  rewatchCount,
   size = 'md',
   className,
 }: PosterCardProps) {
@@ -76,8 +79,18 @@ export default function PosterCard({
           </span>
         )}
         {statusKind && (
-          <span className="absolute bottom-1.5 left-1.5 grid h-7 w-7 place-items-center rounded-full bg-white text-black shadow-lg">
-            {statusKind === 'done' ? <Flag size={14} strokeWidth={2.5} /> : <Hourglass size={14} strokeWidth={2.5} />}
+          <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-black shadow-lg">
+              {statusKind === 'done' ? <Flag size={14} strokeWidth={2.5} /> : <Hourglass size={14} strokeWidth={2.5} />}
+            </span>
+            {rewatchCount != null && rewatchCount >= 2 && (
+              <span
+                className="grid h-7 min-w-7 place-items-center rounded-full bg-white px-1 text-[11px] font-black leading-none text-black shadow-lg"
+                style={{ fontVariantNumeric: 'tabular-nums' }}
+              >
+                x{rewatchCount}
+              </span>
+            )}
           </span>
         )}
       </div>

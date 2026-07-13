@@ -27,3 +27,6 @@ dist-ssr
 *.env
 # smoke test screenshots
 scripts/shots
+
+# personal TV Time exports (test data)
+*.zip

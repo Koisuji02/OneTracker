@@ -8,7 +8,7 @@
  */
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
-import { mangaTitleKeys, normalizeTitle } from './anilist'
+import { mangaTitleKeys, matchesTitleSet } from './anilist'
 import { ApiKeyMissingError } from './errors'
 
 const API = 'https://comicvine.gamespot.com/api'
@@ -76,7 +76,7 @@ export async function searchComics(query: string): Promise<SearchResult[]> {
     .filter(
       (v) =>
         !MANGA_PUBLISHERS.test(v.publisher?.name ?? '') &&
-        !mangaTitles.has(normalizeTitle(v.name ?? '')),
+        !matchesTitleSet(v.name ?? '', mangaTitles),
     )
     .slice(0, 14)
     .map((v) => ({

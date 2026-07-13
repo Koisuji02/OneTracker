@@ -20,8 +20,8 @@ APK is fine for personal use; a Play-Store release would need a signing key and
 There are two layers, both already wired:
 
 1. **Baked at build time** — keys in `.env` (`VITE_TMDB_KEY`, `VITE_RAWG_KEY`,
-   `VITE_OMDB_KEY`, `VITE_COMICVINE_KEY`) are embedded in the JS bundle when you run
-   the build. An APK built this way **works out of the box**.
+   `VITE_OMDB_KEY`, `VITE_COMICVINE_KEY`, `VITE_STEAMGRIDDB_KEY`) are embedded in
+   the JS bundle when you run the build. An APK built this way **works out of the box**.
 2. **Per-user in Settings** — anyone can enter/override keys in Settings → API keys
    (stored in localStorage on their device). Baked keys act as defaults; a non-empty
    value in Settings wins.
