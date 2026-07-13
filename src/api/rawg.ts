@@ -1,5 +1,7 @@
+import { db } from '../db'
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
+import { gameCoverKey, rememberCover } from './covers'
 import { ApiKeyMissingError } from './errors'
 import { rawgRatings } from './ratings'
 import { wikipediaBoxArt } from './wikipedia'
@@ -83,10 +85,15 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
   const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
-  // box art priority: Steam CDN vertical capsule (has the title/logo, only
-  // for games on Steam with modern assets) → Wikipedia infobox box art
-  // (any platform, keyless) → RAWG promo art
-  const boxArt = (await steamBoxArt(d, id)) ?? (await wikipediaBoxArt(d.name))
+  // box art: reuse whatever the shared cover cache already resolved (search
+  // may have run first — same artwork everywhere), else Steam CDN capsule →
+  // Wikipedia infobox art → RAWG promo art, and remember the result
+  const cachedCoverHit = await db.covers.get(gameCoverKey(id))
+  let boxArt = cachedCoverHit?.url ?? null
+  if (!boxArt) {
+    boxArt = (await steamBoxArt(d, id)) ?? (await wikipediaBoxArt(d.name))
+    rememberCover(gameCoverKey(id), boxArt ?? d.background_image ?? null).catch(() => {})
+  }
   return {
     id: `rawg:${id}`,
     provider: 'rawg',
@@ -96,7 +103,11 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
     overview: d.description_raw || null,
     poster: boxArt ?? d.background_image ?? null,
     backdrop: d.background_image_additional ?? d.background_image ?? null,
-    platforms: ((d.parent_platforms ?? []) as any[])
+    // detailed platforms (PS3, PS5, XONE, SWITCH…) — parent families only
+    // as fallback for entries that lack the detailed list
+    platforms: (
+      ((d.platforms?.length ? d.platforms : d.parent_platforms) ?? []) as any[]
+    )
       .map((p) => p.platform?.slug as string)
       .filter(Boolean),
     year: d.released ? Number(String(d.released).slice(0, 4)) : null,

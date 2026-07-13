@@ -33,6 +33,7 @@ import CheckButton from '../components/CheckButton'
 import PlatformChips from '../components/PlatformChips'
 import RatingBadge from '../components/RatingBadge'
 import RatingModal from '../components/RatingModal'
+import RatingsBanners from '../components/RatingsBanners'
 import RewatchDialog from '../components/RewatchDialog'
 import {
   addToLibrary,
@@ -59,7 +60,6 @@ import { useT } from '../i18n'
 import { useSettings } from '../settings'
 import type {
   EpisodeInfo,
-  ExternalRating,
 
   LibraryItem,
   MediaDetails,
@@ -72,38 +72,6 @@ import { cn, formatDate } from '../util'
 
 type Ensure = () => Promise<LibraryItem | null>
 type UnitDialog = { season: number; episode: number; count: number; label: string } | null
-
-/** Small colored pills with critic/community scores (IMDb, RT, MAL…). */
-function RatingsBanners({ list }: { list: ExternalRating[] }) {
-  const styles: Record<string, { bg: string; fg: string; emoji?: string }> = {
-    imdb: { bg: '#f5c518', fg: '#000000' },
-    rt: { bg: '#fa320a', fg: '#ffffff', emoji: '🍅' },
-    metacritic: { bg: '#1b5e20', fg: '#ffffff' },
-    mal: { bg: '#2e51a2', fg: '#ffffff' },
-    anilist: { bg: '#3db4f2', fg: '#0b2534' },
-    openlibrary: { bg: '#5b4636', fg: '#ffffff', emoji: '📖' },
-    rawg: { bg: '#202020', fg: '#ffffff' },
-  }
-  if (list.length === 0) return null
-  return (
-    <div className="mt-4 flex flex-wrap items-center gap-2 px-4">
-      {list.map((r) => {
-        const s = styles[r.source] ?? { bg: '#333', fg: '#fff' }
-        return (
-          <span
-            key={r.source}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-black shadow"
-            style={{ background: s.bg, color: s.fg }}
-          >
-            {s.emoji && <span>{s.emoji}</span>}
-            <span className="opacity-80">{r.label}</span>
-            {r.score}
-          </span>
-        )
-      })}
-    </div>
-  )
-}
 
 /** One checkable unit row (episode or chapter). */
 function UnitRow({
@@ -394,13 +362,16 @@ export default function DetailPage() {
     let alive = true
     setDetails(null)
     setError(null)
-    getDetails(provider, mediaType, id)
-      .then((d) => {
-        if (!alive) return
-        setDetails(d)
-        // keep the library snapshot fresh (new episodes/chapters, dates, art)
-        refreshItemMetadata(d).catch(() => {})
-      })
+    const applyFresh = (d: MediaDetails) => {
+      if (!alive) return
+      setDetails(d)
+      // keep the library snapshot fresh (new episodes/chapters, dates, art)
+      refreshItemMetadata(d).catch(() => {})
+    }
+    // SWR: cached data renders instantly; a background revalidation (>6h)
+    // delivers fresh data through the same callback
+    getDetails(provider, mediaType, id, applyFresh)
+      .then(applyFresh)
       .catch((err) => {
         if (alive) setError(err instanceof ApiKeyMissingError ? 'keymissing' : 'error')
       })

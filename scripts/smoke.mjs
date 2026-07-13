@@ -47,9 +47,11 @@ try {
   // 3. search (AniList needs no key) + TMDB warning
   await page.goto(`${BASE}/#/search`)
   await page.getByPlaceholder(/Cerca serie/).fill('one piece')
-  await page.waitForTimeout(3500)
-  await shot('02-search')
   const animeSection = page.locator('section', { hasText: 'Anime' }).first()
+  // cover enrichment on a cold cache takes a few seconds — wait, don't sleep
+  await animeSection.locator('img').first().waitFor({ timeout: 45000 })
+  await page.waitForTimeout(600)
+  await shot('02-search')
   const posterCount = await animeSection.locator('img').count()
   if (posterCount > 0) ok(`anime search returned ${posterCount} posters`)
   else fail('anime search', 'no posters found')

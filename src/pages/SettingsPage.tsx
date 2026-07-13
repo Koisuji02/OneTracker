@@ -23,7 +23,7 @@ import { db } from '../db'
 import { connectGoogle, disconnectGoogle, restoreFromDrive, saveToDrive } from '../drive'
 import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
-import { updateSettings, useSettings, type Language } from '../settings'
+import { ENV_DEFAULTS, updateSettings, useSettings, type Language } from '../settings'
 import { THEMES } from '../themes'
 import { cn } from '../util'
 
@@ -163,6 +163,14 @@ export default function SettingsPage() {
     }
   }
 
+  /** Baked default keys stay hidden: empty field = default in use, typing overrides. */
+  const keyProps = (field: keyof typeof ENV_DEFAULTS, ph: string) => ({
+    value:
+      ENV_DEFAULTS[field] && settings[field] === ENV_DEFAULTS[field] ? '' : settings[field],
+    onChange: (v: string) => updateSettings({ [field]: v.trim() || ENV_DEFAULTS[field] }),
+    placeholder: ENV_DEFAULTS[field] ? t('settings.defaultKeyActive') : ph,
+  })
+
   const onImportFile = async (file: File) => {
     const text = await file.text()
     if (!confirm(t('settings.importConfirm'))) return
@@ -283,33 +291,25 @@ export default function SettingsPage() {
         <InputRow
           label={t('settings.tmdbKey')}
           hint={t('settings.tmdbHint')}
-          value={settings.tmdbKey}
-          onChange={(v) => updateSettings({ tmdbKey: v })}
-          placeholder="eyJhbGciOi… / 32-char v3 key"
+          {...keyProps('tmdbKey', 'eyJhbGciOi… / 32-char v3 key')}
         />
         <InputRow
           label={t('settings.omdbKey')}
           hint={t('settings.omdbHint')}
-          value={settings.omdbKey}
-          onChange={(v) => updateSettings({ omdbKey: v })}
-          placeholder="abc12345"
+          {...keyProps('omdbKey', 'abc12345')}
         />
         {settings.showGames && (
           <InputRow
             label={t('settings.rawgKey')}
             hint={t('settings.rawgHint')}
-            value={settings.rawgKey}
-            onChange={(v) => updateSettings({ rawgKey: v })}
-            placeholder="0123456789abcdef…"
+            {...keyProps('rawgKey', '0123456789abcdef…')}
           />
         )}
         {settings.showBooks && (
           <InputRow
             label={t('settings.comicvineKey')}
             hint={t('settings.comicvineHint')}
-            value={settings.comicvineKey}
-            onChange={(v) => updateSettings({ comicvineKey: v })}
-            placeholder="0123456789abcdef…"
+            {...keyProps('comicvineKey', '0123456789abcdef…')}
           />
         )}
       </Section>
@@ -318,9 +318,7 @@ export default function SettingsPage() {
         <InputRow
           label={t('settings.clientId')}
           hint={t('settings.clientIdHint')}
-          value={settings.googleClientId}
-          onChange={(v) => updateSettings({ googleClientId: v })}
-          placeholder="1234567890-xxxx.apps.googleusercontent.com"
+          {...keyProps('googleClientId', '1234567890-xxxx.apps.googleusercontent.com')}
         />
         {settings.googleEmail ? (
           <>

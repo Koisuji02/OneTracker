@@ -13,6 +13,7 @@
  * For ongoing manga, chapter counts come from MangaDex (see mangadex.ts).
  */
 import type { MediaDetails, SearchResult, Season } from '../types'
+import { animeCoverKey, rememberCover } from './covers'
 import { mangadexFind, mangadexLatest } from './mangadex'
 import { anilistRating, malRating } from './ratings'
 import { tmdbTvPosterByTitle } from './tmdbPoster'
@@ -349,6 +350,10 @@ async function animeDetails(id: string): Promise<MediaDetails> {
   const tmdbArt =
     (await tmdbTvPosterByTitle(pickTitle(full.title), full.startDate?.year)) ??
     (await tmdbTvPosterByTitle(full.title?.romaji ?? '', full.startDate?.year))
+  const finalPoster =
+    tmdbArt?.poster ?? full.coverImage?.extraLarge ?? full.coverImage?.large ?? null
+  // share the resolved cover with the search rows
+  rememberCover(animeCoverKey(pickTitle(full.title)), finalPoster).catch(() => {})
 
   return {
     id: `anilist:${root.id}`,
@@ -358,7 +363,7 @@ async function animeDetails(id: string): Promise<MediaDetails> {
     title: pickTitle(full.title),
     originalTitle: full.title?.romaji ?? null,
     overview: stripHtml(full.description),
-    poster: tmdbArt?.poster ?? full.coverImage?.extraLarge ?? full.coverImage?.large ?? null,
+    poster: finalPoster,
     backdrop: full.bannerImage ?? tmdbArt?.backdrop ?? null,
     year: full.startDate?.year ?? null,
     genres: (full.genres ?? []) as string[],
