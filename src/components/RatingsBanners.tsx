@@ -51,6 +51,18 @@ function AniListIcon() {
   )
 }
 
+function MangaDexIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4">
+      <rect width="24" height="24" rx="5" fill="#ffffff" />
+      {/* simplified MangaDex cat-ear mark */}
+      <path d="M5 19 V9 l3-4 2.5 3.5 h3 L16 5 l3 4 v10 z" fill="#FF6740" />
+      <circle cx="9.5" cy="13.5" r="1.3" fill="#fff" />
+      <circle cx="14.5" cy="13.5" r="1.3" fill="#fff" />
+    </svg>
+  )
+}
+
 function BookIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round">
@@ -75,6 +87,7 @@ const SERVICES: Record<string, ServiceStyle> = {
   metacritic: { bg: '#0F2B41', fg: '#ffffff', label: 'Metacritic', icon: <MetacriticIcon /> },
   mal: { bg: '#2E51A2', fg: '#ffffff', label: 'MyAnimeList', icon: <MalIcon /> },
   anilist: { bg: '#0B1622', fg: '#ffffff', label: 'AniList', icon: <AniListIcon /> },
+  mangadex: { bg: '#191A1C', fg: '#ffffff', label: 'MangaDex', icon: <MangaDexIcon /> },
   openlibrary: { bg: '#5B4636', fg: '#ffffff', label: 'Open Library', icon: <BookIcon /> },
   rawg: { bg: '#151515', fg: '#ffffff', label: 'RAWG', wordmark: true },
 }

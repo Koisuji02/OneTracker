@@ -1,5 +1,5 @@
 export type MediaType = 'tv' | 'anime' | 'movie' | 'book' | 'manga' | 'game'
-export type Provider = 'tmdb' | 'anilist' | 'openlibrary' | 'rawg' | 'comicvine'
+export type Provider = 'tmdb' | 'anilist' | 'mangadex' | 'openlibrary' | 'rawg' | 'comicvine'
 export type ItemStatus = 'planned' | 'watching' | 'completed'
 
 /** A critic/community score fetched from an external source (IMDb, MAL, …). */
