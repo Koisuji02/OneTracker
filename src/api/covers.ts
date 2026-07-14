@@ -9,7 +9,6 @@
  */
 import { db } from '../db'
 import type { SearchResult } from '../types'
-import { tmdbTvPosterByTitle } from './tmdbPoster'
 import { wikipediaBoxArt } from './wikipedia'
 
 const COVER_TTL = 1000 * 60 * 60 * 24 * 30 // 30 days
@@ -36,19 +35,6 @@ export async function cachedCover(
 /** Store a cover resolved elsewhere (e.g. by a detail fetch). */
 export async function rememberCover(key: string, url: string | null): Promise<void> {
   await db.covers.put({ key, url, fetchedAt: Date.now() })
-}
-
-/** Anime search rows: swap AniList art for the cached/classic TMDB poster. */
-export function enrichAnimeCovers(results: SearchResult[]): Promise<SearchResult[]> {
-  return Promise.all(
-    results.map(async (r) => {
-      const url = await cachedCover(animeCoverKey(r.title), async () => {
-        const art = await tmdbTvPosterByTitle(r.title, r.year)
-        return art?.poster ?? null
-      })
-      return url ? { ...r, poster: url } : r
-    }),
-  )
 }
 
 /** Game search rows: swap RAWG promo art for cached/titled box art. */

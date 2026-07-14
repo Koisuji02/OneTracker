@@ -47,20 +47,35 @@ paths:
     post:
       responses: { "200": { description: OK } }
       tags: [AniList]
-      summary: Anime/manga search, details, season-chain nodes
+      summary: Anime niche-search tail, score enrichment, legacy chain items
       description: >
         POST https://graphql.anilist.co — keyless GraphQL. Queries used:
-        SEARCH (Page.media), NODE (format/status/episodes/relations for the
-        PREQUEL/SEQUEL season chain), FULL (title, cover, banner, description,
-        genres, characters, averageScore, idMal, nextAiringEpisode).
+        SEARCH (Page.media — Anime-row tail + keyless fallback), SCORE
+        (averageScore/idMal by title or id, for TMDB-anime and MangaDex-manga
+        rating banners), NODE + FULL (legacy anilist: items only:
+        PREQUEL/SEQUEL season chain, characters, nextAiringEpisode).
 
   # ------------------------------------------------------------- MangaDex
   /mangadex/manga:
     get:
       responses: { "200": { description: OK } }
       tags: [MangaDex]
-      summary: Find a manga by title (matched to AniList via attributes.links.al)
-      description: GET https://api.mangadex.org/manga?title=…&limit=5
+      summary: Manga search (the Manga row source; alt-titles match localized queries)
+      description: >
+        GET https://api.mangadex.org/manga?title=…&limit=14&includes[]=cover_art
+        &order[relevance]=desc&contentRating[]=safe|suggestive|erotica —
+        memoized 60s, also feeds the Books/Comics manga cross-filter.
+  /mangadex/manga/{id}:
+    get:
+      responses: { "200": { description: OK } }
+      tags: [MangaDex]
+      summary: Full manga details (title, it/en description, cover, tags, authors)
+      description: GET https://api.mangadex.org/manga/{id}?includes[]=cover_art&includes[]=author&includes[]=artist
+  /mangadex/statistics/manga/{id}:
+    get:
+      responses: { "200": { description: OK } }
+      tags: [MangaDex]
+      summary: Community rating (bayesian) for the ratings banner
   /mangadex/chapter:
     get:
       responses: { "200": { description: OK } }

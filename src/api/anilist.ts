@@ -17,6 +17,7 @@ import type { MediaDetails, SearchResult, Season } from '../types'
 import { animeCoverKey, rememberCover } from './covers'
 import { mangadexFind, mangadexLatest } from './mangadex'
 import { anilistRating, malRating } from './ratings'
+import { looseTitleKey, normalizeTitle } from './titleMatch'
 import { tmdbTvPosterByTitle } from './tmdbPoster'
 
 const API = 'https://graphql.anilist.co'
@@ -67,7 +68,8 @@ query ($q: String, $type: MediaType) {
   Page(perPage: 14) {
     media(search: $q, type: $type, sort: SEARCH_MATCH) {
       id
-      title { romaji english }
+      format
+      title { romaji english native }
       coverImage { large }
       startDate { year }
     }
@@ -101,60 +103,83 @@ async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[
   }))
 }
 
-function normalizeTitle(t: string): string {
-  return t
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-}
-
-/** Normalized titles (romaji + english) of AniList results for a query. */
-async function titleKeys(q: string, type: 'ANIME' | 'MANGA'): Promise<Set<string>> {
-  try {
-    const media = await searchMedia(q, type)
-    const keys = new Set<string>()
-    for (const m of media) {
-      for (const t of [m.title?.romaji, m.title?.english]) {
-        if (t) keys.add(normalizeTitle(t))
-      }
-    }
-    return keys
-  } catch {
-    return new Set()
-  }
-}
-
-/** Used to keep manga out of the Comics and Books search rows. */
-export function mangaTitleKeys(q: string): Promise<Set<string>> {
-  return titleKeys(q, 'MANGA')
-}
-
-/** Used to keep anime out of the TV Series search row. */
-export function animeTitleKeys(q: string): Promise<Set<string>> {
-  return titleKeys(q, 'ANIME')
-}
-
-/** Volume/tome suffixes stripped before matching ("Berserk, Vol. 3" → "berserk"). */
-const VOLUME_TAIL = /\b(vol(ume)?s?|volumen|tome|tomo|band|omnibus|deluxe|book)\b.*$|\s+\d+$/
-
-/** True when a title (or its volume-stripped base) matches a title set. */
-export function matchesTitleSet(title: string, keys: Set<string>): boolean {
-  const norm = normalizeTitle(title)
-  if (keys.has(norm)) return true
-  const base = norm.replace(VOLUME_TAIL, '').trim()
-  return base.length > 2 && keys.has(base)
-}
-
-export { normalizeTitle }
-
 export function searchAnime(q: string): Promise<SearchResult[]> {
   return search(q, 'ANIME')
 }
 
 export function searchManga(q: string): Promise<SearchResult[]> {
   return search(q, 'MANGA')
+}
+
+/**
+ * Niche-title supplement for the Anime row: AniList entries whose titles
+ * (english OR romaji) don't match any TMDB anime result for the same query —
+ * short ONAs, donghua, unaired announcements TMDB doesn't index yet.
+ * Movies stay out (they live in the Movies row, as TMDB entries) and so do
+ * per-season entries ("… 3rd Season"): TMDB aggregates those into the show.
+ */
+export async function searchAnimeExtras(
+  q: string,
+  excludeKeys: Set<string>,
+): Promise<SearchResult[]> {
+  try {
+    const media = await searchMedia(q, 'ANIME')
+    const isDup = (m: any) => {
+      if (m.format === 'MOVIE') return true
+      for (const t of [m.title?.english, m.title?.romaji] as (string | undefined)[]) {
+        if (t && excludeKeys.has(normalizeTitle(t))) return true
+        if (t && SEASON_TITLE_RE.test(t)) return true
+      }
+      // native script matches TMDB's original_name (kanji/hangul)
+      const native = m.title?.native as string | undefined
+      return !!native && excludeKeys.has(looseTitleKey(native))
+    }
+    return media
+      .filter((m) => !isDup(m))
+      .map((m) => ({
+        provider: 'anilist' as const,
+        providerId: String(m.id),
+        mediaType: 'anime' as const,
+        title: pickTitle(m.title),
+        year: m.startDate?.year ?? null,
+        poster: m.coverImage?.large ?? null,
+      }))
+  } catch {
+    return [] // best-effort: the TMDB results alone are a full row
+  }
+}
+
+// ------------------------------------------------------- ratings enrichment
+
+const SCORE_SEARCH_QUERY = `
+query ($q: String) {
+  Media(search: $q, type: ANIME) { averageScore idMal }
+}`
+
+const SCORE_ID_QUERY = `
+query ($id: Int) {
+  Media(id: $id, type: MANGA) { averageScore idMal }
+}`
+
+/** AniList + MAL scores for a TMDB anime, matched by title. Best-effort. */
+export async function animeRatingsByTitle(title: string) {
+  try {
+    const m = (await gql(SCORE_SEARCH_QUERY, { q: title })).Media
+    return [...anilistRating(m?.averageScore), ...(await malRating(m?.idMal, 'anime'))]
+  } catch {
+    return []
+  }
+}
+
+/** AniList + MAL scores for a MangaDex manga via its `links.al` id. */
+export async function mangaRatingsByAnilistId(anilistId: string | null | undefined) {
+  if (!anilistId) return []
+  try {
+    const m = (await gql(SCORE_ID_QUERY, { id: Number(anilistId) })).Media
+    return [...anilistRating(m?.averageScore), ...(await malRating(m?.idMal, 'manga'))]
+  } catch {
+    return []
+  }
 }
 
 // -------------------------------------------------- anime season-chain walk

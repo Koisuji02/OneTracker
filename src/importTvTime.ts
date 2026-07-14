@@ -120,7 +120,7 @@ async function importShow(
 ): Promise<void> {
   const { tvId } = await findByExternalId(tvdbId, 'tvdb_id')
   if (!tvId) throw new Error('not on TMDB')
-  const details = await tvDetails(tvId)
+  const details = await tvDetails(tvId, true) // bulk: skip AniList/MAL scores
   const item = await addToLibrary(details)
   if (favorite && !item.favorite) await db.items.update(item.id, { favorite: true })
   const rows: WatchedEpisode[] = marks
