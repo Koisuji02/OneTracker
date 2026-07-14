@@ -7,7 +7,7 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 ## What it does
 
 **Tracking**
-- **Series & anime** — per-episode check-off with **cascade marking** (checking ep. 4 marks 1–3 too), "Continue watching" with next-episode card, remaining count `+N` and progress bar. AniList season chains (Fire Force, Fire Force 2…) are **aggregated into one entry with real seasons**.
+- **Series & anime** — per-episode check-off with **cascade marking** (checking ep. 4 marks 1–3 too), "Continue watching" with next-episode card, remaining count `+N` and progress bar. Anime are TMDB entries: **one entry per show with real seasons** (saga names, localized episode titles), no cross-provider duplicates with TV Time imports.
 - **Ongoing works never auto-complete**: when you're caught up they stay in "Continue" with a waiting badge and the **next episode air date** (TMDB/AniList).
 - **Manga & comics** — chapter checklists (blocks of 100), same cascade rules. Chapter counts of ongoing manga come from **MangaDex**; western comics runs (with issue counts) from **Comic Vine**.
 - **Movies & books** — one-tap watched/read.
@@ -18,7 +18,7 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 - Hero header with **rotating favorite artwork** (every 30 min), custom display name and a customizable **avatar** (uploaded photo, poster from your library, or built-in character presets).
 - **Watch time** total + expandable breakdown (TV / anime / movies / games, episode & chapter counts). Game time uses your tracked hours, or the expected average until you set them.
 - **Personal ratings 0–10** (decimal slider with emoji face). Badges on covers: white circle up to 8.4, then bronze / silver / gold trophies, pulsing diamond for 10.
-- **Critic ratings** on detail pages: IMDb + Rotten Tomatoes/Metacritic (via OMDb), AniList + MyAnimeList, Metacritic + RAWG, Open Library.
+- **Critic ratings** on detail pages: IMDb + Rotten Tomatoes/Metacritic (via OMDb), AniList + MyAnimeList + MangaDex, Metacritic + RAWG, Open Library.
 - **Catalog** rows (Series / Movies / Books / Games) with everything started or finished — hourglass = in progress/ongoing, flag = completed — expandable to **full grid views**.
 - **Custom lists** with a name and color, preview box on the profile, dedicated pages with a library picker.
 
@@ -32,9 +32,9 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 
 | Catalog | Provider | API key |
 |---|---|---|
-| TV series & movies | [TMDB](https://www.themoviedb.org/) | required (free) |
-| Anime & manga | [AniList](https://anilist.co/) | none |
-| Manga chapter counts/dates | [MangaDex](https://mangadex.org/) | none |
+| TV series, anime & movies | [TMDB](https://www.themoviedb.org/) | required (free) |
+| Manga (search, details, chapters, rating) | [MangaDex](https://mangadex.org/) | none |
+| Anime/manga scores + niche-anime search tail | [AniList](https://anilist.co/) | none |
 | Books | [Open Library](https://openlibrary.org/) | none |
 | Comics | [Comic Vine](https://comicvine.gamespot.com/api/) | required (free) |
 | Games | [RAWG](https://rawg.io/apidocs) | required (free) |
@@ -42,10 +42,11 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 | IMDb / Rotten Tomatoes scores | [OMDb](https://www.omdbapi.com/) | required (free) |
 | MyAnimeList scores | [Jikan](https://jikan.moe/) | none |
 
-Search rows are kept exclusive with **zero extra requests**: the AniList response
-for a query is memoized and shared, so anime titles are filtered out of the TV row
-(only when the result is also Animation — live-action adaptations stay) and manga
-titles (including single "Vol. N" editions) out of the Books and Comics rows.
+Search rows are **one source each, every result in exactly one row**: a single
+memoized TMDB search feeds both the TV and Anime rows (split by Animation genre +
+east-asian original language, so western animation stays in TV), AniList only appends
+niche anime TMDB doesn't index, and the memoized MangaDex response keeps manga titles
+(including single "Vol. N" editions) out of the Books and Comics rows.
 
 Keys go in **Settings → API keys** (stored in localStorage) or in `.env` (see `.env.example`).
 
@@ -55,9 +56,10 @@ Keys go in **Settings → API keys** (stored in localStorage) or in `.env` (see 
 src/
   api/            provider modules (one per external API) + dispatcher
     index.ts        getDetails()/getEpisodes() routing + episode cache
-    tmdb.ts         TV/movies (+ anime filter, OMDb hook)
-    anilist.ts      anime (season-chain aggregation) + manga
-    mangadex.ts     latest-chapter lookup for ongoing manga
+    tmdb.ts         TV/anime/movies (shared search + anime auto-detect, OMDb hook)
+    anilist.ts      score enrichment + niche-anime tail (+ legacy chain items)
+    mangadex.ts     manga search/details/chapters/rating (keyless)
+    titleMatch.ts   cross-source title normalization/dedup
     comicvine.ts    comics via JSONP (no CORS on that API)
     openlibrary.ts  books (+ manga filter, community rating)
     rawg.ts         games (+ metacritic/rawg scores)

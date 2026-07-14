@@ -8,8 +8,9 @@
  */
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
-import { mangaTitleKeys, matchesTitleSet } from './anilist'
 import { ApiKeyMissingError } from './errors'
+import { mangadexTitleKeys } from './mangadex'
+import { matchesTitleSet } from './titleMatch'
 
 const API = 'https://comicvine.gamespot.com/api'
 
@@ -56,23 +57,33 @@ function stripHtml(s: string | null | undefined): string | null {
 }
 
 /**
- * Manga has its own tab (AniList/MangaDex) — keep the Comics row for western
- * comics with a two-layer filter:
+ * Manga has its own tab (MangaDex) — keep the Comics row for western comics
+ * with a two-layer filter:
  * 1. manga-focused publishers blacklist (incl. Italian/EU manga imprints)
- * 2. cross-check against AniList: a volume whose title matches a manga
- *    result for the same query is dropped. The AniList response is memoized,
- *    so this costs nothing extra when the Manga row already searched it.
+ * 2. cross-check against MangaDex: a volume whose title matches a manga
+ *    result for the same query is dropped. MangaDex alt-titles cover
+ *    localized editions too; the response is memoized with the Manga row.
  */
 const MANGA_PUBLISHERS =
   /shueisha|kodansha|shogakukan|kadokawa|\bviz\b|viz media|seven seas|yen press|tokyopop|vertical|square enix manga|j-novel|j-pop|planet manga|panini manga|star comics|carlsen|glenat|glénat|egmont manga|ivrea|norma editorial/i
 
+/**
+ * Comic Vine rate-limits hard (200 req/h per resource + a velocity guard),
+ * and every keystroke-debounced query costs one call — memoize 60s so
+ * retyping or reopening a search doesn't burn the budget into an error row.
+ */
+const comicSearchCache = new Map<string, { at: number; results: SearchResult[] }>()
+
 export async function searchComics(query: string): Promise<SearchResult[]> {
+  const cacheKey = query.trim().toLowerCase()
+  const hit = comicSearchCache.get(cacheKey)
+  if (hit && Date.now() - hit.at < 60_000) return hit.results
   const url =
     `${API}/search/?api_key=${key()}&resources=volume&limit=25` +
     `&query=${encodeURIComponent(query)}&field_list=id,name,image,start_year,count_of_issues,publisher`
-  const [data, mangaTitles] = await Promise.all([jsonp(url), mangaTitleKeys(query)])
+  const [data, mangaTitles] = await Promise.all([jsonp(url), mangadexTitleKeys(query)])
   if (data.status_code !== 1) throw new Error(`Comic Vine error ${data.status_code}`)
-  return ((data.results ?? []) as any[])
+  const results = ((data.results ?? []) as any[])
     .filter(
       (v) =>
         !MANGA_PUBLISHERS.test(v.publisher?.name ?? '') &&
@@ -87,6 +98,10 @@ export async function searchComics(query: string): Promise<SearchResult[]> {
       year: v.start_year ? Number(v.start_year) : null,
       poster: v.image?.medium_url ?? null,
     }))
+  comicSearchCache.set(cacheKey, { at: Date.now(), results })
+  if (comicSearchCache.size > 30)
+    comicSearchCache.delete(comicSearchCache.keys().next().value as string)
+  return results
 }
 
 /**

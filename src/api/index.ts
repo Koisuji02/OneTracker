@@ -8,21 +8,40 @@
  * OMDb + Jikan (external ratings).
  */
 import { db, getCachedEpisodes, putCachedEpisodes } from '../db'
-import type { EpisodeInfo, MediaBase, MediaDetails, MediaType, Provider } from '../types'
-import { anilistDetails } from './anilist'
+import type { EpisodeInfo, MediaBase, MediaDetails, MediaType, Provider, SearchResult } from '../types'
+import { anilistDetails, searchAnime as searchAnimeAnilist, searchAnimeExtras } from './anilist'
 import { comicDetails, comicvineIssueTitles } from './comicvine'
+import { ApiKeyMissingError } from './errors'
 import { jikanEpisodeTitles } from './jikan'
-import { mangadexChapterTitles } from './mangadex'
+import { mangadexChapterTitles, mangadexDetails } from './mangadex'
 import { bookDetails } from './openlibrary'
 import { gameDetails } from './rawg'
-import { movieDetails, seasonEpisodes, tvDetails } from './tmdb'
+import { movieDetails, searchAnimeTmdb, seasonEpisodes, tmdbTvTitleKeys, tvDetails } from './tmdb'
 
 export { ApiKeyMissingError } from './errors'
-export { searchAnime, searchManga } from './anilist'
+export { searchManga } from './mangadex'
 export { searchComics } from './comicvine'
 export { searchBooks } from './openlibrary'
 export { searchGames } from './rawg'
 export { searchMovies, searchTv } from './tmdb'
+
+/**
+ * Anime row: TMDB is the primary source (same ids as the TV Time importer,
+ * titled posters, localized overviews), AniList supplements the tail with
+ * niche titles TMDB doesn't index (short ONAs, donghua, announcements).
+ * Without a TMDB key the row degrades to pure AniList — still keyless.
+ */
+export async function searchAnime(query: string): Promise<SearchResult[]> {
+  let primary: SearchResult[] = []
+  try {
+    primary = await searchAnimeTmdb(query)
+  } catch (err) {
+    if (!(err instanceof ApiKeyMissingError)) throw err
+    return searchAnimeAnilist(query)
+  }
+  const extras = await searchAnimeExtras(query, await tmdbTvTitleKeys(query))
+  return [...primary, ...extras].slice(0, 14)
+}
 
 function fetchDetails(
   provider: Provider,
@@ -34,6 +53,8 @@ function fetchDetails(
       return mediaType === 'movie' ? movieDetails(providerId) : tvDetails(providerId)
     case 'anilist':
       return anilistDetails(providerId, mediaType === 'anime' ? 'ANIME' : 'MANGA')
+    case 'mangadex':
+      return mangadexDetails(providerId)
     case 'openlibrary':
       return bookDetails(providerId)
     case 'rawg':

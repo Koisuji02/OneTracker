@@ -1,9 +1,10 @@
 import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 import type { CastMember, EpisodeInfo, MediaDetails, SearchResult } from '../types'
-import { animeTitleKeys, matchesTitleSet } from './anilist'
+import { animeRatingsByTitle } from './anilist'
 import { ApiKeyMissingError } from './errors'
 import { omdbRatings } from './ratings'
+import { looseTitleKey, normalizeTitle } from './titleMatch'
 
 const API = 'https://api.themoviedb.org/3'
 const IMG = 'https://image.tmdb.org/t/p/'
@@ -34,33 +35,75 @@ function yearOf(date: string | null | undefined): number | null {
 }
 
 /**
- * Anime has its own tab, so animated results are dropped from the TV row when
- * they look like anime: east-asian original language OR a title matching an
- * AniList anime result for the same query (memoized — shared with the Anime
- * row, zero extra requests). The Animation-genre guard keeps live-action
- * adaptations (e.g. Netflix's One Piece) in the TV row.
+ * ONE `/search/tv` request feeds both the TV and the Anime rows: results are
+ * memoized 60s and split client-side. Anime = Animation genre + east-asian
+ * original language; everything else (western animation included: Arcane,
+ * Castlevania, Avatar…) stays in the TV row. Every result appears in exactly
+ * one row, with the same tmdb id the TV Time importer produces — no more
+ * cross-provider duplicates, no AniList in the hot search path.
  */
-export async function searchTv(query: string): Promise<SearchResult[]> {
-  const [data, animeTitles] = await Promise.all([
-    tmdbFetch('/search/tv', { query, include_adult: 'false' }),
-    animeTitleKeys(query),
-  ])
-  const isAnime = (r: any) =>
-    Array.isArray(r.genre_ids) &&
-    r.genre_ids.includes(16) &&
-    (['ja', 'zh', 'ko'].includes(r.original_language) ||
-      matchesTitleSet(r.name ?? '', animeTitles))
-  return (data.results as any[])
-    .filter((r) => !isAnime(r))
-    .slice(0, 14)
-    .map((r) => ({
+const tvSearchCache = new Map<string, { at: number; results: any[] }>()
+
+async function searchTvRaw(query: string): Promise<any[]> {
+  const cacheKey = query.trim().toLowerCase()
+  const hit = tvSearchCache.get(cacheKey)
+  if (hit && Date.now() - hit.at < 60_000) return hit.results
+  const data = await tmdbFetch('/search/tv', { query, include_adult: 'false' })
+  const results = (data.results ?? []) as any[]
+  tvSearchCache.set(cacheKey, { at: Date.now(), results })
+  if (tvSearchCache.size > 30) tvSearchCache.delete(tvSearchCache.keys().next().value as string)
+  return results
+}
+
+const isAnimeResult = (r: any) =>
+  Array.isArray(r.genre_ids) &&
+  r.genre_ids.includes(16) &&
+  ['ja', 'zh', 'ko'].includes(r.original_language)
+
+function toTvResult(r: any, mediaType: 'tv' | 'anime'): SearchResult {
+  return {
     provider: 'tmdb' as const,
     providerId: String(r.id),
-    mediaType: 'tv' as const,
+    mediaType,
     title: r.name,
     year: yearOf(r.first_air_date),
     poster: tmdbImg(r.poster_path),
-  }))
+  }
+}
+
+export async function searchTv(query: string): Promise<SearchResult[]> {
+  const results = await searchTvRaw(query)
+  return results.filter((r) => !isAnimeResult(r)).slice(0, 14).map((r) => toTvResult(r, 'tv'))
+}
+
+export async function searchAnimeTmdb(query: string): Promise<SearchResult[]> {
+  const results = await searchTvRaw(query)
+  return results.filter(isAnimeResult).slice(0, 14).map((r) => toTvResult(r, 'anime'))
+}
+
+/**
+ * Normalized titles (localized + original) of ALL TMDB results for a query —
+ * used to dedupe the AniList niche-title supplement, so a show TMDB already
+ * lists (in either row: "Scott Pilgrim Takes Off" classifies as western TV)
+ * never appears twice. Free: reads the same memoized search the rows ran.
+ */
+export async function tmdbTvTitleKeys(query: string): Promise<Set<string>> {
+  const keys = new Set<string>()
+  try {
+    for (const r of await searchTvRaw(query)) {
+      for (const t of [r.name, r.original_name] as (string | undefined)[]) {
+        if (!t) continue
+        const norm = normalizeTitle(t)
+        if (norm.length > 1) keys.add(norm)
+        // native-script key: matches AniList's `native` title for anime
+        const loose = looseTitleKey(t)
+        if (loose.length > 1) keys.add(loose)
+      }
+    }
+  } catch {
+    // key missing / TMDB down — supplement simply skips deduping
+  }
+  return keys
 }
 
 export async function searchMovies(query: string): Promise<SearchResult[]> {
@@ -84,7 +127,7 @@ function mapCast(credits: any): CastMember[] {
   }))
 }
 
-export async function tvDetails(id: string): Promise<MediaDetails> {
+export async function tvDetails(id: string, skipAnimeScores = false): Promise<MediaDetails> {
   const d = await tmdbFetch(`/tv/${id}`, { append_to_response: 'credits,external_ids' })
   const seasons = ((d.seasons ?? []) as any[])
     .filter((s) => s.season_number > 0)
@@ -94,11 +137,16 @@ export async function tvDetails(id: string): Promise<MediaDetails> {
       episodeCount: s.episode_count as number,
       poster: tmdbImg(s.poster_path),
     }))
+  // anime auto-detection (genre id — language-independent): classifies the
+  // library tab correctly for search results AND TV Time imports alike
+  const isAnime =
+    ((d.genres ?? []) as any[]).some((g) => g.id === 16) &&
+    ['ja', 'zh', 'ko'].includes(d.original_language)
   return {
     id: `tmdb:${id}`,
     provider: 'tmdb',
     providerId: id,
-    mediaType: 'tv',
+    mediaType: isAnime ? 'anime' : 'tv',
     title: d.name,
     originalTitle: d.original_name ?? null,
     overview: d.overview || null,
@@ -113,7 +161,13 @@ export async function tvDetails(id: string): Promise<MediaDetails> {
     nextReleaseDate: (d.next_episode_to_air?.air_date as string | undefined) ?? null,
     cast: mapCast(d.credits),
     airStatus: d.status ?? null,
-    externalRatings: await omdbRatings(d.external_ids?.imdb_id),
+    // anime also get the AniList/MAL community scores — skipped during bulk
+    // imports (AniList throttles at ~30 req/min; scores arrive with the first
+    // detail-page SWR refresh instead)
+    externalRatings: [
+      ...(await omdbRatings(d.external_ids?.imdb_id)),
+      ...(isAnime && !skipAnimeScores ? await animeRatingsByTitle(d.original_name || d.name) : []),
+    ],
   }
 }
 
