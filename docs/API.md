@@ -7,8 +7,10 @@ app are described in [`openapi.yaml`](openapi.yaml).
 ## Identifiers
 
 Every media item has a stable id: **`${provider}:${providerId}`**
-(e.g. `tmdb:1396`, `anilist:105310`). For AniList anime, the id always points to the
-**root season** of a PREQUEL/SEQUEL chain, so every season resolves to one item.
+(e.g. `tmdb:1396`, `mangadex:801513ba-…`). Anime found via search are **TMDB
+entries** (`tmdb:` ids, `mediaType: 'anime'`) — the same ids the TV Time importer
+produces, so imports and searches land on the same item. Legacy `anilist:` anime ids
+keep working: their id points to the root season of a PREQUEL/SEQUEL chain.
 
 Watched units (episodes/chapters) have id **`${itemId}:${season}:${episode}`**.
 Manga/comic chapters are stored as season `1`.
@@ -53,24 +55,35 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 
 | Function | Returns | Notes |
 |---|---|---|
-| `searchTv(q)` | `SearchResult[]` | TMDB; **anime filtered out**: Animation genre AND (ja/zh/ko language OR AniList anime-title match) |
+| `searchTv(q)` | `SearchResult[]` | TMDB `/search/tv` (memoized 60s, one request shared with the Anime row); anime split out by **Animation genre + ja/zh/ko original language** — western animation (Arcane, Castlevania…) stays here |
 | `searchMovies(q)` | `SearchResult[]` | TMDB (anime movies included by design) |
-| `searchAnime(q)` / `searchManga(q)` | `SearchResult[]` | AniList (responses memoized 60s, shared with the cross-filters) |
-| `searchBooks(q)` | `SearchResult[]` | Open Library; **manga filtered out** (subject + AniList title match incl. "Vol. N" editions) |
-| `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP); manga publishers + AniList title match filtered |
+| `searchAnime(q)` | `SearchResult[]` | **TMDB-first** (same memoized search, `mediaType: 'anime'`) + AniList tail for titles TMDB doesn't index (deduped by localized/original/native titles; movies and per-season entries dropped). Keyless fallback: pure AniList when no TMDB key |
+| `searchManga(q)` | `SearchResult[]` | **MangaDex** (keyless; matches localized alt-titles, so Italian queries work; memoized 60s, shared with the cross-filters) |
+| `searchBooks(q)` | `SearchResult[]` | Open Library; **manga filtered out** (subject + MangaDex title match incl. "Vol. N" editions) |
+| `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP, memoized 60s — the API allows ~200 req/h); manga publishers + MangaDex title match filtered |
 | `searchGames(q)` | `SearchResult[]` | RAWG |
 | `getDetails(provider, mediaType, providerId)` | `MediaDetails` | routes to the right provider; includes cast, seasons, ongoing flag, release dates and `externalRatings` |
 | `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; anime titles via Jikan, manga via MangaDex, comics via Comic Vine issues; 7-day cache |
 
-Cross-filter helpers (`src/api/anilist.ts`): `mangaTitleKeys(q)` / `animeTitleKeys(q)`
-return normalized AniList titles for a query (memoized — zero extra requests when the
-Anime/Manga rows already searched it); `matchesTitleSet(title, keys)` also matches
-volume-stripped bases ("Berserk, Vol. 3" → "berserk").
+Cross-filter helpers: `mangadexTitleKeys(q)` (`src/api/mangadex.ts`) returns
+normalized MangaDex titles + alt-titles (all languages, Italian editions included)
+for a query — memoized, zero extra requests when the Manga row already searched it.
+`matchesTitleSet(title, keys)` (`src/api/titleMatch.ts`) also matches
+volume-stripped bases ("Berserk, Vol. 3" → "berserk"); `looseTitleKey` compares
+native-script titles (kanji/hangul) across TMDB and AniList for dedup.
 
 Providers throw `ApiKeyMissingError('tmdb'|'rawg'|'omdb'|'comicvine')` when their key
 is missing — the UI turns that into a "add your key in Settings" banner.
 
-### AniList season-chain aggregation (`src/api/anilist.ts`)
+### Anime via TMDB (`src/api/tmdb.ts`)
+
+`tvDetails(id)` auto-detects anime (genre id 16 + ja/zh/ko original language,
+language-independent) and returns `mediaType: 'anime'`: search results, detail
+pages AND TV Time imports classify into the Anime tab with real TMDB seasons
+(saga names, localized overviews, per-episode titles). Anime also get AniList +
+MAL score banners via a single cached title lookup (`animeRatingsByTitle`).
+
+### AniList season-chain aggregation (`src/api/anilist.ts`) — legacy items
 
 `animeDetails(id)`:
 1. fetch the entry node (`format`, `relations`)
@@ -81,18 +94,21 @@ is missing — the UI turns that into a "add your key in Settings" banner.
 
 Movies/specials are never aggregated. Nodes are memory-cached per session.
 
-### MangaDex enrichment (`src/api/mangadex.ts`)
+### MangaDex as the manga source (`src/api/mangadex.ts`)
 
-For RELEASING manga, AniList's `chapters` is null. `mangadexLatest(anilistId, title)`
-searches MangaDex, matches `attributes.links.al === anilistId`, then reads the highest
-released chapter number + its publish date.
+`mangadexDetails(id)` returns full manga details keyless: title, description
+(Italian preferred), cover art, year, genres (tags), authors/artists, ongoing
+status, released-chapter count (`lastChapter` + highest chapter in the feed) and
+`externalRatings` = MangaDex community rating + AniList/MAL scores grafted via
+`attributes.links.al`. Legacy `anilist:` manga items still use `mangadexFind` /
+`mangadexLatest` for chapter counts and titles.
 
 ### External ratings (`src/api/ratings.ts`)
 
 | Media | Sources |
 |---|---|
 | movies / TV | OMDb → IMDb, Rotten Tomatoes, Metacritic (needs free OMDb key) |
-| anime / manga | AniList `averageScore` + MyAnimeList via Jikan (keyless) |
+| anime / manga | AniList `averageScore` + MyAnimeList via Jikan (keyless); manga also MangaDex bayesian rating |
 | books | Open Library community rating (keyless) |
 | games | Metacritic + RAWG score (inside the RAWG payload) |
 

@@ -22,7 +22,8 @@ import {
   searchMovies,
   searchTv,
 } from '../api'
-import { enrichAnimeCovers, enrichGameCovers } from '../api/covers'
+import { enrichGameCovers } from '../api/covers'
+import { normalizeTitle } from '../api/titleMatch'
 import MediaRow from '../components/MediaRow'
 import PosterCard from '../components/PosterCard'
 import { addToLibrary, db } from '../db'
@@ -82,10 +83,16 @@ export default function SearchPage() {
   }, [q, rows])
 
   // id → poster of tracked items: search results reuse the SAME cover the
-  // rest of the app shows (titled box art etc.), keeping artwork consistent
+  // rest of the app shows (titled box art etc.), keeping artwork consistent.
+  // Anime are ALSO indexed by normalized title: a TV Time import (tmdb:) and
+  // its AniList twin must read as the same library entry, not a duplicate.
   const libraryPosters = useLiveQuery(async () => {
     const items = await db.items.toArray()
-    return new Map(items.map((i) => [i.id, i.poster ?? null]))
+    const map = new Map(items.map((i) => [i.id, i.poster ?? null]))
+    for (const i of items) {
+      if (i.mediaType === 'anime') map.set(`t:anime:${normalizeTitle(i.title)}`, i.poster ?? null)
+    }
+    return map
   }, [])
 
   const configs = useMemo<RowConfig[]>(() => {
@@ -95,8 +102,8 @@ export default function SearchPage() {
         key: 'anime',
         label: t('search.anime'),
         icon: <Sparkles size={18} />,
-        // same classic posters the detail pages show (shared cover cache)
-        run: (q) => searchAnime(q).then(enrichAnimeCovers),
+        // TMDB-first (titled posters, importer-compatible ids) + AniList tail
+        run: searchAnime,
       },
       { key: 'movies', label: t('search.movies'), icon: <Clapperboard size={18} />, run: searchMovies },
     ]
@@ -212,13 +219,15 @@ export default function SearchPage() {
                   ) : (
                     row.items.map((r) => {
                       const id = `${r.provider}:${r.providerId}`
+                      const tkey =
+                        r.mediaType === 'anime' ? `t:anime:${normalizeTitle(r.title)}` : id
                       return (
                         <PosterCard
                           key={id}
                           title={r.title}
                           year={r.year}
-                          poster={libraryPosters?.get(id) ?? r.poster}
-                          inLibrary={libraryPosters?.has(id) ?? false}
+                          poster={libraryPosters?.get(id) ?? libraryPosters?.get(tkey) ?? r.poster}
+                          inLibrary={(libraryPosters?.has(id) || libraryPosters?.has(tkey)) ?? false}
                           onAdd={() => quickAdd(r)}
                           onClick={() => nav(`/media/${r.provider}/${r.mediaType}/${r.providerId}`)}
                         />
