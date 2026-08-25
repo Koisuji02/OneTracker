@@ -1,33 +1,24 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import {
-  BookOpen,
-  BookText,
-  Clapperboard,
-  Gamepad2,
-  Search,
-  Sparkles,
-  Tv,
-} from 'lucide-react'
+import { BookOpen, Clapperboard, Gamepad2, Search, Tv } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ApiKeyMissingError,
   getDetails,
-  searchAnime,
-  searchBooks,
-  searchComics,
   searchGames,
-  searchManga,
   searchMovies,
-  searchTv,
+  searchReading,
+  searchShows,
 } from '../api'
 import { enrichGameCovers } from '../api/covers'
 import { normalizeTitle } from '../api/titleMatch'
 import MediaRow from '../components/MediaRow'
+import OfflineNotice from '../components/OfflineNotice'
 import PosterCard from '../components/PosterCard'
 import { addToLibrary, db } from '../db'
 import { useT } from '../i18n'
+import { useOnline } from '../net'
 import { useSettings } from '../settings'
 import type { SearchResult } from '../types'
 
@@ -43,6 +34,15 @@ interface RowState {
   items: SearchResult[]
 }
 
+/** What a search result needs to know about a library entry it matches. */
+interface LibMatch {
+  provider: string
+  providerId: string
+  mediaType: SearchResult['mediaType']
+  year: number | null
+  poster: string | null
+}
+
 /**
  * Module-level cache: keeps the last query + results alive across navigation
  * (open a result, go back → results are still there). It resets when the app
@@ -52,7 +52,6 @@ let searchMemory: { q: string; rows: Record<string, RowState> } = { q: '', rows:
 
 const KEY_MISSING_MSG: Record<string, string> = {
   games: 'search.rawgKeyMissing',
-  comics: 'search.comicvineKeyMissing',
 }
 
 function SkeletonRow() {
@@ -72,6 +71,7 @@ export default function SearchPage() {
   const t = useT()
   const nav = useNavigate()
   const settings = useSettings()
+  const online = useOnline()
   const [q, setQ] = useState(searchMemory.q)
   const [rows, setRows] = useState<Record<string, RowState>>(searchMemory.rows)
   const seqRef = useRef(0)
@@ -82,35 +82,59 @@ export default function SearchPage() {
     searchMemory = { q, rows }
   }, [q, rows])
 
-  // id → poster of tracked items: search results reuse the SAME cover the
-  // rest of the app shows (titled box art etc.), keeping artwork consistent.
-  // Anime are ALSO indexed by normalized title: a TV Time import (tmdb:) and
-  // its AniList twin must read as the same library entry, not a duplicate.
-  const libraryPosters = useLiveQuery(async () => {
+  // Library index for the "already tracked" check. Exact ids always match;
+  // anime and manga (comics included — they're mediaType 'manga') are ALSO
+  // indexed by normalized title, because the same work is reachable through
+  // several providers (tmdb↔anilist anime, mangadex↔anilist↔comicvine manga)
+  // and a provider fallback must never read as an addable duplicate.
+  const libraryIndex = useLiveQuery(async () => {
     const items = await db.items.toArray()
-    const map = new Map(items.map((i) => [i.id, i.poster ?? null]))
+    const byId = new Map<string, LibMatch>()
+    const byTitle = new Map<string, LibMatch[]>()
     for (const i of items) {
-      if (i.mediaType === 'anime') map.set(`t:anime:${normalizeTitle(i.title)}`, i.poster ?? null)
+      const m: LibMatch = {
+        provider: i.provider,
+        providerId: i.providerId,
+        mediaType: i.mediaType,
+        year: i.year ?? null,
+        poster: i.poster ?? null,
+      }
+      byId.set(i.id, m)
+      if (i.mediaType === 'anime' || i.mediaType === 'manga') {
+        const k = `${i.mediaType}:${normalizeTitle(i.title)}`
+        byTitle.set(k, [...(byTitle.get(k) ?? []), m])
+      }
     }
-    return map
+    return { byId, byTitle }
   }, [])
+
+  /**
+   * The library entry a search result corresponds to, if any. Title twins
+   * must agree on the year when both sides know it (±1 for provider drift:
+   * AniList says Vagabond 1998, MangaDex 1999) — otherwise same-named but
+   * DIFFERENT works (Urasawa's "Monster" vs a 2020s manhwa also called
+   * "Monster") would wrongly read as already tracked and become unaddable.
+   */
+  const libraryMatch = (r: SearchResult): LibMatch | null => {
+    if (!libraryIndex) return null
+    const exact = libraryIndex.byId.get(`${r.provider}:${r.providerId}`)
+    if (exact) return exact
+    if (r.mediaType !== 'anime' && r.mediaType !== 'manga') return null
+    const twins = libraryIndex.byTitle.get(`${r.mediaType}:${normalizeTitle(r.title)}`) ?? []
+    return (
+      twins.find((x) => x.year == null || r.year == null || Math.abs(x.year - r.year) <= 1) ?? null
+    )
+  }
 
   const configs = useMemo<RowConfig[]>(() => {
     const list: RowConfig[] = [
-      { key: 'tv', label: t('search.tv'), icon: <Tv size={18} />, run: searchTv },
-      {
-        key: 'anime',
-        label: t('search.anime'),
-        icon: <Sparkles size={18} />,
-        // TMDB-first (titled posters, importer-compatible ids) + AniList tail
-        run: searchAnime,
-      },
+      // one row for live-action TV + anime, mirroring the library's Series tab
+      { key: 'shows', label: t('search.shows'), icon: <Tv size={18} />, run: searchShows },
       { key: 'movies', label: t('search.movies'), icon: <Clapperboard size={18} />, run: searchMovies },
     ]
     if (settings.showBooks) {
-      list.push({ key: 'books', label: t('search.books'), icon: <BookOpen size={18} />, run: searchBooks })
-      list.push({ key: 'manga', label: t('search.manga'), icon: <BookText size={18} />, run: searchManga })
-      list.push({ key: 'comics', label: t('search.comics'), icon: <BookText size={18} />, run: searchComics })
+      // one row for manga + comics + books, mirroring the library's Books tab
+      list.push({ key: 'books', label: t('search.books'), icon: <BookOpen size={18} />, run: searchReading })
     }
     if (settings.showGames) {
       list.push({
@@ -131,6 +155,9 @@ export default function SearchPage() {
       setRows({})
       return
     }
+    // no connection: the rows would all fail — the offline screen is shown
+    // instead, and this effect re-runs (and searches) the moment we're back
+    if (!online) return
     if (restoredRef.current) {
       restoredRef.current = false
       return
@@ -158,7 +185,7 @@ export default function SearchPage() {
       }
     }, 350)
     return () => clearTimeout(timer)
-  }, [q, configs])
+  }, [q, configs, online])
 
   const quickAdd = async (r: SearchResult) => {
     try {
@@ -186,14 +213,20 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {!active && (
+      {!online && (
+        <div className="pt-8">
+          <OfflineNotice hint={t('offline.search')} />
+        </div>
+      )}
+
+      {online && !active && (
         <div className="flex flex-col items-center gap-3 px-6 py-16 text-center">
           <Search size={36} className="text-ink4" />
           <p className="text-sm text-ink3">{t('search.hint')}</p>
         </div>
       )}
 
-      {active && (
+      {online && active && (
         <div className="space-y-6 pb-4 pt-2">
           {configs.map((cfg) => {
             const row = rows[cfg.key]
@@ -219,17 +252,21 @@ export default function SearchPage() {
                   ) : (
                     row.items.map((r) => {
                       const id = `${r.provider}:${r.providerId}`
-                      const tkey =
-                        r.mediaType === 'anime' ? `t:anime:${normalizeTitle(r.title)}` : id
+                      const lib = libraryMatch(r)
+                      // a tracked twin opens the LIBRARY entry (with all the
+                      // progress), never the other provider's empty page
+                      const target = lib ?? r
                       return (
                         <PosterCard
                           key={id}
                           title={r.title}
                           year={r.year}
-                          poster={libraryPosters?.get(id) ?? libraryPosters?.get(tkey) ?? r.poster}
-                          inLibrary={(libraryPosters?.has(id) || libraryPosters?.has(tkey)) ?? false}
+                          poster={lib ? (lib.poster ?? r.poster) : r.poster}
+                          inLibrary={lib != null}
                           onAdd={() => quickAdd(r)}
-                          onClick={() => nav(`/media/${r.provider}/${r.mediaType}/${r.providerId}`)}
+                          onClick={() =>
+                            nav(`/media/${target.provider}/${target.mediaType}/${target.providerId}`)
+                          }
                         />
                       )
                     })

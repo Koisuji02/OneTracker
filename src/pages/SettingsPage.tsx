@@ -1,4 +1,5 @@
 import {
+  Activity,
   ArrowLeft,
   Check,
   Cloud,
@@ -18,12 +19,18 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { App as CapApp } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+import { checkProviders, type HealthState, type ProviderHealth } from '../api/health'
 import { applyBackup, buildBackup, downloadBackup } from '../backup'
+import { OfflineChip } from '../components/OfflineNotice'
 import { db } from '../db'
+import { clearImageCache } from '../imageCache'
 import { connectGoogle, disconnectGoogle, restoreFromDrive, saveToDrive } from '../drive'
 import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
-import { ENV_DEFAULTS, updateSettings, useSettings, type Language } from '../settings'
+import { useOnline } from '../net'
+import { ENV_DEFAULTS, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
 import { THEMES } from '../themes'
 import { cn } from '../util'
 
@@ -100,6 +107,40 @@ function InputRow({
   )
 }
 
+/** Coloured dot + label per probed provider (Settings → diagnostics). */
+const HEALTH_DOT: Record<HealthState, string> = {
+  ok: 'bg-emerald-500',
+  down: 'bg-red-500',
+  unreachable: 'bg-orange-500',
+  badkey: 'bg-yellow-500',
+  nokey: 'bg-zinc-500',
+}
+
+function HealthRow({ h }: { h: ProviderHealth }) {
+  const t = useT()
+  return (
+    <div className="flex items-start gap-3 px-4 py-3">
+      <span className={cn('mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full', HEALTH_DOT[h.state])} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline gap-2">
+          <span className="text-sm font-semibold">{h.label}</span>
+          <span className="text-xs text-ink3">{t(`health.${h.state}`)}</span>
+          {h.state !== 'nokey' && <span className="text-[11px] text-ink4">{h.ms} ms</span>}
+        </div>
+        <div className="text-[11px] leading-snug text-ink4">
+          {t(h.roleKey)}
+          {h.detail ? ` · ${h.detail}` : ''}
+        </div>
+        {/* an unreachable host on an otherwise working connection is almost
+            always network-level filtering — tell the user the actual remedy */}
+        {h.state === 'unreachable' && (
+          <div className="mt-1 text-[11px] leading-snug text-orange-400">{t('health.hintDns')}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ActionRow({
   label,
   icon,
@@ -130,14 +171,27 @@ function ActionRow({
   )
 }
 
+/** Web fallback; on device the real installed versionName wins (see below). */
+const BUILD_VERSION = '1.0.35'
+
 export default function SettingsPage() {
   const t = useT()
   const nav = useNavigate()
   const settings = useSettings()
+  const online = useOnline()
   const fileRef = useRef<HTMLInputElement>(null)
   const tvtimeRef = useRef<HTMLInputElement>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // authoritative on-device build number, so it's obvious which APK is running
+  const [version, setVersion] = useState(BUILD_VERSION)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    CapApp.getInfo()
+      .then((i) => setVersion(`${i.version} (${i.build})`))
+      .catch(() => {})
+  }, [])
   const [busy, setBusy] = useState<string | null>(null)
+  const [health, setHealth] = useState<ProviderHealth[] | null>(null)
   const [importProg, setImportProg] = useState<ImportProgress | null>(null)
   const [importResult, setImportResult] = useState<TvTimeImportResult | null>(null)
 
@@ -153,10 +207,14 @@ export default function SettingsPage() {
       const msg = await fn()
       if (msg) setToast(msg)
     } catch (e) {
+      // surface the REAL reason (access_denied, state-mismatch, cancelled,
+      // token-exchange-failed…) so Google/Cloud misconfig is diagnosable
       setToast(
         e instanceof Error && e.message === 'missing-client-id'
           ? t('settings.needClientId')
-          : t('common.error'),
+          : e instanceof Error && e.message && e.message !== 'cancelled'
+            ? `${t('common.error')}: ${e.message}`
+            : t('common.error'),
       )
     } finally {
       setBusy(null)
@@ -274,6 +332,31 @@ export default function SettingsPage() {
         </div>
       </Section>
 
+      <Section title={t('settings.detailLayout')}>
+        <div className="flex gap-2 px-4 py-4">
+          {(
+            [
+              ['classic', t('settings.layoutClassic')],
+              ['poster', t('settings.layoutPoster')],
+              ['immersive', t('settings.layoutImmersive')],
+            ] as Array<[DetailLayout, string]>
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => updateSettings({ detailLayout: id })}
+              className={cn(
+                'flex-1 rounded-full border py-2.5 text-sm font-bold transition-colors',
+                settings.detailLayout === id
+                  ? 'border-accent bg-brand text-black'
+                  : 'border-line text-ink2 hover:border-accent/50',
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title={t('settings.sections')}>
         <ToggleRow
           label={t('settings.showBooks')}
@@ -288,6 +371,18 @@ export default function SettingsPage() {
       </Section>
 
       <Section title={t('settings.apiKeys')}>
+        {/* with a gateway configured the keys below are optional: they live in
+            the Worker instead of inside the app */}
+        <InputRow
+          label={t('settings.gatewayUrl')}
+          hint={t('settings.gatewayHint')}
+          {...keyProps('gatewayUrl', 'https://onetracker-api.xxx.workers.dev')}
+        />
+        <InputRow
+          label={t('settings.gatewayToken')}
+          hint={t('settings.gatewayTokenHint')}
+          {...keyProps('gatewayToken', 'APP_TOKEN')}
+        />
         <InputRow
           label={t('settings.tmdbKey')}
           hint={t('settings.tmdbHint')}
@@ -314,7 +409,37 @@ export default function SettingsPage() {
         )}
       </Section>
 
+      {/* diagnostics: which providers answer right now, and why they don't */}
+      <Section title={t('settings.diagnostics')}>
+        {/* every check below needs the network — say so instead of reporting
+            every provider as unreachable */}
+        {!online && (
+          <div className="px-4 pb-3">
+            <OfflineChip />
+          </div>
+        )}
+        <ActionRow
+          label={t('settings.checkProviders')}
+          icon={<Activity size={18} />}
+          busy={busy === 'health'}
+          onClick={() =>
+            run('health', async () => {
+              setHealth(await checkProviders())
+              return null
+            })
+          }
+        />
+        {health?.map((h) => (
+          <HealthRow key={h.id} h={h} />
+        ))}
+      </Section>
+
       <Section title={t('settings.google')}>
+        {!online && (
+          <div className="px-4 pb-3">
+            <OfflineChip text={t('offline.driveHint')} />
+          </div>
+        )}
         <InputRow
           label={t('settings.clientId')}
           hint={t('settings.clientIdHint')}
@@ -376,6 +501,15 @@ export default function SettingsPage() {
             onClick={() =>
               run('connect', async () => {
                 await connectGoogle()
+                // fresh install (nothing tracked yet) → pull the cloud backup
+                // automatically; never clobber a library that already has data
+                if ((await db.items.count()) === 0) {
+                  const json = await restoreFromDrive()
+                  if (json) {
+                    await applyBackup(json)
+                    return t('settings.driveRestored')
+                  }
+                }
                 return null
               })
             }
@@ -465,6 +599,8 @@ export default function SettingsPage() {
             run('clear', async () => {
               if (!confirm(t('settings.clearConfirm'))) return null
               await Promise.all([db.items.clear(), db.episodes.clear(), db.episodeCache.clear()])
+              // the offline artwork belongs to those items — it goes with them
+              await clearImageCache()
               return null
             })
           }
@@ -482,9 +618,19 @@ export default function SettingsPage() {
         />
       </Section>
 
-      <div className="mt-8 flex items-center justify-center gap-1.5 text-xs text-ink4">
-        <KeyRound size={12} />
-        OneTracker — TMDB • AniList • Open Library • RAWG
+      {/* attribution required by the providers' free/non-commercial terms */}
+      <div className="mt-8 flex flex-col items-center gap-1 px-6 text-center text-xs text-ink4">
+        <div className="flex items-center gap-1.5">
+          <KeyRound size={12} />
+          {t('settings.creditsIntro')}
+        </div>
+        <div className="leading-relaxed">
+          TMDB · IGDB · AniList · MangaDex · MyAnimeList (Jikan) · Open Library · Comic Vine · OMDb
+        </div>
+        <div className="mt-1 text-[11px] leading-relaxed text-ink4/80">
+          This product uses the TMDB API but is not endorsed or certified by TMDB.
+        </div>
+        <div className="mt-1 font-mono">v{version}</div>
       </div>
 
       {toast && (

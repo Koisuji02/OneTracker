@@ -5,8 +5,10 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  Archive,
   BookOpen,
   Check,
+  Key,
   ChevronDown,
   ChevronRight,
   Clapperboard,
@@ -27,7 +29,7 @@ import { computeStats, db, isEpisodic, rewatchGrades } from '../db'
 import { useT } from '../i18n'
 import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
-import { cn, formatWatchTime } from '../util'
+import { cn, formatWatchTime, hideBrokenImg, showLoadedImg } from '../util'
 
 const ROTATION_MS = 30 * 60 * 1000 // favorite backdrop rotates every 30 min
 
@@ -57,10 +59,12 @@ function CatalogRow({
             size="lg"
             title={i.title}
             poster={i.poster}
+            persist
             year={i.year}
             rating={i.rating}
             statusKind={i.status === 'completed' ? 'done' : 'ongoing'}
             rewatchCount={grades.get(i.id)}
+            favorite={i.favorite}
             onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
           />
         ))
@@ -94,15 +98,17 @@ export default function AccountPage() {
   const bgItem = favoriteArt.length > 0 ? favoriteArt[slot % favoriteArt.length] : null
   const displayName = settings.profileName || settings.googleName || t('account.guest')
 
-  // catalog = everything the user has started or finished
+  // catalog = everything started or finished (archived items live in /archived)
   const started = items
-    .filter((i) => i.status !== 'planned')
+    .filter((i) => i.status !== 'planned' && !i.archived)
     .sort((a, b) => (b.completedAt ?? b.lastReadAt ?? b.addedAt) - (a.completedAt ?? a.lastReadAt ?? a.addedAt))
   const catSeries = started.filter((i) => isEpisodic(i.mediaType))
   const catMovies = started.filter((i) => i.mediaType === 'movie')
   const catBooks = started.filter((i) => i.mediaType === 'book' || i.mediaType === 'manga')
   const catGames = started.filter((i) => i.mediaType === 'game')
   const favoritesCount = items.filter((i) => i.favorite).length
+  const archivedCount = items.filter((i) => i.archived).length
+  const ownedCount = items.filter((i) => i.owned).length
   // the profile preview shows the most recently modified list
   const firstList = [...lists].sort(
     (a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt),
@@ -143,6 +149,8 @@ export default function AccountPage() {
             <img
               src={bgItem.backdrop ?? bgItem.poster ?? undefined}
               alt=""
+              onError={hideBrokenImg}
+              onLoad={showLoadedImg}
               className="h-full w-full object-cover"
             />
           ) : (
@@ -309,6 +317,32 @@ export default function AccountPage() {
           <CatalogRow title={t('nav.games')} icon={<Gamepad2 size={18} />} to="/catalog/games" items={catGames} grades={grades} />
         )}
       </div>
+
+      {/* archive — same box style as favorites, below every catalog section */}
+      <Link
+        to="/archived"
+        className="mx-4 mt-8 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+      >
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
+          <Archive size={18} />
+        </span>
+        <span className="flex-1 font-bold">{t('account.archived')}</span>
+        <span className="text-sm text-ink3">{archivedCount}</span>
+        <ChevronRight size={18} className="text-ink4" />
+      </Link>
+
+      {/* owned — same box style, right below Archived */}
+      <Link
+        to="/owned"
+        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+      >
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
+          <Key size={18} />
+        </span>
+        <span className="flex-1 font-bold">{t('account.owned')}</span>
+        <span className="text-sm text-ink3">{ownedCount}</span>
+        <ChevronRight size={18} className="text-ink4" />
+      </Link>
     </div>
   )
 }
@@ -325,7 +359,15 @@ function ListPreviewThumbs({ itemIds, items }: { itemIds: string[]; items: Libra
     <div className="mt-3 flex gap-2 overflow-hidden">
       {shown.map((i) => (
         <div key={i.id} className="h-20 w-14 shrink-0 overflow-hidden rounded-lg bg-card2">
-          {i.poster && <img src={i.poster} alt="" className="h-full w-full object-cover" />}
+          {i.poster && (
+            <img
+              src={i.poster}
+              alt=""
+              onError={hideBrokenImg}
+              onLoad={showLoadedImg}
+              className="h-full w-full object-cover"
+            />
+          )}
         </div>
       ))}
     </div>

@@ -1,11 +1,11 @@
 import { db } from './db'
-import { getSettings, updateSettings } from './settings'
+import { getSettings, updateSettings, type DetailLayout, type SortMode } from './settings'
 import type { LibraryItem, WatchList, WatchedEpisode } from './types'
 
 export interface BackupData {
   app: 'onetracker'
-  /** 1 = items+episodes · 2 = adds lists and rewatch counts */
-  version: 1 | 2
+  /** 1 = items+episodes · 2 = +lists/rewatch · 3 = +avatar/layout/sort */
+  version: 1 | 2 | 3
   exportedAt: string
   settings: {
     language: string | null
@@ -13,6 +13,9 @@ export interface BackupData {
     showGames: boolean
     theme?: string
     profileName?: string
+    avatar?: string | null
+    detailLayout?: DetailLayout
+    librarySort?: SortMode
   }
   items: LibraryItem[]
   episodes: WatchedEpisode[]
@@ -28,14 +31,21 @@ export async function buildBackup(): Promise<string> {
   const s = getSettings()
   const data: BackupData = {
     app: 'onetracker',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
+    // everything the user personalizes — per-item state (status, rating,
+    // favorite, archived, rewatch counts, playtime) already travels inside
+    // `items`; here we add the app-wide preferences. API keys and Google
+    // identity are deliberately excluded (secrets / device-specific).
     settings: {
       language: s.language,
       showBooks: s.showBooks,
       showGames: s.showGames,
       theme: s.theme,
       profileName: s.profileName,
+      avatar: s.avatar,
+      detailLayout: s.detailLayout,
+      librarySort: s.librarySort,
     },
     items,
     episodes,
@@ -69,11 +79,15 @@ export async function applyBackup(json: string): Promise<void> {
     await db.lists.bulkPut(data.lists ?? [])
   })
   if (data.settings) {
+    const s = data.settings
     updateSettings({
-      showBooks: !!data.settings.showBooks,
-      showGames: !!data.settings.showGames,
-      ...(data.settings.theme ? { theme: data.settings.theme } : {}),
-      ...(data.settings.profileName != null ? { profileName: data.settings.profileName } : {}),
+      showBooks: !!s.showBooks,
+      showGames: !!s.showGames,
+      ...(s.theme ? { theme: s.theme } : {}),
+      ...(s.profileName != null ? { profileName: s.profileName } : {}),
+      ...(s.avatar !== undefined ? { avatar: s.avatar } : {}),
+      ...(s.detailLayout ? { detailLayout: s.detailLayout } : {}),
+      ...(s.librarySort ? { librarySort: s.librarySort } : {}),
     })
   }
 }

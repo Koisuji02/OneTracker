@@ -87,31 +87,38 @@ function csvObjects(text: string): Array<Record<string, string>> {
 
 // --------------------------------------------------------------- helpers
 
-/** Merge episode rows into the library, keeping the highest watch count. */
-async function putEpisodesMerged(itemId: string, rows: WatchedEpisode[]): Promise<number> {
-  if (rows.length === 0) return 0
-  const existing = new Map(
-    (await db.episodes.where('itemId').equals(itemId).toArray()).map((e) => [e.id, e]),
-  )
-  const merged = rows.map((r) => {
-    const ex = existing.get(r.id)
-    return ex
-      ? { ...r, count: Math.max(ex.count ?? 1, r.count ?? 1), watchedAt: ex.watchedAt }
-      : r
-  })
-  await db.episodes.bulkPut(merged)
-  return merged.length
-}
-
 interface EpMark {
-  season: number
-  episode: number
+  /**
+   * 1-based ABSOLUTE episode index across the whole show, in broadcast order.
+   * TV Time (TVDB) and TMDB slice a show into DIFFERENT seasons — e.g. One
+   * Piece: TVDB season 1 = 8 episodes vs TMDB "East Blue" = 61 — so copying
+   * TV Time's (season, episode) straight onto the TMDB item lands watched
+   * episodes on the wrong, or nonexistent, slots (that was the import bug:
+   * East Blue showed 8/61 instead of 61/61, and out-of-range episodes became
+   * phantom rows that pushed the count past 100%). The absolute index is the
+   * stable bridge: it gets re-sliced onto TMDB's own seasons at import time.
+   */
+  abs: number
   count: number
   at: number
   runtime: number | null
 }
 
-/** Resolve one TVDB show, add it and mark its episodes. */
+/** Re-slice an absolute episode index onto the target's real season layout. */
+function absToSeasonEpisode(
+  abs: number,
+  seasons: Array<{ number: number; episodeCount: number }>,
+): { season: number; episode: number } | null {
+  if (seasons.length === 0) return { season: 1, episode: abs }
+  let acc = 0
+  for (const s of seasons) {
+    if (abs <= acc + s.episodeCount) return { season: s.number, episode: abs - acc }
+    acc += s.episodeCount
+  }
+  return null // beyond the episodes TMDB knows → dropped, never a phantom row
+}
+
+/** Resolve one TVDB show, add it and (re)build its watched episodes. */
 async function importShow(
   tvdbId: string | number,
   marks: EpMark[],
@@ -123,18 +130,39 @@ async function importShow(
   const details = await tvDetails(tvId, true) // bulk: skip AniList/MAL scores
   const item = await addToLibrary(details)
   if (favorite && !item.favorite) await db.items.update(item.id, { favorite: true })
-  const rows: WatchedEpisode[] = marks
-    .filter((m) => m.season > 0)
-    .map((m) => ({
-      id: epKey(item.id, m.season, m.episode),
+
+  const seasons = (details.seasons ?? [])
+    .filter((s) => s.number > 0)
+    .sort((a, b) => a.number - b.number)
+    .map((s) => ({ number: s.number, episodeCount: s.episodeCount }))
+
+  // map each absolute index onto TMDB's seasons; dedupe by slot (keep max count)
+  const byKey = new Map<string, WatchedEpisode>()
+  for (const m of marks) {
+    const pos = absToSeasonEpisode(m.abs, seasons)
+    if (!pos) continue
+    const id = epKey(item.id, pos.season, pos.episode)
+    const prev = byKey.get(id)
+    byKey.set(id, {
+      id,
       itemId: item.id,
-      season: m.season,
-      episode: m.episode,
-      watchedAt: m.at,
+      season: pos.season,
+      episode: pos.episode,
+      watchedAt: prev ? Math.min(prev.watchedAt, m.at) : m.at,
       runtime: m.runtime ?? details.episodeRuntime ?? defaultEpisodeRuntime('tv'),
-      count: m.count,
-    }))
-  result.episodes += await putEpisodesMerged(item.id, rows)
+      count: Math.max(prev?.count ?? 1, m.count),
+    })
+  }
+
+  // TV Time is authoritative for a show's history: REPLACE the item's rows
+  // (not additive), so re-importing is idempotent AND clears rows misplaced by
+  // an earlier buggy import — this is what cures the "131% watched" totals.
+  const rows = [...byKey.values()]
+  await db.transaction('rw', db.episodes, async () => {
+    await db.episodes.where('itemId').equals(item.id).delete()
+    if (rows.length > 0) await db.episodes.bulkPut(rows)
+  })
+  result.episodes += rows.length
   await recomputeStatus(item.id)
   result.shows++
 }
@@ -186,14 +214,22 @@ async function importPlugin(
     onProgress({ done, total, label: show.title ?? '…' })
     try {
       if (!show.id?.tvdb) throw new Error('no tvdb id')
+      // walk every episode in broadcast order to assign a stable absolute
+      // index (watched or not), pushing a mark only for the watched ones
       const marks: EpMark[] = []
-      for (const season of show.seasons ?? []) {
-        if (season.is_specials || season.number === 0) continue
-        for (const ep of season.episodes ?? []) {
-          if (!ep.is_watched || ep.special) continue
+      let abs = 0
+      const seasons = ((show.seasons ?? []) as any[])
+        .filter((s) => !s.is_specials && s.number !== 0)
+        .sort((a, b) => a.number - b.number)
+      for (const season of seasons) {
+        const eps = ((season.episodes ?? []) as any[])
+          .filter((e) => !e.special)
+          .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+        for (const ep of eps) {
+          abs++
+          if (!ep.is_watched) continue
           marks.push({
-            season: season.number,
-            episode: ep.number,
+            abs,
             count: Math.max(1, ep.watched_count ?? (ep.rewatch_count ?? 0) + 1),
             at: Date.parse(ep.watched_at ?? '') || Date.now(),
             runtime: null,
@@ -241,11 +277,21 @@ async function importGdpr(
 ): Promise<TvTimeImportResult> {
   const result: TvTimeImportResult = { shows: 0, episodes: 0, movies: 0, skipped: [] }
 
-  // shows: followed list + every show that has watch events
-  const shows = new Map<string, { name: string; eps: Map<string, EpMark> }>()
+  // shows: followed list + every show that has watch events. Watch events are
+  // kept RAW (per TV Time season/episode); they become absolute indices only
+  // after we know each season's size (below), so the import can re-slice them
+  // onto TMDB's seasons exactly like the plugin path does.
+  interface RawEvent {
+    season: number
+    episode: number
+    count: number
+    at: number
+    runtime: number | null
+  }
+  const shows = new Map<string, { name: string; events: Map<string, RawEvent> }>()
   for (const row of followedCsv ? csvObjects(followedCsv) : []) {
     if (row.tv_show_id) {
-      shows.set(row.tv_show_id, { name: row.tv_show_name || row.tv_show_id, eps: new Map() })
+      shows.set(row.tv_show_id, { name: row.tv_show_name || row.tv_show_id, events: new Map() })
     }
   }
   for (const row of csvObjects(v2Csv)) {
@@ -253,20 +299,21 @@ async function importGdpr(
     const season = Number(row.season_number || row.s_no)
     const episode = Number(row.episode_number || row.ep_no)
     if (!sid || !row.series_name || !Number.isFinite(season) || !Number.isFinite(episode)) continue
+    if (season <= 0) continue // specials
     let entry = shows.get(sid)
     if (!entry) {
-      entry = { name: row.series_name, eps: new Map() }
+      entry = { name: row.series_name, events: new Map() }
       shows.set(sid, entry)
     }
     const key = `${season}:${episode}`
-    const prev = entry.eps.get(key)
+    const prev = entry.events.get(key)
     const at = Date.parse(row.created_at ?? '') || Date.now()
     const runtimeSec = Number(row.runtime)
     if (prev) {
       prev.count += 1 // each extra row for the same episode is a rewatch
       prev.at = Math.min(prev.at, at)
     } else {
-      entry.eps.set(key, {
+      entry.events.set(key, {
         season,
         episode,
         count: 1,
@@ -274,6 +321,24 @@ async function importGdpr(
         runtime: Number.isFinite(runtimeSec) && runtimeSec > 0 ? Math.round(runtimeSec / 60) : null,
       })
     }
+  }
+
+  /**
+   * GDPR exports list only WATCHED events, not the full season sizes, so take
+   * each season's highest watched episode as its size. Absolute offsets then
+   * depend only on EARLIER seasons — accurate for shows watched in order (the
+   * normal case); a fully-skipped middle season is the only lossy edge case.
+   */
+  const gdprMarks = (events: Map<string, RawEvent>): EpMark[] => {
+    const all = [...events.values()]
+    const seasonSize = new Map<number, number>()
+    for (const e of all) seasonSize.set(e.season, Math.max(seasonSize.get(e.season) ?? 0, e.episode))
+    const offsetOf = (season: number) => {
+      let acc = 0
+      for (const [s, size] of seasonSize) if (s < season) acc += size
+      return acc
+    }
+    return all.map((e) => ({ abs: offsetOf(e.season) + e.episode, count: e.count, at: e.at, runtime: e.runtime }))
   }
 
   // movies: `follow` rows of the v1 records + the watched-uuid list
@@ -302,7 +367,7 @@ async function importGdpr(
   for (const [tvdbId, show] of shows) {
     onProgress({ done, total, label: show.name })
     try {
-      await importShow(tvdbId, [...show.eps.values()], false, result)
+      await importShow(tvdbId, gdprMarks(show.events), false, result)
     } catch {
       result.skipped.push(show.name)
     }

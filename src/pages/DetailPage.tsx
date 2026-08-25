@@ -15,13 +15,16 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
+  Archive,
   ArrowLeft,
   Check,
   ChevronDown,
   Clock,
   Heart,
   ImageOff,
+  Key,
   Loader2,
+  Lock,
   Plus,
   Star,
   Trash2,
@@ -30,6 +33,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiKeyMissingError, getDetails, getEpisodes } from '../api'
 import CheckButton from '../components/CheckButton'
+import Cover from '../components/Cover'
+import Gallery from '../components/Gallery'
+import OfflineNotice from '../components/OfflineNotice'
 import PlatformChips from '../components/PlatformChips'
 import RatingBadge from '../components/RatingBadge'
 import RatingModal from '../components/RatingModal'
@@ -42,6 +48,7 @@ import {
   isCaughtUp,
   isEpisodic,
   markUpTo,
+  mergeMeta,
   refreshItemMetadata,
   removeFromLibrary,
   rewatchSingle,
@@ -51,12 +58,16 @@ import {
   setRangeWatched,
   setRating,
   setSeasonWatched,
-  setSingleWatched,
+  setSingleStatus,
+  toggleArchived,
   toggleFavorite,
+  toggleOwned,
   totalEpisodesOf,
+  unitAired,
   unmarkUnit,
 } from '../db'
 import { useT } from '../i18n'
+import { useOnline } from '../net'
 import { useSettings } from '../settings'
 import type {
   EpisodeInfo,
@@ -82,6 +93,7 @@ function UnitRow({
   row,
   onMark,
   onOpenDialog,
+  locked,
 }: {
   number: number
   title: string
@@ -90,6 +102,8 @@ function UnitRow({
   row: WatchedEpisode | undefined
   onMark: () => void
   onOpenDialog: () => void
+  /** unit not aired yet — a lock replaces the check */
+  locked?: boolean
 }) {
   const watched = !!row
   return (
@@ -100,17 +114,33 @@ function UnitRow({
         {sub && <div className="text-[11px] text-ink4">{sub}</div>}
       </div>
       {runtime != null && <span className="shrink-0 text-xs text-ink4">{runtime} min</span>}
-      <CheckButton
-        size="sm"
-        checked={watched}
-        count={row?.count ?? 1}
-        onClick={() => (watched ? onOpenDialog() : onMark())}
-      />
+      {locked ? (
+        <span
+          aria-label="not aired yet"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink4"
+        >
+          <Lock size={14} />
+        </span>
+      ) : (
+        <CheckButton
+          size="sm"
+          checked={watched}
+          count={row?.count ?? 1}
+          onClick={() => (watched ? onOpenDialog() : onMark())}
+        />
+      )}
     </div>
   )
 }
 
-/** Season accordion for tv/anime with cascade + rewatch behavior. */
+/**
+ * Season accordion for tv/anime with cascade + rewatch behavior.
+ *
+ * Unit rows are addressed by their season SLOT (1..episodeCount, the position
+ * in the episode list) and never by the displayed episode number: TMDB numbers
+ * long-running anime ABSOLUTELY inside seasons (Naruto Shippuden S18 shows eps
+ * 144–151), while db keys, the widget and the TV Time import all speak slots.
+ */
 function SeasonBlock({
   meta,
   season,
@@ -141,7 +171,11 @@ function SeasonBlock({
   for (let e = 1; e <= season.episodeCount; e++) {
     if (watchedMap.has(epKey(meta.id, season.number, e))) watchedInSeason++
   }
-  const allWatched = watchedInSeason >= season.episodeCount && season.episodeCount > 0
+  // "all watched" compares against AIRED episodes once the list is loaded
+  const airedCount = eps
+    ? eps.filter((e) => unitAired(meta, season.number, e.episode, e.airDate)).length
+    : season.episodeCount
+  const allWatched = watchedInSeason >= airedCount && airedCount > 0
 
   const markAll = async () => {
     setBusy(true)
@@ -150,7 +184,11 @@ function SeasonBlock({
       if (!item) return
       const list = eps ?? (await getEpisodes(meta, season.number))
       if (eps === null) setEps(list)
-      await setSeasonWatched(item, season.number, list, !allWatched)
+      // never bulk-mark episodes that haven't aired yet
+      const airedSlots = list
+        .map((e, i) => ({ episode: i + 1, runtime: e.runtime, out: unitAired(meta, season.number, e.episode, e.airDate) }))
+        .filter((s) => s.out)
+      await setSeasonWatched(item, season.number, airedSlots, !allWatched)
     } finally {
       setBusy(false)
     }
@@ -201,28 +239,32 @@ function SeasonBlock({
               <Loader2 size={20} className="animate-spin text-ink3" />
             </div>
           ) : (
-            eps.map((ep) => (
-              <UnitRow
-                key={ep.episode}
-                number={ep.episode}
-                title={ep.title || `${t('detail.episode')} ${ep.episode}`}
-                sub={ep.airDate}
-                runtime={ep.runtime}
-                row={watchedMap.get(epKey(meta.id, season.number, ep.episode))}
-                onMark={async () => {
-                  const item = await ensure()
-                  if (item) await markUpTo(item, season.number, ep.episode, ep.runtime)
-                }}
-                onOpenDialog={() =>
-                  onDialog({
-                    season: season.number,
-                    episode: ep.episode,
-                    count: watchedMap.get(epKey(meta.id, season.number, ep.episode))?.count ?? 1,
-                    label: ep.title || `${t('detail.episode')} ${ep.episode}`,
-                  })
-                }
-              />
-            ))
+            eps.map((ep, i) => {
+              const slot = i + 1
+              return (
+                <UnitRow
+                  key={ep.episode}
+                  number={ep.episode}
+                  title={ep.title || `${t('detail.episode')} ${ep.episode}`}
+                  sub={ep.airDate}
+                  runtime={ep.runtime}
+                  locked={!unitAired(meta, season.number, ep.episode, ep.airDate)}
+                  row={watchedMap.get(epKey(meta.id, season.number, slot))}
+                  onMark={async () => {
+                    const item = await ensure()
+                    if (item) await markUpTo(item, season.number, slot, ep.runtime)
+                  }}
+                  onOpenDialog={() =>
+                    onDialog({
+                      season: season.number,
+                      episode: slot,
+                      count: watchedMap.get(epKey(meta.id, season.number, slot))?.count ?? 1,
+                      label: ep.title || `${t('detail.episode')} ${ep.episode}`,
+                    })
+                  }
+                />
+              )
+            })
           )}
         </div>
       )}
@@ -340,7 +382,8 @@ export default function DetailPage() {
   }
   const t = useT()
   const nav = useNavigate()
-  const { language } = useSettings()
+  const online = useOnline()
+  const { language, detailLayout } = useSettings()
   const [details, setDetails] = useState<MediaDetails | null>(null)
   const [error, setError] = useState<'keymissing' | 'error' | null>(null)
   const [unitDialog, setUnitDialog] = useState<UnitDialog>(null)
@@ -380,8 +423,9 @@ export default function DetailPage() {
     }
   }, [provider, mediaType, id, language])
 
-  // fall back to the library snapshot when the API is unavailable
-  const meta: MediaDetails | null = details ?? (libItem as MediaDetails | undefined) ?? null
+  // ONE source of truth: fresh provider data layered over the stored snapshot,
+  // so a provider that answers with holes can never blank what the DB knows
+  const meta: MediaDetails | null = mergeMeta(details, libItem)
 
   // manga: load the chapter list once (brings real titles from MangaDex)
   const isMangaMeta = meta?.mediaType === 'manga'
@@ -409,6 +453,18 @@ export default function DetailPage() {
   }, [canonicalId, details])
 
   if (!meta) {
+    // a title never opened before has nothing cached to fall back on: say
+    // "no connection", not "something went wrong" — nothing went wrong
+    if (!online) {
+      return (
+        <div className="flex h-[70vh] flex-col items-center justify-center gap-4">
+          <OfflineNotice hint={t('offline.detail')} />
+          <button onClick={() => nav(-1)} className="text-sm font-semibold text-accent">
+            ← {t('common.close')}
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="flex h-[70vh] flex-col items-center justify-center gap-4 px-6 text-center">
         {error === null && <Loader2 size={28} className="animate-spin text-accent" />}
@@ -441,6 +497,16 @@ export default function DetailPage() {
   const completed = libItem?.status === 'completed'
   const chapterTotal = meta.totalEpisodes ?? null
   const chaptersDone = isManga ? watchedCount : 0
+  // Chapter rows must ALWAYS be usable: fall back to the highest chapter the
+  // user already read, then to a provisional 100-chapter block when no source
+  // knows the count (ongoing/hiatus works). `chapterTotal` above stays honest —
+  // the header and the percentage only show a real, provider-confirmed total.
+  const highestRead = isManga
+    ? Math.max(0, ...[...watchedMap.values()].map((e) => e.episode))
+    : 0
+  const chapterSlots = isManga
+    ? Math.max(chapterTotal ?? 0, highestRead, chapterTotal == null ? 100 : 0)
+    : 0
   const caughtUp = libItem ? isCaughtUp(libItem, watchedCount) : false
 
   const singleLabels: Record<string, [string, string]> = {
@@ -461,194 +527,420 @@ export default function DetailPage() {
 
   // manga chapter blocks of 100
   const chapterBlocks: Array<[number, number]> = []
-  if (isManga && chapterTotal) {
-    for (let s = 1; s <= chapterTotal; s += 100) {
-      chapterBlocks.push([s, Math.min(s + 99, chapterTotal)])
+  if (isManga && chapterSlots) {
+    for (let s = 1; s <= chapterSlots; s += 100) {
+      chapterBlocks.push([s, Math.min(s + 99, chapterSlots)])
     }
   }
   const firstUnread = chaptersDone + 1
 
+  // singles/games not released yet can't be started — the button locks
+  const unreleased =
+    (single || isGame) && !!meta.releaseDate && Date.parse(meta.releaseDate) > Date.now()
+
+  // ---- building blocks shared by the three detail layouts ----
+
+  const backBtn = (
+    <button
+      onClick={() => nav(-1)}
+      aria-label="back"
+      className="absolute left-3 top-safe z-20 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
+    >
+      <ArrowLeft size={20} />
+    </button>
+  )
+
+  const posterImg = (cls: string) => (
+    <div className={cn('shrink-0 overflow-hidden bg-card2', cls)}>
+      {meta.poster ? (
+        <Cover
+          src={meta.poster}
+          alt={meta.title}
+          persist={inLibrary}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="grid h-full w-full place-items-center text-ink4">
+          <ImageOff size={24} />
+        </div>
+      )}
+    </div>
+  )
+
+  const genreChips = (centered = false) =>
+    meta.genres &&
+    meta.genres.length > 0 && (
+      <div className={cn('mt-2 flex flex-wrap gap-1.5', centered && 'justify-center')}>
+        {meta.genres.slice(0, 3).map((g) => (
+          <span
+            key={g}
+            className="rounded-full border border-line bg-card px-2.5 py-0.5 text-[11px] font-medium text-ink2"
+          >
+            {g}
+          </span>
+        ))}
+      </div>
+    )
+
+  const lockedBtn = (
+    <div className="flex flex-1 flex-col items-center justify-center rounded-full border border-line bg-card py-2 text-ink3">
+      <span className="inline-flex items-center gap-1.5 text-sm font-bold">
+        {t('detail.locked')}
+        <Lock size={14} />
+      </span>
+      {meta.releaseDate && (
+        <span className="text-xs text-ink4">{formatDate(meta.releaseDate, language)}</span>
+      )}
+    </div>
+  )
+
+  const mainAction = !inLibrary ? (
+    <button
+      onClick={() => ensure()}
+      disabled={!details}
+      className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95 disabled:opacity-50"
+    >
+      <Plus size={18} strokeWidth={3} /> {t('detail.addToList')}
+    </button>
+  ) : (
+    <>
+      {single &&
+        (unreleased ? (
+          lockedBtn
+        ) : (
+          <button
+            onClick={() => {
+              if (completed) setSingleDialog(true)
+              // planned → start (moves to Continue) · watching → complete
+              else setSingleStatus(canonicalId, libItem?.status === 'watching' ? 'completed' : 'watching')
+            }}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+              completed
+                ? 'border border-accent bg-brand/10 text-accent'
+                : 'bg-brand text-black',
+            )}
+          >
+            <Check size={18} strokeWidth={3} />
+            {libItem?.status === 'planned' && t('detail.start')}
+            {libItem?.status === 'watching' &&
+              t(singleLabels[meta.mediaType]?.[0] ?? 'detail.markWatched')}
+            {completed && t(singleLabels[meta.mediaType]?.[1] ?? 'detail.watched')}
+            {completed && (libItem?.watchCount ?? 1) >= 2 && ` x${libItem?.watchCount}`}
+          </button>
+        ))}
+      {isGame &&
+        (unreleased ? (
+          lockedBtn
+        ) : (
+          <button
+            onClick={() => setGameDialog(true)}
+            className={cn(
+              'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+              libItem?.status === 'completed'
+                ? 'border border-accent bg-brand/10 text-accent'
+                : 'bg-brand text-black',
+            )}
+          >
+            {libItem?.status === 'planned' && t('games.toPlay')}
+            {libItem?.status === 'watching' && t('games.playing')}
+            {libItem?.status === 'completed' &&
+              ((libItem?.watchCount ?? 1) >= 2
+                ? `${t('games.replayed')} x${libItem?.watchCount}`
+                : t('games.completed'))}
+          </button>
+        ))}
+      {(episodic || isManga) && (
+        <div className="flex-1">
+          <div className="mb-1.5 flex justify-between text-xs text-ink2">
+            <span>
+              {watchedCount}
+              {(episodic ? total : chapterTotal) != null &&
+                `/${episodic ? total : chapterTotal}`}{' '}
+              {episodic ? t('detail.progress') : t('books.chapters').toLowerCase()}
+            </span>
+            {(episodic ? total : chapterTotal) != null && (
+              <span>
+                {Math.round((watchedCount / (episodic ? total! : chapterTotal!)) * 100)}%
+              </span>
+            )}
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-card2">
+            <div
+              className="h-full rounded-full bg-brand transition-all"
+              style={{
+                width:
+                  (episodic ? total : chapterTotal) != null
+                    ? `${Math.min(100, (watchedCount / (episodic ? total! : chapterTotal!)) * 100)}%`
+                    : watchedCount > 0
+                      ? '100%'
+                      : '0%',
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </>
+  )
+
+  const trashBtn = inLibrary ? (
+    <button
+      onClick={() => removeFromLibrary(canonicalId)}
+      aria-label={t('detail.removeFromList')}
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-500"
+    >
+      <Trash2 size={18} />
+    </button>
+  ) : null
+
+  const archiveBtn = inLibrary ? (
+    <button
+      onClick={() => toggleArchived(canonicalId)}
+      aria-label={t('detail.archive')}
+      className={cn(
+        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        libItem?.archived
+          ? 'border-accent bg-brand text-black'
+          : 'border-line text-ink3 hover:border-accent hover:text-accent',
+      )}
+    >
+      <Archive size={18} />
+    </button>
+  ) : null
+
+  const heartBtn = (
+    <button
+      onClick={async () => {
+        const item = await ensure()
+        if (item) toggleFavorite(item.id)
+      }}
+      aria-label="favorite"
+      className={cn(
+        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        libItem?.favorite
+          ? 'border-accent bg-brand text-black'
+          : 'border-line text-ink3 hover:border-accent hover:text-accent',
+      )}
+    >
+      <Heart size={18} fill={libItem?.favorite ? 'currentColor' : 'none'} />
+    </button>
+  )
+
+  // "owned" (key) — marking it adds the item to the library if needed, like the
+  // heart; it's an orthogonal flag with its own catalog box, no cover badge
+  const ownedBtn = (
+    <button
+      onClick={async () => {
+        const item = await ensure()
+        if (item) toggleOwned(item.id)
+      }}
+      aria-label={t('detail.owned')}
+      className={cn(
+        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        libItem?.owned
+          ? 'border-accent bg-brand text-black'
+          : 'border-line text-ink3 hover:border-accent hover:text-accent',
+      )}
+    >
+      <Key size={18} />
+    </button>
+  )
+
+  const starBtn = (
+    <button
+      onClick={() => setRatingOpen(true)}
+      aria-label={t('rating.add')}
+      className={cn(
+        'grid shrink-0 place-items-center transition-transform active:scale-90',
+        libItem?.rating == null &&
+          'h-11 w-11 rounded-full border border-line text-ink3 transition-colors hover:border-accent hover:text-accent',
+      )}
+    >
+      {libItem?.rating != null ? (
+        <RatingBadge value={libItem.rating} size="lg" />
+      ) : (
+        <Star size={18} />
+      )}
+    </button>
+  )
+
+  // vertical rail used by the poster layout — order: rating, favorite, archive, trash
+  const railBase =
+    'grid h-11 w-11 place-items-center rounded-full shadow-lg backdrop-blur transition-transform active:scale-90'
+  const railButtons = (
+    <>
+      <button
+        onClick={async () => {
+          const item = await ensure()
+          if (item) toggleOwned(item.id)
+        }}
+        aria-label={t('detail.owned')}
+        className={cn(railBase, libItem?.owned ? 'bg-brand text-black' : 'bg-black/50 text-white')}
+      >
+        <Key size={18} />
+      </button>
+      <button
+        onClick={() => setRatingOpen(true)}
+        aria-label={t('rating.add')}
+        className={cn(railBase, 'bg-black/50 text-white')}
+      >
+        {libItem?.rating != null ? <RatingBadge value={libItem.rating} size="lg" /> : <Star size={18} />}
+      </button>
+      <button
+        onClick={async () => {
+          const item = await ensure()
+          if (item) toggleFavorite(item.id)
+        }}
+        aria-label="favorite"
+        className={cn(railBase, libItem?.favorite ? 'bg-brand text-black' : 'bg-black/50 text-white')}
+      >
+        <Heart size={18} fill={libItem?.favorite ? 'currentColor' : 'none'} />
+      </button>
+      {inLibrary && (
+        <button
+          onClick={() => toggleArchived(canonicalId)}
+          aria-label={t('detail.archive')}
+          className={cn(railBase, libItem?.archived ? 'bg-brand text-black' : 'bg-black/50 text-white')}
+        >
+          <Archive size={18} />
+        </button>
+      )}
+      {inLibrary && (
+        <button
+          onClick={() => removeFromLibrary(canonicalId)}
+          aria-label={t('detail.removeFromList')}
+          className={cn(railBase, 'bg-black/50 text-white hover:text-red-400')}
+        >
+          <Trash2 size={18} />
+        </button>
+      )}
+    </>
+  )
+
   return (
     <div className="pb-8">
-      {/* hero */}
-      <div className="relative h-52 w-full overflow-hidden md:h-72 md:rounded-b-3xl">
-        {meta.backdrop ? (
-          <img
-            src={meta.backdrop}
-            alt=""
-            fetchPriority="high"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-card2 to-surface" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-black/30" />
-        <button
-          onClick={() => nav(-1)}
-          aria-label="back"
-          className="absolute left-3 top-safe grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
-        >
-          <ArrowLeft size={20} />
-        </button>
-      </div>
+      {detailLayout === 'classic' && (
+        <>
+          {/* hero */}
+          <div className="relative h-52 w-full overflow-hidden md:h-72 md:rounded-b-3xl">
+            {meta.backdrop ? (
+              <Cover
+                src={meta.backdrop}
+                persist={inLibrary}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-card2 to-surface" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/30 to-black/30" />
+            {backBtn}
+          </div>
 
-      {/* poster + title */}
-      <div className="relative -mt-20 flex items-end gap-4 px-4">
-        <div className="h-36 w-24 shrink-0 overflow-hidden rounded-xl border border-line bg-card2 shadow-2xl">
-          {meta.poster ? (
-            <img
-              src={meta.poster}
-              alt={meta.title}
+          {/* poster + title */}
+          <div className="relative -mt-20 flex items-end gap-4 px-4">
+            {posterImg('h-36 w-24 rounded-xl border border-line shadow-2xl')}
+            <div className="min-w-0 flex-1 pb-1">
+              <h1 className="text-xl font-extrabold leading-tight">{meta.title}</h1>
+              {metaLine && <p className="mt-1 text-sm text-ink2">{metaLine}</p>}
+              {genreChips()}
+            </div>
+          </div>
+        </>
+      )}
+
+      {detailLayout === 'poster' && (
+        /* poster wall: the cover repeats as a softly blurred wallpaper behind
+           a big floating poster — low blur + high opacity keep the two reading
+           as one continuous artwork melting into the page */
+        <div className="relative h-[68vh] min-h-[500px] w-full overflow-hidden">
+          {meta.poster || meta.backdrop ? (
+            <Cover
+              src={(meta.poster ?? meta.backdrop)!}
+              persist={inLibrary}
+              loading="eager"
               fetchPriority="high"
               decoding="async"
-              className="h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full scale-110 object-cover opacity-60 blur-md"
             />
           ) : (
-            <div className="grid h-full w-full place-items-center text-ink4">
-              <ImageOff size={24} />
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-br from-card2 to-surface" />
           )}
-        </div>
-        <div className="min-w-0 flex-1 pb-1">
-          <h1 className="text-xl font-extrabold leading-tight">{meta.title}</h1>
-          {metaLine && <p className="mt-1 text-sm text-ink2">{metaLine}</p>}
-          {meta.genres && meta.genres.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {meta.genres.slice(0, 3).map((g) => (
-                <span
-                  key={g}
-                  className="rounded-full border border-line bg-card px-2.5 py-0.5 text-[11px] font-medium text-ink2"
-                >
-                  {g}
-                </span>
-              ))}
+          <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/35 to-surface/5" />
+          {backBtn}
+          <div className="relative z-10 flex h-full flex-col items-center justify-end px-6 pb-5">
+            <div className="relative flex w-full justify-center">
+              {posterImg('aspect-[2/3] w-56 rounded-2xl border border-line shadow-2xl')}
+              {/* rail hugs the screen edge, vertically centered ON THE COVER */}
+              <div className="absolute -right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2.5">
+                {railButtons}
+              </div>
             </div>
-          )}
+            <h1 className="mt-4 text-center text-2xl font-extrabold leading-tight">{meta.title}</h1>
+            {metaLine && <p className="mt-1 text-center text-sm text-ink2">{metaLine}</p>}
+            {genreChips(true)}
+          </div>
         </div>
-      </div>
+      )}
+
+      {detailLayout === 'immersive' && (
+        <>
+          {/* immersive: the (originally horizontal) art fills a tall-but-not-
+             towering frame — less vertical crop — and fades into the content
+             without a hard cut */}
+          <div className="relative h-[48vh] min-h-[340px] w-full overflow-hidden">
+            {meta.backdrop || meta.poster ? (
+              <Cover
+                src={(meta.backdrop ?? meta.poster)!}
+                persist={inLibrary}
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-card2 to-surface" />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/25 to-black/30" />
+            {backBtn}
+          </div>
+          <div className="relative z-10 -mt-24 flex items-end gap-4 px-4">
+            {posterImg('h-48 w-32 rounded-2xl border border-line shadow-2xl')}
+            <div className="min-w-0 flex-1 pb-1">
+              <h1 className="text-2xl font-extrabold leading-tight">{meta.title}</h1>
+              {metaLine && <p className="mt-1 text-sm text-ink2">{metaLine}</p>}
+              {genreChips()}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* actions */}
-      <div className="mt-5 flex items-center gap-2.5 px-4">
-        {!inLibrary ? (
-          <button
-            onClick={() => ensure()}
-            disabled={!details}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95 disabled:opacity-50"
-          >
-            <Plus size={18} strokeWidth={3} /> {t('detail.addToList')}
-          </button>
-        ) : (
-          <>
-            {single && (
-              <button
-                onClick={() => (completed ? setSingleDialog(true) : setSingleWatched(canonicalId, true))}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
-                  completed
-                    ? 'border border-accent bg-brand/10 text-accent'
-                    : 'bg-brand text-black',
-                )}
-              >
-                <Check size={18} strokeWidth={3} />
-                {t(singleLabels[meta.mediaType]?.[completed ? 1 : 0] ?? 'detail.markWatched')}
-                {completed && (libItem?.watchCount ?? 1) >= 2 && ` x${libItem?.watchCount}`}
-              </button>
-            )}
-            {isGame && (
-              <button
-                onClick={() => setGameDialog(true)}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
-                  libItem?.status === 'completed'
-                    ? 'border border-accent bg-brand/10 text-accent'
-                    : 'bg-brand text-black',
-                )}
-              >
-                {libItem?.status === 'planned' && t('games.toPlay')}
-                {libItem?.status === 'watching' && t('games.playing')}
-                {libItem?.status === 'completed' &&
-                  ((libItem?.watchCount ?? 1) >= 2
-                    ? `${t('games.replayed')} x${libItem?.watchCount}`
-                    : t('games.completed'))}
-              </button>
-            )}
-            {(episodic || isManga) && (
-              <div className="flex-1">
-                <div className="mb-1.5 flex justify-between text-xs text-ink2">
-                  <span>
-                    {watchedCount}
-                    {(episodic ? total : chapterTotal) != null &&
-                      `/${episodic ? total : chapterTotal}`}{' '}
-                    {episodic ? t('detail.progress') : t('books.chapters').toLowerCase()}
-                  </span>
-                  {(episodic ? total : chapterTotal) != null && (
-                    <span>
-                      {Math.round((watchedCount / (episodic ? total! : chapterTotal!)) * 100)}%
-                    </span>
-                  )}
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-card2">
-                  <div
-                    className="h-full rounded-full bg-brand transition-all"
-                    style={{
-                      width:
-                        (episodic ? total : chapterTotal) != null
-                          ? `${Math.min(100, (watchedCount / (episodic ? total! : chapterTotal!)) * 100)}%`
-                          : watchedCount > 0
-                            ? '100%'
-                            : '0%',
-                    }}
-                  />
-                </div>
-              </div>
-            )}
-            <button
-              onClick={() => removeFromLibrary(canonicalId)}
-              aria-label={t('detail.removeFromList')}
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-500"
-            >
-              <Trash2 size={18} />
-            </button>
-          </>
-        )}
-        <button
-          onClick={() => setRatingOpen(true)}
-          aria-label={t('rating.add')}
-          className={cn(
-            'grid shrink-0 place-items-center transition-transform active:scale-90',
-            libItem?.rating == null &&
-              'h-11 w-11 rounded-full border border-line text-ink3 transition-colors hover:border-accent hover:text-accent',
-          )}
-        >
-          {libItem?.rating != null ? (
-            <RatingBadge value={libItem.rating} size="md" />
-          ) : (
-            <Star size={18} />
-          )}
-        </button>
-        <button
-          onClick={async () => {
-            const item = await ensure()
-            if (item) toggleFavorite(item.id)
-          }}
-          aria-label="favorite"
-          className={cn(
-            'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
-            libItem?.favorite
-              ? 'border-accent bg-brand text-black'
-              : 'border-line text-ink3 hover:border-accent hover:text-accent',
-          )}
-        >
-          <Heart size={18} fill={libItem?.favorite ? 'currentColor' : 'none'} />
-        </button>
-      </div>
+      <div className="mt-5 flex items-center gap-2.5 px-4">{mainAction}</div>
+      {/* icon actions: one centered row between the progress bar and the
+          ratings (the poster layout keeps its vertical rail on the art) */}
+      {detailLayout !== 'poster' && (
+        <div className="mt-3.5 flex items-center justify-center gap-6 px-4">
+          {ownedBtn}
+          {starBtn}
+          {heartBtn}
+          {archiveBtn}
+          {trashBtn}
+        </div>
+      )}
 
       {/* game platforms */}
       {isGame && <PlatformChips slugs={meta.platforms} className="mt-4 px-4" />}
 
-      {/* critic ratings */}
-      {details?.externalRatings && <RatingsBanners list={details.externalRatings} />}
+      {/* critic ratings — the scenic layouts center them like everything else */}
+      {details?.externalRatings && (
+        <RatingsBanners list={details.externalRatings} centered={detailLayout !== 'classic'} />
+      )}
 
       {/* game: personal playtime */}
       {isGame && inLibrary && libItem?.status !== 'planned' && (
@@ -707,13 +999,35 @@ export default function DetailPage() {
               />
             ))}
             {chapterBlocks.length === 0 && (
-              <p className="text-sm text-ink3">{t('common.error')}</p>
+              // no chapter count yet (every count source unreachable) — say
+              // so honestly instead of a scary generic error
+              <p className="text-sm text-ink3">{t('detail.noChapters')}</p>
             )}
           </div>
         </section>
       )}
 
-      {/* overview */}
+      {/* order: tags → images → overview (skim the shape of the work first,
+          then look at it, then read about it) */}
+      {meta.tags && meta.tags.length > 0 && (
+        <section className="mt-6 px-4">
+          <h2 className="mb-2 text-lg font-bold">{t('detail.tags')}</h2>
+          <div className="flex flex-wrap gap-2">
+            {meta.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-line bg-card px-3 py-1 text-xs font-medium text-ink2"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* stills / screenshots / volume covers */}
+      <Gallery urls={meta.screenshots ?? []} title={t('detail.gallery')} />
+
       {meta.overview && (
         <section className="mt-6 px-4">
           <h2 className="mb-2 text-lg font-bold">{t('detail.overview')}</h2>
@@ -790,9 +1104,7 @@ export default function DetailPage() {
         <RewatchDialog
           label={meta.title}
           count={libItem?.watchCount ?? 1}
-          onUnmark={() =>
-            isGame ? setGameStatus(canonicalId, 'watching') : setSingleWatched(canonicalId, false)
-          }
+          onUnmark={() => setSingleStatus(canonicalId, 'watching')}
           onRewatch={() => rewatchSingle(canonicalId)}
           onClose={() => setSingleDialog(false)}
         />

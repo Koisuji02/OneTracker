@@ -7,8 +7,8 @@ android {
         applicationId "com.onetracker.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 35
+        versionName "1.0.35"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -27,6 +27,15 @@ android {
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+// A transitive dep of @capgo/capacitor-social-login pulls androidx.browser:1.9.0,
+// which demands compileSdk 36 + AGP 8.9.1. Pin it to 1.8.0 (identical CustomTabs
+// API we need) so we stay on compileSdk 35 / AGP 8.7.2 (Capacitor 7 / Node 20).
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.browser:browser:1.8.0'
     }
 }
 

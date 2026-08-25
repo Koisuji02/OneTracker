@@ -6,8 +6,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowLeft, Check, Plus, Search, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import Cover from '../components/Cover'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
+import PosterGrid from '../components/PosterGrid'
 import { db, deleteList, rewatchGrades, toggleListItem } from '../db'
 import { useT } from '../i18n'
 
@@ -72,7 +74,7 @@ export default function ListDetailPage() {
           <EmptyState icon={<Plus size={32} />} text={t('lists.emptyList')} />
         </button>
       ) : (
-        <div className="grid grid-cols-2 gap-4 px-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <PosterGrid className="px-4">
           {inList.map(
             (i) =>
               i && (
@@ -81,10 +83,12 @@ export default function ListDetailPage() {
                     className="w-auto"
                     title={i.title}
                     poster={i.poster}
+                    persist
                     year={i.year}
                     rating={i.rating}
                     statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
                     rewatchCount={grades.get(i.id)}
+                    favorite={i.favorite}
                     onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
                   />
                   <button
@@ -97,7 +101,7 @@ export default function ListDetailPage() {
                 </div>
               ),
           )}
-        </div>
+        </PosterGrid>
       )}
 
       {/* library picker */}
@@ -130,7 +134,9 @@ export default function ListDetailPage() {
                     className="flex w-full items-center gap-3 border-b border-line/50 py-2 text-left last:border-b-0"
                   >
                     <div className="h-14 w-10 shrink-0 overflow-hidden rounded-md bg-card2">
-                      {i.poster && <img src={i.poster} alt="" className="h-full w-full object-cover" />}
+                      {i.poster && (
+                        <Cover src={i.poster} persist className="h-full w-full object-cover" />
+                      )}
                     </div>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{i.title}</span>
                     <span

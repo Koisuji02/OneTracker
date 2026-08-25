@@ -16,6 +16,8 @@
  *   Ongoing works (still airing/releasing) never auto-complete.
  */
 import Dexie, { type Table } from 'dexie'
+import { forget } from './imageCache'
+import type { SortMode } from './settings'
 import type {
   EpisodeCacheEntry,
   EpisodeInfo,
@@ -33,6 +35,8 @@ export interface DetailsCacheEntry {
   id: string
   details: MediaDetails
   fetchedAt: number
+  /** payload-shape version (see CACHE_V in api/index.ts); pre-v2 = absent */
+  v?: number
 }
 
 /** Resolved cover URL shared between search rows and detail pages. */
@@ -42,6 +46,26 @@ export interface CoverCacheEntry {
   fetchedAt: number
 }
 
+/**
+ * Downloaded artwork, kept so the library still LOOKS like the library with no
+ * network. Bytes and bookkeeping live in two tables on purpose: the eviction
+ * pass only ever reads `imageMeta` (a few numbers per row) and never has to
+ * pull megabytes of blobs into memory just to find the oldest ones.
+ */
+export interface ImageBlobEntry {
+  /** the remote URL, verbatim — it is the cache key everywhere */
+  url: string
+  blob: Blob
+}
+
+export interface ImageMetaEntry {
+  url: string
+  size: number
+  fetchedAt: number
+  /** last time it was shown — drives LRU eviction */
+  usedAt: number
+}
+
 class OneTrackerDB extends Dexie {
   items!: Table<LibraryItem, string>
   episodes!: Table<WatchedEpisode, string>
@@ -49,6 +73,8 @@ class OneTrackerDB extends Dexie {
   lists!: Table<WatchList, string>
   detailsCache!: Table<DetailsCacheEntry, string>
   covers!: Table<CoverCacheEntry, string>
+  images!: Table<ImageBlobEntry, string>
+  imageMeta!: Table<ImageMetaEntry, string>
 
   constructor() {
     super('onetracker')
@@ -128,6 +154,60 @@ class OneTrackerDB extends Dexie {
       detailsCache: 'id',
       covers: 'key',
     })
+    // v6: purge phantom episode rows left by the absolute-numbering bug.
+    // TMDB numbers long-running anime ABSOLUTELY inside seasons (Naruto
+    // Shippuden S18 = eps 144–151) while the db keys units by their
+    // 1..episodeCount season slot; the detail page used to write the raw
+    // numbers, creating rows past the season length (and >100% progress).
+    this.version(6)
+      .stores({
+        items: 'id, mediaType, status, favorite, addedAt',
+        episodes: 'id, itemId, watchedAt',
+        episodeCache: 'id, itemId',
+        lists: 'id, createdAt',
+        detailsCache: 'id',
+        covers: 'key',
+      })
+      .upgrade(async (tx) => {
+        const items = (await tx.table('items').toArray()) as LibraryItem[]
+        for (const item of items) {
+          if (item.mediaType !== 'tv' && item.mediaType !== 'anime') continue
+          const counts = new Map(seasonsOf(item).map((s) => [s.number, s.episodeCount]))
+          if (counts.size === 0) continue
+          const rows = (await tx
+            .table('episodes')
+            .where('itemId')
+            .equals(item.id)
+            .toArray()) as WatchedEpisode[]
+          const bad = rows.filter((r) => {
+            const c = counts.get(r.season)
+            return c == null || r.episode > c
+          })
+          if (bad.length === 0) continue
+          await tx.table('episodes').bulkDelete(bad.map((r) => r.id))
+          // re-derive status inline: recomputeStatus opens its own transaction
+          const progress = rows.length - bad.length
+          const total = totalEpisodesOf(item)
+          const patch: Partial<LibraryItem> =
+            progress === 0
+              ? { status: 'planned', completedAt: null }
+              : total != null && total > 0 && progress >= total && !item.ongoing
+                ? { status: 'completed', completedAt: item.completedAt ?? Date.now() }
+                : { status: 'watching', completedAt: null }
+          await tx.table('items').update(item.id, patch)
+        }
+      })
+    // v7: offline artwork (see imageCache.ts) — blobs and their LRU bookkeeping
+    this.version(7).stores({
+      items: 'id, mediaType, status, favorite, addedAt',
+      episodes: 'id, itemId, watchedAt',
+      episodeCache: 'id, itemId',
+      lists: 'id, createdAt',
+      detailsCache: 'id',
+      covers: 'key',
+      images: 'url',
+      imageMeta: 'url, usedAt',
+    })
   }
 }
 
@@ -154,7 +234,7 @@ export function hasUnits(type: MediaType): boolean {
 }
 
 /** Normalized season list used to walk units in watch order. */
-function seasonsOf(item: MediaBase): Array<{ number: number; episodeCount: number }> {
+export function seasonsOf(item: MediaBase): Array<{ number: number; episodeCount: number }> {
   if (item.seasons && item.seasons.length > 0) {
     return item.seasons
       .filter((s) => s.number > 0)
@@ -165,11 +245,110 @@ function seasonsOf(item: MediaBase): Array<{ number: number; episodeCount: numbe
   return []
 }
 
+/**
+ * Fields where a STORED value must survive a fresh fetch that came back empty.
+ * Mirrors refreshItemMetadata's keepIfNullish: the DB snapshot is the source of
+ * truth, a live fetch only ever enriches it.
+ */
+const KEEP_IF_NULLISH = [
+  'poster',
+  'backdrop',
+  'overview',
+  'episodeRuntime',
+  'runtime',
+  'pages',
+  'playtime',
+  'mangadexId',
+  'lastReleaseDate',
+  'releaseDate',
+  'nextReleaseDate',
+  'lastAired',
+  'year',
+  'ongoing',
+] as const
+
+/**
+ * ONE view model for a detail page: fresh provider data on top of the stored
+ * snapshot, never losing what the DB already knows. Without this a provider
+ * hiccup (AniList has no chapter count for a hiatus manga, MangaDex blocked on
+ * the network) blanks fields the user already relies on — e.g. chapters
+ * vanishing from a manga the user has read 300 of.
+ */
+export function mergeMeta(
+  details: MediaDetails | null,
+  stored: LibraryItem | undefined,
+): MediaDetails | null {
+  if (!details) return (stored as MediaDetails | undefined) ?? null
+  if (!stored) return details
+  const out: MediaDetails = { ...details }
+  for (const k of KEEP_IF_NULLISH) {
+    if (out[k] == null && stored[k] != null) Object.assign(out, { [k]: stored[k] })
+  }
+  if (!out.seasons?.length && stored.seasons?.length) out.seasons = stored.seasons
+  if (!out.genres?.length && stored.genres?.length) out.genres = stored.genres
+  if (!out.tags?.length && stored.tags?.length) out.tags = stored.tags
+  if (!out.screenshots?.length && stored.screenshots?.length) out.screenshots = stored.screenshots
+  // unit totals never shrink: released chapter/episode counts only grow, so a
+  // failed enrichment must not hide units the user already tracked
+  if (stored.totalEpisodes != null) {
+    out.totalEpisodes = Math.max(out.totalEpisodes ?? 0, stored.totalEpisodes)
+  }
+  return out
+}
+
+/** Comparable release instant: explicit date, else Jan 1 of the year, else −∞. */
+function releaseTime(i: LibraryItem): number {
+  if (i.releaseDate) {
+    const t = Date.parse(i.releaseDate)
+    if (!Number.isNaN(t)) return t
+  }
+  return i.year ? Date.UTC(i.year, 0, 1) : -Infinity
+}
+
+/**
+ * Order a library grid (Favorites / Archived / Catalog):
+ * - 'added'   — most recently added first (the classic default)
+ * - 'rating'  — highest personal rating first; unrated sink to the bottom
+ * - 'release' — newest release first; unknown dates sink to the bottom
+ * Ties always fall back to add order, so the sort is stable and predictable.
+ */
+export function sortLibrary(items: LibraryItem[], mode: SortMode): LibraryItem[] {
+  const copy = [...items]
+  if (mode === 'rating') {
+    return copy.sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || b.addedAt - a.addedAt)
+  }
+  if (mode === 'release') {
+    return copy.sort((a, b) => releaseTime(b) - releaseTime(a) || b.addedAt - a.addedAt)
+  }
+  return copy.sort((a, b) => b.addedAt - a.addedAt)
+}
+
 export function totalEpisodesOf(item: LibraryItem): number | null {
   if (item.seasons && item.seasons.length > 0) {
     return item.seasons.filter((s) => s.number > 0).reduce((a, s) => a + s.episodeCount, 0)
   }
   return item.totalEpisodes ?? null
+}
+
+/**
+ * Whether a unit is already out and can be marked. False only when we
+ * positively know it hasn't aired: an explicit future air date, a known
+ * last-aired boundary it sits past, or a show that hasn't premiered at all.
+ */
+export function unitAired(
+  item: MediaBase,
+  season: number,
+  episode: number,
+  airDate?: string | null,
+): boolean {
+  const now = Date.now()
+  if (airDate) return Date.parse(airDate) <= now
+  if (item.releaseDate && Date.parse(item.releaseDate) > now) return false
+  if (item.lastAired) {
+    const la = item.lastAired
+    return season < la.season || (season === la.season && episode <= la.episode)
+  }
+  return true
 }
 
 /** First unwatched unit in watch order (specials excluded), null when caught up. */
@@ -284,6 +463,7 @@ export async function addToLibrary(details: MediaDetails): Promise<LibraryItem> 
 
 /** Remove an item and every trace of it (progress, caches, list references). */
 export async function removeFromLibrary(id: string): Promise<void> {
+  const gone = await db.items.get(id)
   await db.transaction('rw', db.items, db.episodes, db.episodeCache, db.lists, async () => {
     await db.items.delete(id)
     await db.episodes.where('itemId').equals(id).delete()
@@ -295,12 +475,34 @@ export async function removeFromLibrary(id: string): Promise<void> {
       }
     }
   })
+  // its offline artwork is dead weight the moment the item is gone
+  await forget([gone?.poster, gone?.backdrop])
 }
 
 export async function toggleFavorite(id: string): Promise<void> {
   const item = await db.items.get(id)
   if (!item) return
   await db.items.update(id, { favorite: !item.favorite })
+}
+
+/**
+ * Archive/unarchive: an orthogonal flag, so un-archiving drops the item right
+ * back where its status puts it (Continue / Start / Completed).
+ */
+export async function toggleArchived(id: string): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  await db.items.update(id, { archived: !item.archived })
+}
+
+/**
+ * Mark/unmark an item as personally owned. Orthogonal to status/archive: owned
+ * items stay exactly where they are, they just also appear in the "Owned" box.
+ */
+export async function toggleOwned(id: string): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  await db.items.update(id, { owned: !item.owned })
 }
 
 /** Personal 0–10 rating (one decimal); null removes it. */
@@ -315,8 +517,13 @@ export async function setRating(id: string, rating: number | null): Promise<void
 /**
  * Re-derive planned/watching/completed from stored progress.
  * Ongoing works never auto-complete — they stay "watching" when caught up.
+ *
+ * `touch` stamps `lastReadAt` — true for a real interaction (a unit marked),
+ * false for a background metadata refresh, which must NOT make an item look
+ * freshly read: the Books tab orders "Continue" by that timestamp, and a sync
+ * pass would otherwise reshuffle the whole list behind the user's back.
  */
-export async function recomputeStatus(itemId: string): Promise<void> {
+export async function recomputeStatus(itemId: string, touch = true): Promise<void> {
   const item = await db.items.get(itemId)
   if (!item || !hasUnits(item.mediaType)) return
   const progress = await db.episodes.where('itemId').equals(itemId).count()
@@ -333,7 +540,11 @@ export async function recomputeStatus(itemId: string): Promise<void> {
     status = 'watching'
     completedAt = null
   }
-  await db.items.update(itemId, { status, completedAt, lastReadAt: Date.now() })
+  await db.items.update(itemId, {
+    status,
+    completedAt,
+    ...(touch ? { lastReadAt: Date.now() } : {}),
+  })
 }
 
 /**
@@ -362,6 +573,8 @@ export async function refreshItemMetadata(details: MediaDetails): Promise<void> 
     'playtime',
     'mangadexId',
     'lastReleaseDate',
+    'releaseDate',
+    'lastAired',
     'year',
     'ongoing',
   ] as const
@@ -374,6 +587,12 @@ export async function refreshItemMetadata(details: MediaDetails): Promise<void> 
   if ((!patch.genres || patch.genres.length === 0) && existing.genres?.length) {
     delete patch.genres
   }
+  if ((!patch.tags || patch.tags.length === 0) && existing.tags?.length) {
+    delete patch.tags
+  }
+  if ((!patch.screenshots || patch.screenshots.length === 0) && existing.screenshots?.length) {
+    delete patch.screenshots
+  }
   if (patch.totalEpisodes == null && existing.totalEpisodes != null) {
     delete patch.totalEpisodes
   } else if (
@@ -385,8 +604,17 @@ export async function refreshItemMetadata(details: MediaDetails): Promise<void> 
     patch.totalEpisodes = Math.max(patch.totalEpisodes, existing.totalEpisodes)
   }
 
+  // a refresh that brings nothing new must not write: an identical update
+  // still wakes every live query watching the library, and this runs in the
+  // background for a batch of items at a time (see sync.ts)
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+  for (const k of Object.keys(patch) as Array<keyof LibraryItem>) {
+    if (same(patch[k], existing[k])) delete patch[k]
+  }
+  if (Object.keys(patch).length === 0) return
+
   await db.items.update(details.id, patch)
-  await recomputeStatus(details.id)
+  await recomputeStatus(details.id, false)
 }
 
 // ------------------------------------------------------- watching units
@@ -517,11 +745,16 @@ export async function setRangeWatched(
   await recomputeStatus(item.id)
 }
 
-/** Mark/unmark a whole season (used by the "Mark all" season button). */
+/**
+ * Mark/unmark a whole season (used by the "Mark all" season button).
+ * `episodes` carries the season SLOTS to mark — 1..episodeCount ordinals,
+ * the db-wide unit convention — NOT the provider's display numbers (TMDB
+ * numbers long-running anime absolutely across seasons).
+ */
 export async function setSeasonWatched(
   item: LibraryItem,
   season: number,
-  episodes: EpisodeInfo[],
+  episodes: Array<{ episode: number; runtime?: number | null }>,
   watched: boolean,
 ): Promise<void> {
   if (watched) {
@@ -570,14 +803,60 @@ export async function rewatchSingle(id: string): Promise<void> {
   await db.items.update(id, { watchCount: (item.watchCount ?? 1) + 1 })
 }
 
-/** Games: explicit status (planned = to play, watching = playing, completed). */
-export async function setGameStatus(id: string, status: ItemStatus): Promise<void> {
+/**
+ * Explicit 3-state for single media (movie / book / game): planned → watching
+ * ("in progress": you started it, so it lives in Continue) → completed. The
+ * middle state is what lets a movie sit in Continue like a series until you
+ * actually finish it. Rewatches (x2, x3…) still go through rewatchSingle.
+ */
+export async function setSingleStatus(id: string, status: ItemStatus): Promise<void> {
   const item = await db.items.get(id)
   await db.items.update(id, {
     status,
     completedAt: status === 'completed' ? Date.now() : null,
     watchCount: status === 'completed' ? (item?.watchCount ?? 1) : undefined,
+    lastReadAt: Date.now(),
   })
+}
+
+/** @deprecated use setSingleStatus — kept as an alias for existing callers. */
+export const setGameStatus = setSingleStatus
+
+/**
+ * "Waiting" = an item with nothing to do right now, parked in its own section
+ * so it never clutters the actionable Continue/Start lists:
+ * - planned but unreleased (any media): premiere/release date still in the future
+ * - series/anime/manga in progress: caught up on every AIRED unit. Either
+ *   nothing new is out (ongoing work, every listed unit watched) OR the only
+ *   units left are announced-but-unreleased — a next episode with a future air
+ *   date (e.g. Bleach S02E41, dated next month, sitting past item.lastAired).
+ *   Returns to Continue the instant a unit airs.
+ * `watchedKeys` is the GLOBAL set of watched episode ids (epKey), as the pages
+ * already build it; movies/games can pass an empty set.
+ *
+ * `airDateOf` is the precise answer when the caller has it: the air date of a
+ * specific unit, straight from the cached episode list. Without it the decision
+ * falls back to `item.lastAired`, the show-level "last episode that aired"
+ * TMDB stamped whenever the snapshot was last refreshed — which LAGS. That lag
+ * is what used to keep a series parked in Waiting for the whole day an episode
+ * came out: the episode's own air date says "today", the stale boundary says
+ * "not yet". The unit's own date always wins.
+ */
+export function isWaiting(
+  item: LibraryItem,
+  watchedKeys: Set<string>,
+  airDateOf?: (season: number, episode: number) => string | null | undefined,
+): boolean {
+  const now = Date.now()
+  if (item.status === 'planned') {
+    return !!item.releaseDate && Date.parse(item.releaseDate) > now
+  }
+  if (item.status !== 'watching' || !hasUnits(item.mediaType)) return false
+  const next = computeNextEpisode(item, watchedKeys)
+  // caught up on every listed unit → waiting only while the work is ongoing;
+  // otherwise the next unit exists but must have already aired to be actionable
+  if (!next) return !!item.ongoing
+  return !unitAired(item, next.season, next.episode, airDateOf?.(next.season, next.episode))
 }
 
 /** Games: personal hours played. */
@@ -699,15 +978,6 @@ export async function computeStats(): Promise<Stats> {
 }
 
 // ------------------------------------------------------- episode list cache
-
-const CACHE_TTL = 1000 * 60 * 60 * 24 * 7 // 7 days
-
-export async function getCachedEpisodes(itemId: string, season: number): Promise<EpisodeInfo[] | null> {
-  const entry = await db.episodeCache.get(`${itemId}:${season}`)
-  if (!entry) return null
-  if (Date.now() - entry.fetchedAt > CACHE_TTL) return entry.episodes // stale-while-revalidate: caller may refetch
-  return entry.episodes
-}
 
 export async function putCachedEpisodes(
   itemId: string,

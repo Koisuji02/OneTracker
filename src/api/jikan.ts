@@ -9,6 +9,24 @@ const API = 'https://api.jikan.moe/v4'
 import { fetchTimeout } from './http'
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+/**
+ * Published chapter count from MAL. Keyless fallback for manga where AniList
+ * carries no count (`chapters` is only set on FINISHED works — Vagabond-style
+ * hiatus titles have null) and MangaDex is unreachable (DNS-blocked on some
+ * mobile networks).
+ */
+export async function jikanMangaChapters(malId: number | null | undefined): Promise<number | null> {
+  if (!malId) return null
+  try {
+    const res = await fetchTimeout(`${API}/manga/${malId}`)
+    if (!res.ok) return null
+    const c = (await res.json()).data?.chapters
+    return typeof c === 'number' && c > 0 ? c : null
+  } catch {
+    return null
+  }
+}
+
 export async function jikanEpisodeTitles(
   malId: number,
   count: number,

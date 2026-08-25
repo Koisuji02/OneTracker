@@ -1,0 +1,13 @@
+name = "onetracker-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# Free plan: 100k requests/day, no credit card. Nothing else to enable —
+# this Worker uses no KV, no D1, no Durable Objects on purpose.
+workers_dev = true
+# no per-version preview URLs: they'd be extra public endpoints for a proxy
+# that only this app should use
+preview_urls = false
+
+[observability]
+enabled = true

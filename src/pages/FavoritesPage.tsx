@@ -3,9 +3,11 @@ import { ArrowLeft, Heart } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
-import { db, isEpisodic, rewatchGrades } from '../db'
+import PosterGrid from '../components/PosterGrid'
+import SortMenu from '../components/SortMenu'
+import { db, isEpisodic, rewatchGrades, sortLibrary } from '../db'
 import { useT } from '../i18n'
-import { useSettings } from '../settings'
+import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
 
 function FavSection({
@@ -25,21 +27,31 @@ function FavSection({
         <span className="h-4 w-1 rounded-full bg-brand" />
         <h2 className="text-lg font-bold">{title}</h2>
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+      <PosterGrid>
         {items.map((i) => (
           <PosterCard
             key={i.id}
             className="w-auto"
             title={i.title}
             poster={i.poster}
+            persist
             year={i.year}
             rating={i.rating}
-            statusKind={i.status === 'completed' ? 'done' : i.status === 'watching' ? 'ongoing' : null}
+            statusKind={
+              i.archived
+                ? 'archived'
+                : i.status === 'completed'
+                  ? 'done'
+                  : i.status === 'watching'
+                    ? 'ongoing'
+                    : null
+            }
             rewatchCount={grades.get(i.id)}
+            favorite={i.favorite}
             onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
           />
         ))}
-      </div>
+      </PosterGrid>
     </section>
   )
 }
@@ -57,10 +69,11 @@ export default function FavoritesPage() {
   if (!favorites || !eps) return null
 
   const grades = rewatchGrades(favorites, eps)
-  const favSeries = favorites.filter((i) => isEpisodic(i.mediaType))
-  const favMovies = favorites.filter((i) => i.mediaType === 'movie')
-  const favBooks = favorites.filter((i) => i.mediaType === 'book' || i.mediaType === 'manga')
-  const favGames = favorites.filter((i) => i.mediaType === 'game')
+  const sorted = sortLibrary(favorites, settings.librarySort)
+  const favSeries = sorted.filter((i) => isEpisodic(i.mediaType))
+  const favMovies = sorted.filter((i) => i.mediaType === 'movie')
+  const favBooks = sorted.filter((i) => i.mediaType === 'book' || i.mediaType === 'manga')
+  const favGames = sorted.filter((i) => i.mediaType === 'game')
 
   return (
     <div className="pb-8">
@@ -72,7 +85,13 @@ export default function FavoritesPage() {
         >
           <ArrowLeft size={18} />
         </button>
-        <h1 className="text-2xl font-extrabold tracking-tight">{t('account.favorites')}</h1>
+        <h1 className="flex-1 text-2xl font-extrabold tracking-tight">{t('account.favorites')}</h1>
+        {favorites.length > 0 && (
+          <SortMenu
+            value={settings.librarySort}
+            onChange={(m) => updateSettings({ librarySort: m })}
+          />
+        )}
       </header>
 
       {favorites.length === 0 ? (

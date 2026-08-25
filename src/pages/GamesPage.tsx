@@ -1,17 +1,37 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Gamepad2 } from 'lucide-react'
+import { Clock, Gamepad2 } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
+import GridCard from '../components/GridCard'
 import PageHeader from '../components/PageHeader'
+import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
+import ViewToggle from '../components/ViewToggle'
 import { platformLabel } from '../components/PlatformChips'
-import { db, setGameStatus } from '../db'
+import { db, isWaiting, setSingleStatus } from '../db'
 import { useT } from '../i18n'
+import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
+import { formatDate } from '../util'
 
-function GameCard({ item, playing }: { item: LibraryItem; playing: boolean }) {
+/** games have no episodes: isWaiting only reads their release date. */
+const NO_KEYS = new Set<string>()
+
+/** stage = 'planned' (Start → play) · 'watching' (Playing → complete) · 'waiting' (unreleased). */
+function GameCard({
+  item,
+  stage,
+  view,
+}: {
+  item: LibraryItem
+  stage: 'planned' | 'watching' | 'waiting'
+  view: ViewMode
+}) {
   const t = useT()
   const nav = useNavigate()
+  const { language } = useSettings()
+  const playing = stage === 'watching'
 
   const parts: string[] = []
   if (playing) {
@@ -30,15 +50,41 @@ function GameCard({ item, playing }: { item: LibraryItem; playing: boolean }) {
       ? Math.min(1, item.myPlaytime / item.playtime)
       : null
 
+  const when = item.releaseDate ? formatDate(item.releaseDate, language) : t('common.waiting')
+  const subtitle =
+    stage === 'waiting' ? (
+      <span className="inline-flex items-center gap-1.5 text-accent">
+        <Clock size={13} />
+        {when}
+      </span>
+    ) : (
+      parts.join(' • ')
+    )
+  const shared = {
+    poster: item.poster,
+    title: item.title,
+    progress,
+    onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
+    onCheck:
+      stage === 'waiting'
+        ? undefined
+        : () => setSingleStatus(item.id, playing ? 'completed' : 'watching'),
+  }
+
+  if (view === 'grid') {
+    return (
+      <GridCard
+        {...shared}
+        caption={stage === 'waiting' ? when : null}
+        subtitle={stage === 'waiting' ? null : parts.join(' • ')}
+      />
+    )
+  }
   return (
     <TrackCard
-      poster={item.poster}
+      {...shared}
       topLabel={item.genres?.slice(0, 2).join(' • ') || t('nav.games')}
-      title={item.title}
-      subtitle={parts.join(' • ')}
-      progress={progress}
-      onClick={() => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`)}
-      onCheck={() => setGameStatus(item.id, playing ? 'completed' : 'watching')}
+      subtitle={subtitle}
     />
   )
 }
@@ -54,6 +100,7 @@ function SectionTitle({ text }: { text: string }) {
 
 export default function GamesPage() {
   const t = useT()
+  const { viewGames } = useSettings()
   const items = useLiveQuery(
     () =>
       db.items
@@ -66,27 +113,41 @@ export default function GamesPage() {
 
   if (!items) return null
 
-  const playing = items
+  const active = items.filter((i) => !i.archived)
+  const playing = active
     .filter((i) => i.status === 'watching')
     .sort((a, b) => b.addedAt - a.addedAt)
-  const backlog = items
-    .filter((i) => i.status === 'planned')
+  const waiting = active.filter((i) => isWaiting(i, NO_KEYS)).sort((a, b) => b.addedAt - a.addedAt)
+  const backlog = active
+    .filter((i) => i.status === 'planned' && !isWaiting(i, NO_KEYS))
     .sort((a, b) => b.addedAt - a.addedAt)
+
+  const lay = (children: ReactNode) =>
+    viewGames === 'grid' ? (
+      <PosterGrid>{children}</PosterGrid>
+    ) : (
+      <div className="space-y-3">{children}</div>
+    )
 
   return (
     <div>
-      <PageHeader title={t('games.title')} />
+      <PageHeader
+        title={t('games.title')}
+        action={
+          <ViewToggle value={viewGames} onChange={(viewGames) => updateSettings({ viewGames })} />
+        }
+      />
 
       <section className="px-4">
         <SectionTitle text={t('games.playing')} />
         {playing.length === 0 ? (
           <EmptyState icon={<Gamepad2 size={32} />} text={t('games.emptyPlaying')} />
         ) : (
-          <div className="space-y-3">
-            {playing.map((item) => (
-              <GameCard key={item.id} item={item} playing />
-            ))}
-          </div>
+          lay(
+            playing.map((item) => (
+              <GameCard key={item.id} item={item} stage="watching" view={viewGames} />
+            )),
+          )
         )}
       </section>
 
@@ -95,13 +156,24 @@ export default function GamesPage() {
         {backlog.length === 0 ? (
           <EmptyState icon={<Gamepad2 size={32} />} text={t('games.empty')} />
         ) : (
-          <div className="space-y-3">
-            {backlog.map((item) => (
-              <GameCard key={item.id} item={item} playing={false} />
-            ))}
-          </div>
+          lay(
+            backlog.map((item) => (
+              <GameCard key={item.id} item={item} stage="planned" view={viewGames} />
+            )),
+          )
         )}
       </section>
+
+      {waiting.length > 0 && (
+        <section className="mt-8 px-4">
+          <SectionTitle text={t('common.waiting')} />
+          {lay(
+            waiting.map((item) => (
+              <GameCard key={item.id} item={item} stage="waiting" view={viewGames} />
+            )),
+          )}
+        </section>
+      )}
     </div>
   )
 }
