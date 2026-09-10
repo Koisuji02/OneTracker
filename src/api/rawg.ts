@@ -4,6 +4,7 @@ import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
 import { gameCoverKey, rememberCover } from './covers'
 import { ApiKeyMissingError } from './errors'
+import { gatewayEnabled } from './gateway'
 import { rawgRatings } from './ratings'
 import { wikipediaBoxArt } from './wikipedia'
 
@@ -11,7 +12,9 @@ const API = 'https://api.rawg.io/api'
 
 function key(): string {
   const k = getSettings().rawgKey.trim()
-  if (!k) throw new ApiKeyMissingError('rawg')
+  // with the gateway on the Worker injects the key server-side (and overwrites
+  // whatever we send), so a missing local key is not an error
+  if (!k && !gatewayEnabled()) throw new ApiKeyMissingError('rawg')
   return k
 }
 
@@ -80,12 +83,31 @@ async function steamBoxArt(detail: any, id: string): Promise<string | null> {
   }
 }
 
+/** Up to 5 in-game screenshots for the detail gallery (one extra request). */
+async function gameScreenshots(id: string): Promise<string[]> {
+  try {
+    const u = new URL(`${API}/games/${id}/screenshots`)
+    u.searchParams.set('key', key())
+    const res = await fetchTimeout(u.toString())
+    if (!res.ok) return []
+    const data = await res.json()
+    return ((data.results ?? []) as any[])
+      .map((s) => s.image as string)
+      .filter(Boolean)
+      .slice(0, 5)
+  } catch {
+    return [] // gallery is a nice-to-have, never fail the page for it
+  }
+}
+
 export async function gameDetails(id: string): Promise<MediaDetails> {
   const url = new URL(`${API}/games/${id}`)
   url.searchParams.set('key', key())
   const res = await fetchTimeout(url.toString())
   if (!res.ok) throw new Error(`RAWG error ${res.status}`)
   const d = await res.json()
+  // fetched alongside the (slow, multi-hop) box-art resolution below
+  const shotsPromise = gameScreenshots(id)
   // box art: reuse whatever the shared cover cache already resolved (search
   // may have run first — same artwork everywhere), else Steam CDN capsule →
   // Wikipedia infobox art → RAWG promo art, and remember the result
@@ -112,7 +134,16 @@ export async function gameDetails(id: string): Promise<MediaDetails> {
       .map((p) => p.platform?.slug as string)
       .filter(Boolean),
     year: d.released ? Number(String(d.released).slice(0, 4)) : null,
+    releaseDate: (d.released as string | undefined) || null,
     genres: ((d.genres ?? []) as any[]).map((g) => g.name),
+    // RAWG tags are the "Singleplayer / Co-op / Third Person…" descriptors
+    // (English entries only — the localized ones are noisy duplicates)
+    tags: ((d.tags ?? []) as any[])
+      .filter((tag) => !tag.language || tag.language === 'eng')
+      .map((tag) => tag.name as string)
+      .filter(Boolean)
+      .slice(0, 8),
+    screenshots: await shotsPromise,
     playtime: (d.playtime as number | undefined) || null,
     authors: ((d.developers ?? []) as any[]).map((dev) => dev.name).slice(0, 3),
     externalRatings: rawgRatings(d.metacritic ?? null, d.rating ?? null),

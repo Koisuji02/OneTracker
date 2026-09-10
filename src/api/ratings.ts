@@ -9,6 +9,7 @@
  * - books        → Open Library community rating (keyless)
  * - games        → Metacritic + RAWG rating (already in the RAWG payload)
  */
+import { gatewayEnabled } from './gateway'
 import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 import type { ExternalRating } from '../types'
@@ -16,7 +17,8 @@ import type { ExternalRating } from '../types'
 /** OMDb (omdbapi.com) by IMDb id — returns IMDb / Rotten Tomatoes / Metacritic. */
 export async function omdbRatings(imdbId: string | null | undefined): Promise<ExternalRating[]> {
   const key = getSettings().omdbKey.trim()
-  if (!key || !imdbId) return []
+  // the gateway injects the key server-side, so a local one is optional there
+  if ((!key && !gatewayEnabled()) || !imdbId) return []
   try {
     const res = await fetchTimeout(`https://www.omdbapi.com/?apikey=${key}&i=${imdbId}`)
     if (!res.ok) return []

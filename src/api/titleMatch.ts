@@ -1,5 +1,9 @@
 /** Provider-neutral title normalization + matching, shared by search rows. */
 
+/** Japanese kana, CJK ideographs, Hangul and full-width forms — spots titles
+ *  that came back untranslated (providers fall back to the native script). */
+export const CJK_RE = /[぀-ヿ㐀-鿿가-힯＀-￯]/
+
 export function normalizeTitle(t: string): string {
   return t
     .toLowerCase()
@@ -27,4 +31,19 @@ export function matchesTitleSet(title: string, keys: Set<string>): boolean {
   if (keys.has(norm)) return true
   const base = norm.replace(VOLUME_TAIL, '').trim()
   return base.length > 2 && keys.has(base)
+}
+
+/**
+ * Aggressive, separator-free key for merging the SAME work coming from
+ * different providers into one search row. Collapses spacing and punctuation
+ * ("Hunter x Hunter" ≡ "HunterxHunter") and strips volume/tome tails
+ * ("Berserk, Vol. 3" ≡ "Berserk"), so a manga, its western-comic run and its
+ * book edition dedupe to a single entry. Returns '' for titles too short to
+ * key safely (caller should then keep the item rather than over-merge).
+ */
+export function dedupeKey(title: string): string {
+  const norm = normalizeTitle(title)
+  const base = norm.replace(VOLUME_TAIL, '').trim()
+  const key = looseTitleKey(base.length > 2 ? base : norm)
+  return key.length > 1 ? key : ''
 }

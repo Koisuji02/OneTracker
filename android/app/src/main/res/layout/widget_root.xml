@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:backgroundTint="#0b0b0e"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:id="@+id/widget_bar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingBottom="8dp">
+
+        <ImageView
+            android:id="@+id/icon_series"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"
+            android:padding="2dp"
+            android:src="@drawable/ic_widget_tv"
+            android:contentDescription="Series" />
+
+        <ImageView
+            android:id="@+id/icon_movies"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"
+            android:padding="2dp"
+            android:src="@drawable/ic_widget_film"
+            android:contentDescription="Movies" />
+
+        <ImageView
+            android:id="@+id/icon_books"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"
+            android:padding="2dp"
+            android:src="@drawable/ic_widget_books"
+            android:contentDescription="Books" />
+
+        <ImageView
+            android:id="@+id/icon_games"
+            android:layout_width="0dp"
+            android:layout_height="26dp"
+            android:layout_weight="1"
+            android:padding="2dp"
+            android:src="@drawable/ic_widget_games"
+            android:contentDescription="Games" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="horizontal">
+
+        <!-- 1-row mode: current media icon flanked by cycle triangles;
+             tapping rotates series → movies → books → games -->
+        <LinearLayout
+            android:id="@+id/widget_cycle"
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingEnd="8dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/cycle_left"
+                android:layout_width="10dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_widget_tri_left"
+                android:contentDescription="Previous media" />
+
+            <ImageView
+                android:id="@+id/cycle_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginHorizontal="3dp"
+                android:src="@drawable/ic_widget_tv"
+                android:contentDescription="Media" />
+
+            <ImageView
+                android:id="@+id/cycle_right"
+                android:layout_width="10dp"
+                android:layout_height="12dp"
+                android:src="@drawable/ic_widget_tri_right"
+                android:contentDescription="Next media" />
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1">
+
+            <ListView
+                android:id="@+id/widget_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:divider="@null"
+                android:dividerHeight="0dp" />
+
+            <TextView
+                android:id="@+id/widget_empty"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:text="@string/widget_empty"
+                android:textColor="#71717a"
+                android:textSize="13sp" />
+        </FrameLayout>
+    </LinearLayout>
+</LinearLayout>

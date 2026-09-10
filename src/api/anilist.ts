@@ -13,9 +13,10 @@
  * For ongoing manga, chapter counts come from MangaDex (see mangadex.ts).
  */
 import { fetchTimeout } from './http'
-import type { MediaDetails, SearchResult, Season } from '../types'
+import type { ExternalRating, MediaDetails, SearchResult, Season } from '../types'
 import { animeCoverKey, rememberCover } from './covers'
-import { mangadexFind, mangadexLatest } from './mangadex'
+import { jikanMangaChapters } from './jikan'
+import { mangadexFind, mangadexLatest, mangadexRating, mangadexVolumeCovers } from './mangadex'
 import { anilistRating, malRating } from './ratings'
 import { looseTitleKey, normalizeTitle } from './titleMatch'
 import { tmdbTvPosterByTitle } from './tmdbPoster'
@@ -66,10 +67,12 @@ function pickTitle(t: { english?: string | null; romaji?: string | null } | null
 const SEARCH_QUERY = `
 query ($q: String, $type: MediaType) {
   Page(perPage: 14) {
-    media(search: $q, type: $type, sort: SEARCH_MATCH) {
+    media(search: $q, type: $type, sort: [SEARCH_MATCH, POPULARITY_DESC]) {
       id
       format
       title { romaji english native }
+      synonyms
+      popularity
       coverImage { large }
       startDate { year }
     }
@@ -93,7 +96,25 @@ async function searchMedia(q: string, type: 'ANIME' | 'MANGA'): Promise<any[]> {
 
 async function search(q: string, type: 'ANIME' | 'MANGA'): Promise<SearchResult[]> {
   const media = await searchMedia(q, type)
-  return media.map((m) => ({
+  // AniList's SEARCH_MATCH alone surfaces obscure works whose SYNONYMS happen to
+  // contain the query ("berserk" → Bousou Honnou Melancholia before Berserk).
+  // Rank by how well the visible title matches, then by popularity, so the
+  // famous work people mean comes first.
+  const needle = normalizeTitle(q)
+  const score = (m: any) => {
+    const titles = [m.title?.english, m.title?.romaji].filter(Boolean).map(normalizeTitle)
+    const best = titles.some((t) => t === needle)
+      ? 3
+      : titles.some((t) => t.startsWith(needle))
+        ? 2
+        : titles.some((t) => t.includes(needle))
+          ? 1
+          : 0
+    return best * 1e9 + (m.popularity ?? 0)
+  }
+  return [...media]
+    .sort((a, b) => score(b) - score(a))
+    .map((m) => ({
     provider: 'anilist' as const,
     providerId: String(m.id),
     mediaType: type === 'ANIME' ? ('anime' as const) : ('manga' as const),
@@ -109,6 +130,29 @@ export function searchAnime(q: string): Promise<SearchResult[]> {
 
 export function searchManga(q: string): Promise<SearchResult[]> {
   return search(q, 'MANGA')
+}
+
+/**
+ * Normalized titles + synonyms (licensed editions included) of the manga
+ * results for a query — keeps manga out of the Books and Comics entries.
+ * Costs nothing extra: same memoized search the manga row runs.
+ */
+export async function anilistMangaTitleKeys(query: string): Promise<Set<string>> {
+  const keys = new Set<string>()
+  try {
+    for (const m of await searchMedia(query, 'MANGA')) {
+      const names = [
+        m.title?.romaji,
+        m.title?.english,
+        m.title?.native,
+        ...((m.synonyms ?? []) as string[]),
+      ]
+      for (const t of names) if (t) keys.add(normalizeTitle(t))
+    }
+  } catch {
+    // best-effort: rows fall back to their own subject/publisher filters
+  }
+  return keys
 }
 
 /**
@@ -158,7 +202,7 @@ query ($q: String) {
 
 const SCORE_ID_QUERY = `
 query ($id: Int) {
-  Media(id: $id, type: MANGA) { averageScore idMal }
+  Media(id: $id, type: MANGA) { averageScore idMal coverImage { extraLarge large } }
 }`
 
 /** AniList + MAL scores for a TMDB anime, matched by title. Best-effort. */
@@ -171,14 +215,24 @@ export async function animeRatingsByTitle(title: string) {
   }
 }
 
-/** AniList + MAL scores for a MangaDex manga via its `links.al` id. */
-export async function mangaRatingsByAnilistId(anilistId: string | null | undefined) {
-  if (!anilistId) return []
+/**
+ * AniList + MAL scores AND the AniList cover for a MangaDex manga via its
+ * `links.al` id. The cover doubles as the poster of mangadex: items because
+ * s4.anilist.co stays reachable on networks where uploads.mangadex.org is
+ * DNS-blocked (covers were going blank on the user's mobile network).
+ */
+export async function mangaInfoByAnilistId(
+  anilistId: string | null | undefined,
+): Promise<{ ratings: ExternalRating[]; cover: string | null }> {
+  if (!anilistId) return { ratings: [], cover: null }
   try {
     const m = (await gql(SCORE_ID_QUERY, { id: Number(anilistId) })).Media
-    return [...anilistRating(m?.averageScore), ...(await malRating(m?.idMal, 'manga'))]
+    return {
+      ratings: [...anilistRating(m?.averageScore), ...(await malRating(m?.idMal, 'manga'))],
+      cover: m?.coverImage?.extraLarge ?? m?.coverImage?.large ?? null,
+    }
   } catch {
-    return []
+    return { ratings: [], cover: null }
   }
 }
 
@@ -327,6 +381,7 @@ query ($id: Int, $type: MediaType) {
     duration
     chapters
     genres
+    tags { name isGeneralSpoiler isMediaSpoiler }
     status
     averageScore
     idMal
@@ -393,6 +448,11 @@ async function animeDetails(id: string): Promise<MediaDetails> {
     backdrop: full.bannerImage ?? tmdbArt?.backdrop ?? null,
     year: full.startDate?.year ?? null,
     genres: (full.genres ?? []) as string[],
+    tags: ((full.tags ?? []) as any[])
+      .filter((tag) => !tag.isGeneralSpoiler && !tag.isMediaSpoiler)
+      .map((tag) => tag.name as string)
+      .filter(Boolean)
+      .slice(0, 8),
     totalEpisodes: seasons.reduce((a, s) => a + s.episodeCount, 0) || airedEpisodesOf(entry) || null,
     episodeRuntime: full.duration ?? chain.find((n) => n.duration)?.duration ?? null,
     seasons,
@@ -411,20 +471,25 @@ async function animeDetails(id: string): Promise<MediaDetails> {
 
 async function mangaDetails(id: string): Promise<MediaDetails> {
   const m = (await gql(FULL_QUERY, { id: Number(id), type: 'MANGA' })).Media
-  const ongoing = m.status === 'RELEASING'
+  // a hiatus (Vagabond, Berserk…) is still unfinished: it must keep the
+  // ongoing behaviors (no auto-complete at the current cap, waiting section)
+  const ongoing = m.status === 'RELEASING' || m.status === 'HIATUS'
 
-  // MangaDex enrichment: id (chapter titles) always; released-chapter count
-  // and latest date only when the work is still releasing.
+  // AniList only fills `chapters` on FINISHED works, so the released count
+  // comes from MangaDex whenever it's missing or can still grow…
   const mangadexId = await mangadexFind(id, m.title?.romaji ?? m.title?.english ?? '')
   let chapters: number | null = m.chapters ?? null
   let lastReleaseDate: string | null = null
-  if (ongoing && mangadexId) {
+  if (mangadexId && (ongoing || chapters == null)) {
     const md = await mangadexLatest(mangadexId)
     if (md) {
       chapters = Math.max(md.latestChapter, chapters ?? 0)
       lastReleaseDate = md.latestChapterDate
     }
   }
+  // …and MAL is the keyless backstop when MangaDex is unreachable (DNS-blocked
+  // networks): without a count the detail page can't render chapter rows.
+  if (chapters == null) chapters = await jikanMangaChapters(m.idMal)
 
   return {
     id: `anilist:${id}`,
@@ -438,6 +503,14 @@ async function mangaDetails(id: string): Promise<MediaDetails> {
     backdrop: m.bannerImage ?? null,
     year: m.startDate?.year ?? null,
     genres: (m.genres ?? []) as string[],
+    // AniList tags (same query, no extra cost) minus anything spoilery
+    tags: ((m.tags ?? []) as any[])
+      .filter((tag) => !tag.isGeneralSpoiler && !tag.isMediaSpoiler)
+      .map((tag) => tag.name as string)
+      .filter(Boolean)
+      .slice(0, 8),
+    // gallery = volume covers, only when the MangaDex id is known
+    screenshots: mangadexId ? await mangadexVolumeCovers(mangadexId) : [],
     totalEpisodes: chapters,
     pages: chapters,
     seasons: [],
@@ -447,6 +520,7 @@ async function mangaDetails(id: string): Promise<MediaDetails> {
     cast: mapCharacters(m),
     airStatus: m.status ?? null,
     externalRatings: [
+      ...(mangadexId ? await mangadexRating(mangadexId) : []),
       ...anilistRating(m.averageScore),
       ...(await malRating(m.idMal, 'manga')),
     ],

@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- allowBackup=false: OS auto-backup would silently restore IndexedDB/prefs
+         from the cloud on reinstall — backups are the in-app Drive sync's job -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -22,7 +24,37 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- deep links from the home-screen widget (com.onetracker.app://open/...) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.onetracker.app" />
+            </intent-filter>
+
         </activity>
+
+        <!-- Home-screen widget: continue-watching list -->
+        <receiver
+            android:name=".OneWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/one_widget_info" />
+        </receiver>
+
+        <!-- the widget's own taps: private, so only OUR PendingIntents reach it -->
+        <receiver
+            android:name=".OneWidgetActionReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".OneWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
