@@ -1,5 +1,13 @@
 export type MediaType = 'tv' | 'anime' | 'movie' | 'book' | 'manga' | 'game'
-export type Provider = 'tmdb' | 'anilist' | 'mangadex' | 'openlibrary' | 'rawg' | 'comicvine'
+export type Provider =
+  | 'tmdb'
+  | 'anilist'
+  | 'mangadex'
+  | 'openlibrary'
+  | 'rawg'
+  | 'comicvine'
+  /** games via the API gateway (better data than rawg) */
+  | 'igdb'
 export type ItemStatus = 'planned' | 'watching' | 'completed'
 
 /** A critic/community score fetched from an external source (IMDb, MAL, …). */
@@ -62,12 +70,20 @@ export interface MediaBase {
   ongoing?: boolean | null
   /** tv/anime: air date of the next scheduled episode (ISO) */
   nextReleaseDate?: string | null
+  /** tv/anime: last episode that actually aired — units past it are locked */
+  lastAired?: { season: number; episode: number } | null
   /** manga: publish date of the latest released chapter (ISO) */
   lastReleaseDate?: string | null
+  /** movies/games/tv: release date (ISO) — used to park unreleased items in "Waiting" and lock marking */
+  releaseDate?: string | null
   /** manga: MangaDex id, used for chapter titles */
   mangadexId?: string | null
   /** games: RAWG parent-platform slugs (pc, playstation, xbox, nintendo…) */
   platforms?: string[]
+  /** descriptive tags beyond genres (RAWG tags, TMDB keywords, MangaDex themes) */
+  tags?: string[]
+  /** up to 5 stills/screenshots/volume covers shown in the detail gallery */
+  screenshots?: string[]
 }
 
 export interface MediaDetails extends MediaBase {
@@ -79,6 +95,10 @@ export interface MediaDetails extends MediaBase {
 export interface LibraryItem extends MediaBase {
   status: ItemStatus
   favorite: boolean
+  /** tucked away in the Archive: hidden from the 4 media tabs and the catalog */
+  archived?: boolean
+  /** marked as personally owned (key badge); orthogonal flag, its own catalog box */
+  owned?: boolean
   addedAt: number
   completedAt?: number | null
   /** legacy (pre-v3): manga chapters counter — now stored as episode rows */

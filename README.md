@@ -8,7 +8,7 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 
 **Tracking**
 - **Series & anime** — per-episode check-off with **cascade marking** (checking ep. 4 marks 1–3 too), "Continue watching" with next-episode card, remaining count `+N` and progress bar. Anime are TMDB entries: **one entry per show with real seasons** (saga names, localized episode titles), no cross-provider duplicates with TV Time imports.
-- **Ongoing works never auto-complete**: when you're caught up they stay in "Continue" with a waiting badge and the **next episode air date** (TMDB/AniList).
+- **Ongoing works never auto-complete**: when you're caught up they move to **Waiting** with the **next episode air date** (TMDB/AniList) — and come back to "Continue" the moment an episode is out, including the day it airs.
 - **Manga & comics** — chapter checklists (blocks of 100), same cascade rules. Chapter counts of ongoing manga come from **MangaDex**; western comics runs (with issue counts) from **Comic Vine**.
 - **Movies & books** — one-tap watched/read.
 - **Games** — three states (*To play / Playing / Completed*) plus personal hours played.
@@ -21,6 +21,16 @@ A modern, local-first tracker for **TV series, anime, movies, manga/comics, book
 - **Critic ratings** on detail pages: IMDb + Rotten Tomatoes/Metacritic (via OMDb), AniList + MyAnimeList + MangaDex, Metacritic + RAWG, Open Library.
 - **Catalog** rows (Series / Movies / Books / Games) with everything started or finished — hourglass = in progress/ongoing, flag = completed — expandable to **full grid views**.
 - **Custom lists** with a name and color, preview box on the profile, dedicated pages with a library picker.
+
+**Layout**
+- **List ⇄ grid** switch at the top right of each media tab, remembered **per tab** — series as rows while games are a wall of covers, if that's what you want. The grid keeps everything the list has: next episode, progress bar and the one-tap check.
+- Cover grids are **three columns** on a phone, so browsing a real library isn't endless scrolling.
+
+**Offline**
+- The app is a tracker first: **library, progress and covers work with no connection**. Artwork of anything you track is stored on the device the first time it's shown (48 MB budget, least-used dropped first, deleted with the item).
+- Metadata already downloaded stays available, so detail pages open offline too.
+- What genuinely needs the internet — search, a title you never opened, Drive sync — shows a **"no connection"** screen instead of pretending there are no results.
+- Back online, the app **catches up by itself**: it refreshes what can have changed (new episodes, new chapters, announced dates) and pushes the pending Drive backup.
 
 **Import from TV Time** — Settings → Import: drop the official GDPR zip or the JSON plugin export zip; shows resolve via their TVDB ids, movies via IMDb ids or title+year, rewatch counts and favorites included, merging idempotently into the library.
 
@@ -65,12 +75,16 @@ src/
     rawg.ts         games (+ metacritic/rawg scores)
     ratings.ts      OMDb / Jikan / rating assembly helpers
     errors.ts       ApiKeyMissingError
-  components/     shared UI (TrackCard, PosterCard, CheckButton, RatingBadge,
+  components/     shared UI (TrackCard, GridCard, PosterCard, PosterGrid,
+                  ViewToggle, Cover, OfflineNotice, CheckButton, RatingBadge,
                   RatingModal, RewatchDialog, Avatar, MediaRow, BottomNav…)
   pages/          one file per screen (Series, Movies, Books, Games, Search,
                   Detail, Account, Favorites, Catalog, Lists, ListDetail,
                   Avatar, Settings)
   db.ts           Dexie schema + the whole library service layer
+  net.ts          connectivity state (useOnline / onReconnect)
+  imageCache.ts   offline artwork: blobs in IndexedDB, LRU under a size budget
+  sync.ts         catch-up pass: stale metadata refresh + Drive push
   backup.ts       JSON export/import (v2: items + episodes + lists)
   drive.ts        Google sign-in + Drive appDataFolder backup
   settings.ts     localStorage settings store (useSettings hook)
@@ -88,7 +102,7 @@ android/          Capacitor Android project (generated)
 ### How it works (short version)
 
 1. **Search** calls one provider per band; results carry `(provider, mediaType, providerId)`.
-2. **Detail** calls `getDetails()` → normalized `MediaDetails` (metadata + seasons + ongoing flag + release dates + critic ratings). Opening a detail also runs `refreshItemMetadata()`, so new episodes/chapters of tracked works are picked up.
+2. **Detail** calls `getDetails()` → normalized `MediaDetails` (metadata + seasons + ongoing flag + release dates + critic ratings). Opening a detail also runs `refreshItemMetadata()`, so new episodes/chapters of tracked works are picked up — and `syncLibrary()` does the same in the background for what's still releasing, so you don't have to open anything.
 3. **Adding** snapshots the metadata into the `items` table with `status: planned`.
 4. **Checking units** writes rows into `episodes` (`count` = rewatch grade); status is re-derived after every change (`planned → watching → completed`, ongoing works capped at `watching`).
 5. **Stats** aggregate runtime × rewatch count per media type; games add tracked or expected hours.

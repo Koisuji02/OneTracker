@@ -22,7 +22,10 @@ Manga/comic chapters are stored as season `1`.
 | `items` | `id` | one row per tracked media (metadata snapshot + library state) |
 | `episodes` | `id` | one row per watched unit, `count` = times watched (rewatch grade) |
 | `lists` | `id` | user lists: `name`, `color`, `itemIds[]` |
-| `episodeCache` | `${itemId}:${season}` | cached episode metadata (7-day TTL) |
+| `episodeCache` | `${itemId}:${season}` | cached episode metadata (revalidated after 12h for ongoing works, 7 days otherwise) |
+| `detailsCache` | `id` | cached `MediaDetails` payloads (stale-while-revalidate, 6h) |
+| `covers` | `key` | resolved cover URLs shared by search rows and detail pages |
+| `images` / `imageMeta` | `url` | downloaded artwork (blob + LRU bookkeeping) — see *Offline* below |
 
 Status is always **derived**: `planned` (0 units) → `watching` (some) →
 `completed` (all units *and* the work is finished). Ongoing works never auto-complete.
@@ -43,13 +46,35 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `rewatchSingle` | `(id) → void` | movies/books/games: `watchCount + 1` |
 | `setGameStatus` | `(id, status) → void` | games: planned / watching ("Playing") / completed |
 | `setMyPlaytime` | `(id, hours\|null) → void` | games: personal hours (overrides RAWG average in stats) |
-| `recomputeStatus` | `(itemId) → void` | re-derives status from progress (internal, exported for metadata refresh) |
-| `refreshItemMetadata` | `(details) → void` | overwrites the metadata snapshot with fresh provider data, keeps library state, re-derives status. Called on every detail-page open |
+| `recomputeStatus` | `(itemId, touch = true) → void` | re-derives status from progress (internal, exported for metadata refresh). `touch` stamps `lastReadAt` — background refreshes pass `false` so they don't reorder "Continue" |
+| `refreshItemMetadata` | `(details) → void` | merges fresh provider data into the metadata snapshot, keeps library state, re-derives status. Writes NOTHING when the payload brings no change. Called on every detail-page open and by the background sync |
 | `computeNextEpisode` | `(item, watchedKeys) → {season, episode}\|null` | first unwatched unit in watch order |
+| `unitAired` | `(item, season, episode, airDate?) → boolean` | is this unit out? The unit's own `airDate` decides when known, otherwise the show-level `lastAired` boundary |
+| `isWaiting` | `(item, watchedKeys, airDateOf?) → boolean` | item with nothing to do right now (unreleased, or caught up on everything aired). `airDateOf(season, slot)` supplies the next unit's own air date so an episode released **today** leaves "Waiting" immediately instead of waiting for the next metadata refresh |
 | `isCaughtUp` | `(item, watchedCount) → boolean` | ongoing + everything released watched |
 | `computeStats` | `() → Stats` | totals: tv/anime/movie/game minutes (rewatches multiply), episodes, chapters, counts |
 | `createList` / `deleteList` / `toggleListItem` | — | user lists CRUD |
-| `getCachedEpisodes` / `putCachedEpisodes` | — | episode metadata cache |
+| `putCachedEpisodes` | `(itemId, season, episodes) → void` | episode metadata cache write (reads go through `getEpisodes`) |
+
+## Offline (`src/net.ts`, `src/imageCache.ts`, `src/sync.ts`)
+
+The library, the progress and the artwork of everything tracked work with no
+network. Only genuine lookups (search, a title never opened before, Drive) need
+a connection, and they say so instead of failing silently.
+
+| Function | Signature | Behavior |
+|---|---|---|
+| `isOnline` / `useOnline` | `() → boolean` | `navigator.onLine` + its events. Used to pick a message and skip pointless work, never to block a request that might still succeed |
+| `onReconnect` | `(fn) → unsubscribe` | runs `fn` when the device comes back online |
+| `resolveImage` | `(url, persist) → string` | the src to render: a `blob:` URL when the bytes are cached, otherwise `url` — and, if `persist`, the bytes are picked up in the background so the next render works offline |
+| `forget` | `(urls[]) → void` | drops cached bytes (an item leaving the library takes its artwork with it) |
+| `evict` | `() → void` | LRU trim to the 48 MB budget, reading only `imageMeta` |
+| `clearImageCache` | `() → void` | wipes every cached image (Settings → delete all data) |
+| `syncLibrary` | `(force = false) → void` | catch-up pass: refresh the items that can have changed (still releasing, or an announced date that has arrived — 20 at a time, 3 at a time in flight, throttled to 30 min) then push the Drive backup if a token is already in memory. Runs at startup, on reconnect and on foreground |
+
+`<Cover>` (`src/components/Cover.tsx`) is the `<img>` every cover goes through;
+`persist` marks the library artwork worth keeping. Search results, cast photos
+and galleries are browsing, not library, and stay online-only.
 
 ## Provider dispatcher (`src/api/index.ts`)
 
@@ -63,7 +88,7 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `searchComics(q)` | `SearchResult[]` | Comic Vine volumes (JSONP, memoized 60s — the API allows ~200 req/h); manga publishers + MangaDex title match filtered |
 | `searchGames(q)` | `SearchResult[]` | RAWG |
 | `getDetails(provider, mediaType, providerId)` | `MediaDetails` | routes to the right provider; includes cast, seasons, ongoing flag, release dates and `externalRatings` |
-| `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; anime titles via Jikan, manga via MangaDex, comics via Comic Vine issues; 7-day cache |
+| `getEpisodes(item, season)` | `EpisodeInfo[]` | TMDB real episodes; anime titles via Jikan, manga via MangaDex, comics via Comic Vine issues. Answers from the cache instantly and revalidates in the background when the list is old — 12h for a work still airing (a new episode has to show up on its own), 7 days otherwise |
 
 Cross-filter helpers: `mangadexTitleKeys(q)` (`src/api/mangadex.ts`) returns
 normalized MangaDex titles + alt-titles (all languages, Italian editions included)

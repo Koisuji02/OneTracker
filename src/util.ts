@@ -23,6 +23,22 @@ export function cn(...classes: Array<string | false | null | undefined>): string
   return classes.filter(Boolean).join(' ')
 }
 
+/**
+ * onError handler for cover <img>s: a host that's unreachable on the current
+ * network (e.g. uploads.mangadex.org, DNS-blocked on some mobile carriers)
+ * must collapse to the container's background, not show the browser's
+ * broken-image glyph.
+ */
+export function hideBrokenImg(e: { currentTarget: HTMLImageElement }): void {
+  e.currentTarget.style.display = 'none'
+}
+
+/** Companion of hideBrokenImg: un-hides the element when a LATER src (poster
+ *  refreshed by SWR) loads fine on the same <img>. */
+export function showLoadedImg(e: { currentTarget: HTMLImageElement }): void {
+  e.currentTarget.style.display = ''
+}
+
 export function formatDate(iso: string, language: 'en' | 'it' | null): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso

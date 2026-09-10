@@ -1,8 +1,6 @@
 import { fetchTimeout } from './http'
 import type { MediaDetails, SearchResult } from '../types'
-import { mangadexTitleKeys } from './mangadex'
 import { openLibraryRating } from './ratings'
-import { matchesTitleSet } from './titleMatch'
 
 const API = 'https://openlibrary.org'
 
@@ -15,17 +13,14 @@ export async function searchBooks(query: string): Promise<SearchResult[]> {
   url.searchParams.set('q', query)
   url.searchParams.set('limit', '20')
   url.searchParams.set('fields', 'key,title,first_publish_year,cover_i,author_name,subject')
-  // manga lives in its own tab: filter by subject AND by MangaDex title match
-  // (memoized, shared with the Manga row) so single manga volumes stay out too
-  const [res, mangaTitles] = await Promise.all([fetch(url.toString()), mangadexTitleKeys(query)])
+  // manga lives in its own tab: the subject filter runs here, the manga-title
+  // filter runs in searchReading (on the manga row's own results) so no
+  // provider call besides Open Library can gate the books results
+  const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`Open Library error ${res.status}`)
   const data = await res.json()
   return ((data.docs ?? []) as any[])
-    .filter(
-      (d) =>
-        !((d.subject ?? []) as string[]).some((s) => /manga/i.test(s)) &&
-        !matchesTitleSet(d.title ?? '', mangaTitles),
-    )
+    .filter((d) => !((d.subject ?? []) as string[]).some((s) => /manga/i.test(s)))
     .slice(0, 14)
     .map((d) => ({
     provider: 'openlibrary' as const,

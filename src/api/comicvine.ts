@@ -4,20 +4,35 @@
  * `count_of_issues`, which OneTracker tracks chapter-by-chapter like manga.
  *
  * The API has no CORS headers, but supports JSONP (`format=jsonp`), so we
- * load responses through a temporary <script> tag instead of fetch().
+ * load responses through a temporary <script> tag instead of fetch(). When the
+ * API gateway is configured we get proper JSON instead: the Worker adds CORS,
+ * injects the key and reports real HTTP errors (JSONP can only say "failed").
  */
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
 import { ApiKeyMissingError } from './errors'
-import { mangadexTitleKeys } from './mangadex'
-import { matchesTitleSet } from './titleMatch'
+import { gatewayEnabled } from './gateway'
+import { fetchTimeout } from './http'
 
 const API = 'https://comicvine.gamespot.com/api'
 
 function key(): string {
   const k = getSettings().comicvineKey.trim()
-  if (!k) throw new ApiKeyMissingError('comicvine')
+  // the gateway injects the key server-side
+  if (!k && !gatewayEnabled()) throw new ApiKeyMissingError('comicvine')
   return k
+}
+
+/**
+ * One Comic Vine call: plain JSON through the gateway, JSONP when calling the
+ * API directly from the browser. Callers only see the parsed payload.
+ */
+async function cvFetch(url: string): Promise<any> {
+  if (!gatewayEnabled()) return jsonp(url)
+  // fetchTimeout rewrites the host onto the gateway, which appends format=json
+  const res = await fetchTimeout(url)
+  if (!res.ok) throw new Error(`Comic Vine error ${res.status}`)
+  return res.json()
 }
 
 /** Minimal JSONP client: injects a <script>, resolves via a global callback. */
@@ -45,6 +60,18 @@ function jsonp(url: string, timeoutMs = 12000): Promise<any> {
     }
     document.head.appendChild(script)
   })
+}
+
+/**
+ * Cheapest possible call, for the Settings diagnostics: returns Comic Vine's
+ * `status_code` (1 = OK, 100/102 = bad/missing key). Throws when the script
+ * never loads — which JSONP can't tell apart from a network block.
+ */
+export async function comicvinePing(): Promise<number> {
+  const data = await cvFetch(
+    `${API}/search/?api_key=${key()}&resources=volume&limit=1&query=batman&field_list=id`,
+  )
+  return Number(data?.status_code ?? -1)
 }
 
 function stripHtml(s: string | null | undefined): string | null {
@@ -81,14 +108,12 @@ export async function searchComics(query: string): Promise<SearchResult[]> {
   const url =
     `${API}/search/?api_key=${key()}&resources=volume&limit=25` +
     `&query=${encodeURIComponent(query)}&field_list=id,name,image,start_year,count_of_issues,publisher`
-  const [data, mangaTitles] = await Promise.all([jsonp(url), mangadexTitleKeys(query)])
+  const data = await cvFetch(url)
   if (data.status_code !== 1) throw new Error(`Comic Vine error ${data.status_code}`)
+  // manga-title filtering happens in searchReading (on the manga row's own
+  // results) so no MangaDex call can gate the comics results
   const results = ((data.results ?? []) as any[])
-    .filter(
-      (v) =>
-        !MANGA_PUBLISHERS.test(v.publisher?.name ?? '') &&
-        !matchesTitleSet(v.name ?? '', mangaTitles),
-    )
+    .filter((v) => !MANGA_PUBLISHERS.test(v.publisher?.name ?? ''))
     .slice(0, 14)
     .map((v) => ({
       provider: 'comicvine' as const,
@@ -119,7 +144,7 @@ export async function comicvineIssueTitles(
       const url =
         `${API}/issues/?api_key=${key()}&filter=volume:${volumeId}` +
         `&field_list=issue_number,name&sort=issue_number:asc&limit=100&offset=${p * 100}`
-      const data = await jsonp(url)
+      const data = await cvFetch(url)
       if (data.status_code !== 1) break
       const results = (data.results ?? []) as any[]
       for (const issue of results) {
@@ -141,7 +166,7 @@ export async function comicDetails(id: string): Promise<MediaDetails> {
   const url =
     `${API}/volume/4050-${id}/?api_key=${key()}` +
     `&field_list=id,name,deck,description,image,start_year,count_of_issues,publisher`
-  const data = await jsonp(url)
+  const data = await cvFetch(url)
   if (data.status_code !== 1) throw new Error(`Comic Vine error ${data.status_code}`)
   const v = data.results
   const issues = (v.count_of_issues as number | undefined) ?? null

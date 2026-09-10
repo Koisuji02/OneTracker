@@ -7,6 +7,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowLeft, ChevronRight, ListVideo, Plus } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Cover from '../components/Cover'
 import EmptyState from '../components/EmptyState'
 import { createList, db, LIST_COLORS } from '../db'
 import { useT } from '../i18n'
@@ -121,7 +122,12 @@ export default function ListsPage() {
                             className="h-24 w-16 shrink-0 cursor-pointer overflow-hidden rounded-lg bg-card2"
                           >
                             {i.poster && (
-                              <img src={i.poster} alt={i.title} className="h-full w-full object-cover" />
+                              <Cover
+                                src={i.poster}
+                                alt={i.title}
+                                persist
+                                className="h-full w-full object-cover"
+                              />
                             )}
                           </div>
                         ),
