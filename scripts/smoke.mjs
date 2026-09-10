@@ -1,6 +1,6 @@
 // End-to-end smoke test: drives the dev server with headless Chromium.
-// Covers: first-run, search (keyless AniList/OpenLibrary), cascade marking,
-// rewatch dialog, season-chain aggregation, manga chapter checklists +
+// Covers: first-run, merged search rows (Serie/Film/Libri/Giochi), cascade
+// marking, rewatch dialog, season aggregation, manga chapter checklists +
 // MangaDex totals, ratings, lists, search memory, avatar, themes, profile.
 // Usage: node scripts/smoke.mjs [shots-dir]
 import { chromium } from 'playwright'
@@ -44,26 +44,28 @@ try {
   await page.getByRole('heading', { name: 'Serie' }).waitFor({ timeout: 5000 })
   ok('wizard completed (IT, books on, games off, guest)')
 
-  // 3. search (AniList needs no key) + TMDB warning
+  // 3. search — merged rows: Serie (TV+anime, works keyless via AniList
+  // fallback), Film (TMDB key or empty), Libri, Giochi
   await page.goto(`${BASE}/#/search`)
   await page.getByPlaceholder(/Cerca serie/).fill('one piece')
-  const animeSection = page.locator('section', { hasText: 'Anime' }).first()
+  const showsSection = page.locator('section', { hasText: 'Serie' }).first()
   // cover enrichment on a cold cache takes a few seconds — wait, don't sleep
-  await animeSection.locator('img').first().waitFor({ timeout: 45000 })
+  await showsSection.locator('img').first().waitFor({ timeout: 45000 })
   await page.waitForTimeout(600)
   await shot('02-search')
-  const posterCount = await animeSection.locator('img').count()
-  if (posterCount > 0) ok(`anime search returned ${posterCount} posters`)
-  else fail('anime search', 'no posters found')
-  // with a baked TMDB key the row shows results; without it, the key warning
-  const tvSection = page.locator('section', { hasText: 'Serie TV' }).first()
-  const tvPosters = await tvSection.locator('img').count()
-  const tvWarning = await page.getByText(/API key TMDB/).count()
-  if (tvPosters > 0 || tvWarning > 0) ok(`tv row rendered (${tvPosters > 0 ? 'results' : 'key warning'})`)
-  else fail('tv row', 'neither results nor key warning')
+  const posterCount = await showsSection.locator('img').count()
+  if (posterCount > 0) ok(`shows search returned ${posterCount} posters`)
+  else fail('shows search', 'no posters found')
+  // with a baked TMDB key the Film row has results; keyless it says no-results
+  const filmSection = page.locator('section', { hasText: 'Film' }).first()
+  const filmPosters = await filmSection.locator('img').count()
+  const filmEmpty = await filmSection.getByText('Nessun risultato').count()
+  if (filmPosters > 0 || filmEmpty > 0)
+    ok(`film row rendered (${filmPosters > 0 ? `${filmPosters} results` : 'empty, keyless'})`)
+  else fail('film row', 'neither results nor empty state')
 
-  // 4. open first anime detail (chain-aggregated) + add + favorite
-  await animeSection.locator('img').first().click()
+  // 4. open first show detail (anime sorts first for one piece) + add + favorite
+  await showsSection.locator('img').first().click()
   await page.getByRole('heading', { level: 1 }).waitFor({ timeout: 40000 })
   await page.getByText('Stagioni').waitFor({ timeout: 40000 })
   const title = await page.getByRole('heading', { level: 1 }).textContent()
@@ -115,11 +117,11 @@ try {
   else fail('series next episode', 'S01|E05 not found')
   await shot('07-series')
 
-  // 9. SEASON-CHAIN AGGREGATION: fire force must show 2+ seasons in one entry
+  // 9. SEASON AGGREGATION: fire force must show 2+ seasons in one entry
   await page.goto(`${BASE}/#/search`)
   await page.getByPlaceholder(/Cerca serie/).fill('fire force')
   await page.waitForTimeout(3500)
-  await page.locator('section', { hasText: 'Anime' }).first().locator('img').first().click()
+  await page.locator('section', { hasText: 'Serie' }).first().locator('img').first().click()
   await page.getByText('Stagioni').waitFor({ timeout: 60000 })
   await page.waitForTimeout(800)
   const seasonBlocks = await page
@@ -176,7 +178,8 @@ try {
   await page.goto(`${BASE}/#/search`)
   await page.getByPlaceholder(/Cerca serie/).fill('berserk')
   await page.waitForTimeout(3500)
-  const mangaImg = page.locator('section', { hasText: 'Manga' }).first().locator('img').first()
+  // manga leads the merged Libri row (manga > comics > books priority)
+  const mangaImg = page.locator('section', { hasText: 'Libri' }).first().locator('img').first()
   await mangaImg.waitFor({ timeout: 90000 }) // AniList 429 backoff can be slow
   await mangaImg.click()
   await page.getByText('Capitoli', { exact: true }).waitFor({ timeout: 120000 })
@@ -185,9 +188,15 @@ try {
   await page.locator('[aria-label="mark watched"]').nth(1).click()
   await page.waitForTimeout(900)
   await shot('11-manga')
-  const mangaProgress = await page.getByText(/^2\/\d+ capitoli/).count()
-  if (mangaProgress > 0) ok('manga: chapter checklist + cascade + MangaDex total')
-  else fail('manga chapters', '2/N capitoli not found')
+  // What must hold: the chapter rows exist and marking cascaded to 2 chapters.
+  // The "/N" total is only shown when a provider actually knows it — AniList
+  // returns null for hiatus/releasing works and MangaDex/Jikan can be down, so
+  // requiring it would make this step fail for reasons outside the app.
+  const withTotal = await page.getByText(/^2\/\d+ capitoli/).count()
+  const withoutTotal = await page.getByText(/^2 capitoli/).count()
+  if (withTotal > 0) ok('manga: chapter checklist + cascade + provider total')
+  else if (withoutTotal > 0) ok('manga: chapter checklist + cascade (total unknown right now)')
+  else fail('manga chapters', 'progress line after marking 2 chapters not found')
   await page.goto(`${BASE}/#/books`)
   await page.waitForTimeout(800)
   if ((await page.getByText(/Cap\. 3/).count()) > 0) ok('books page shows continue-reading at Cap. 3')
@@ -197,7 +206,7 @@ try {
   await page.goto(`${BASE}/#/search`)
   await page.waitForTimeout(500)
   const remembered = await page.getByPlaceholder(/Cerca serie/).inputValue()
-  const stillThere = await page.locator('section', { hasText: 'Manga' }).first().locator('img').count()
+  const stillThere = await page.locator('section', { hasText: 'Libri' }).first().locator('img').count()
   if (remembered === 'berserk' && stillThere > 0) ok('search memory keeps query and results')
   else fail('search memory', `q="${remembered}", posters=${stillThere}`)
 

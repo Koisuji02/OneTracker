@@ -8,8 +8,11 @@ import { ArrowLeft, BookOpen, Clapperboard, Gamepad2, Tv } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
-import { db, isEpisodic, rewatchGrades } from '../db'
+import PosterGrid from '../components/PosterGrid'
+import SortMenu from '../components/SortMenu'
+import { db, isEpisodic, rewatchGrades, sortLibrary } from '../db'
 import { useT } from '../i18n'
+import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
 
 const KINDS: Record<
@@ -42,6 +45,7 @@ export default function CatalogPage() {
   const { kind } = useParams() as { kind: string }
   const t = useT()
   const nav = useNavigate()
+  const settings = useSettings()
   const items = useLiveQuery(() => db.items.toArray(), [])
   const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
@@ -49,12 +53,10 @@ export default function CatalogPage() {
   if (!items || !eps || !def) return null
 
   const grades = rewatchGrades(items, eps)
-  const list = items
-    .filter((i) => i.status !== 'planned' && def.filter(i))
-    .sort(
-      (a, b) =>
-        (b.completedAt ?? b.lastReadAt ?? b.addedAt) - (a.completedAt ?? a.lastReadAt ?? a.addedAt),
-    )
+  const list = sortLibrary(
+    items.filter((i) => i.status !== 'planned' && !i.archived && def.filter(i)),
+    settings.librarySort,
+  )
 
   return (
     <div className="pb-8">
@@ -69,26 +71,34 @@ export default function CatalogPage() {
         <span className="text-accent">{def.icon}</span>
         <h1 className="flex-1 text-2xl font-extrabold tracking-tight">{t(def.titleKey)}</h1>
         <span className="text-sm text-ink3">{list.length}</span>
+        {list.length > 0 && (
+          <SortMenu
+            value={settings.librarySort}
+            onChange={(m) => updateSettings({ librarySort: m })}
+          />
+        )}
       </header>
 
       {list.length === 0 ? (
         <EmptyState icon={def.icon} text={t('account.emptyRow')} />
       ) : (
-        <div className="grid grid-cols-2 gap-4 px-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        <PosterGrid className="px-4">
           {list.map((i) => (
             <PosterCard
               key={i.id}
               className="w-auto"
               title={i.title}
               poster={i.poster}
+              persist
               year={i.year}
               rating={i.rating}
               statusKind={i.status === 'completed' ? 'done' : 'ongoing'}
               rewatchCount={grades.get(i.id)}
+              favorite={i.favorite}
               onClick={() => nav(`/media/${i.provider}/${i.mediaType}/${i.providerId}`)}
             />
           ))}
-        </div>
+        </PosterGrid>
       )}
     </div>
   )

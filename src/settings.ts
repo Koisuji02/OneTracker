@@ -3,6 +3,14 @@ import { useSyncExternalStore } from 'react'
 export type Language = 'en' | 'it'
 /** id of a preset in src/themes.ts */
 export type Theme = string
+/** detail-page look: classic hero · poster wall · immersive vertical art */
+export type DetailLayout = 'classic' | 'poster' | 'immersive'
+/** library grid ordering (Favorites / Archived / Catalog) */
+export type SortMode = 'added' | 'rating' | 'release'
+/** how a media tab lists what you're tracking: rows or a wall of covers */
+export type ViewMode = 'list' | 'grid'
+/** the four media tabs, each with its OWN independent view mode */
+export type ViewKey = 'viewSeries' | 'viewMovies' | 'viewBooks' | 'viewGames'
 
 export interface Settings {
   /** null = not chosen yet (first launch) */
@@ -10,6 +18,18 @@ export interface Settings {
   /** first-run wizard completed (language → books → games → account) */
   onboarded: boolean
   theme: Theme
+  detailLayout: DetailLayout
+  /** ordering of the library grids (Favorites / Archived / Catalog) */
+  librarySort: SortMode
+  /**
+   * Per-tab layout. Deliberately four separate fields and not one shared
+   * setting: watching series as rows while browsing games as covers is a
+   * perfectly normal combination, and one tab must never move another.
+   */
+  viewSeries: ViewMode
+  viewMovies: ViewMode
+  viewBooks: ViewMode
+  viewGames: ViewMode
   profileName: string
   showBooks: boolean
   showGames: boolean
@@ -19,7 +39,14 @@ export interface Settings {
   comicvineKey: string
   /** avatar: null = default icon · `emoji:<char>:<bg>` preset · otherwise an image URL/dataURL */
   avatar: string | null
+  /** optional API gateway (Cloudflare Worker) — empty = call providers directly */
+  gatewayUrl: string
+  /** shared token the gateway checks (see worker/README.md) */
+  gatewayToken: string
+  /** Web OAuth client (browser/preview GIS flow) */
   googleClientId: string
+  /** Android OAuth client (native Custom-Tab PKCE flow) */
+  googleClientIdAndroid: string
   googleEmail: string | null
   googleName: string | null
   googlePicture: string | null
@@ -30,7 +57,13 @@ const STORAGE_KEY = 'onetracker.settings'
 const defaults: Settings = {
   language: null,
   onboarded: false,
-  theme: 'dark',
+  theme: 'amoled',
+  detailLayout: 'immersive',
+  librarySort: 'added',
+  viewSeries: 'list',
+  viewMovies: 'list',
+  viewBooks: 'list',
+  viewGames: 'list',
   profileName: '',
   showBooks: false,
   showGames: false,
@@ -39,7 +72,13 @@ const defaults: Settings = {
   omdbKey: (import.meta.env.VITE_OMDB_KEY as string) ?? '',
   comicvineKey: (import.meta.env.VITE_COMICVINE_KEY as string) ?? '',
   avatar: null,
-  googleClientId: (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ?? '',
+  gatewayUrl: (import.meta.env.VITE_GATEWAY_URL as string) ?? '',
+  gatewayToken: (import.meta.env.VITE_GATEWAY_TOKEN as string) ?? '',
+  googleClientId:
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID_WEB as string) ??
+    (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ??
+    '',
+  googleClientIdAndroid: (import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID as string) ?? '',
   googleEmail: null,
   googleName: null,
   googlePicture: null,
@@ -51,7 +90,10 @@ const KEY_FIELDS = [
   'rawgKey',
   'omdbKey',
   'comicvineKey',
+  'gatewayUrl',
+  'gatewayToken',
   'googleClientId',
+  'googleClientIdAndroid',
 ] as const
 
 /**
@@ -64,7 +106,10 @@ export const ENV_DEFAULTS = {
   rawgKey: defaults.rawgKey,
   omdbKey: defaults.omdbKey,
   comicvineKey: defaults.comicvineKey,
+  gatewayUrl: defaults.gatewayUrl,
+  gatewayToken: defaults.gatewayToken,
   googleClientId: defaults.googleClientId,
+  googleClientIdAndroid: defaults.googleClientIdAndroid,
 } as const
 
 function load(): Settings {

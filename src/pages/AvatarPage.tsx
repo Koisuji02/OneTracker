@@ -11,6 +11,7 @@ import Avatar from '../components/Avatar'
 import { db } from '../db'
 import { useT } from '../i18n'
 import { updateSettings, useSettings } from '../settings'
+import { hideBrokenImg, showLoadedImg } from '../util'
 
 /** Built-in "character" presets: [emoji, background]. */
 const PRESETS: Array<[string, string]> = [
@@ -141,7 +142,13 @@ export default function AvatarPage() {
                 title={i.title}
                 className="aspect-square overflow-hidden rounded-full border-2 border-line transition-transform hover:scale-105 active:scale-95"
               >
-                <img src={i.poster!} alt={i.title} className="h-full w-full object-cover" />
+                <img
+                  src={i.poster!}
+                  alt={i.title}
+                  onError={hideBrokenImg}
+                  onLoad={showLoadedImg}
+                  className="h-full w-full object-cover"
+                />
               </button>
             ))}
           </div>

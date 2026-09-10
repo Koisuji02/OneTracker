@@ -4,4 +4,6 @@
     <string name="title_activity_main">OneTracker</string>
     <string name="package_name">com.onetracker.app</string>
     <string name="custom_url_scheme">com.onetracker.app</string>
+    <string name="widget_description">OneTracker — continua a guardare</string>
+    <string name="widget_empty">Niente da continuare</string>
 </resources>

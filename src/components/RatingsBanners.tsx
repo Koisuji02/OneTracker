@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import type { ExternalRating } from '../types'
+import { cn } from '../util'
 
 function TomatoIcon() {
   return (
@@ -90,12 +91,20 @@ const SERVICES: Record<string, ServiceStyle> = {
   mangadex: { bg: '#191A1C', fg: '#ffffff', label: 'MangaDex', icon: <MangaDexIcon /> },
   openlibrary: { bg: '#5B4636', fg: '#ffffff', label: 'Open Library', icon: <BookIcon /> },
   rawg: { bg: '#151515', fg: '#ffffff', label: 'RAWG', wordmark: true },
+  // IGDB's own purple, so the games banner reads as a brand like the others
+  igdb: { bg: '#2A1B57', fg: '#ffffff', label: 'IGDB', wordmark: true },
 }
 
-export default function RatingsBanners({ list }: { list: ExternalRating[] }) {
+export default function RatingsBanners({
+  list,
+  centered = false,
+}: {
+  list: ExternalRating[]
+  centered?: boolean
+}) {
   if (list.length === 0) return null
   return (
-    <div className="mt-4 flex flex-wrap items-center gap-2 px-4">
+    <div className={cn('mt-4 flex flex-wrap items-center gap-2 px-4', centered && 'justify-center')}>
       {list.map((r) => {
         const s = SERVICES[r.source] ?? { bg: '#333', fg: '#fff', label: r.label }
         return (

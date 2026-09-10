@@ -30,3 +30,15 @@ scripts/shots
 
 # personal TV Time exports (test data)
 *.zip
+
+# local worker secrets
+worker/.dev.vars
+.wrangler/
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
+
+# local-only files that must never be committed
+.env.backup*
+.claude/settings.local.json

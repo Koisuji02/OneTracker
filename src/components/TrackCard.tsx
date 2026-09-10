@@ -1,6 +1,7 @@
-import { ChevronRight, ImageOff } from 'lucide-react'
+import { ChevronRight, ImageOff, Lock } from 'lucide-react'
 import type { ReactNode } from 'react'
 import CheckButton from './CheckButton'
+import Cover from './Cover'
 
 interface TrackCardProps {
   poster?: string | null
@@ -18,6 +19,8 @@ interface TrackCardProps {
   onCheck?: () => void
   /** replaces the check icon with text (e.g. "x2" for rewatch rounds) */
   checkContent?: string
+  /** unreleased unit: shows a lock instead of the check button */
+  locked?: boolean
 }
 
 export default function TrackCard({
@@ -30,6 +33,7 @@ export default function TrackCard({
   onClick,
   onCheck,
   checkContent,
+  locked,
 }: TrackCardProps) {
   return (
     <div
@@ -38,7 +42,8 @@ export default function TrackCard({
     >
       <div className="h-24 w-16 shrink-0 overflow-hidden rounded-xl bg-card2">
         {poster ? (
-          <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover" />
+          // library artwork: cached for offline use
+          <Cover src={poster} persist className="h-full w-full object-cover" />
         ) : (
           <div className="grid h-full w-full place-items-center text-ink4">
             <ImageOff size={20} />
@@ -66,7 +71,16 @@ export default function TrackCard({
         )}
       </div>
 
-      {onCheck &&
+      {locked && (
+        <span
+          aria-label="not released yet"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink4"
+        >
+          <Lock size={16} />
+        </span>
+      )}
+      {!locked &&
+        onCheck &&
         (checkContent ? (
           <button
             aria-label="mark rewatched"

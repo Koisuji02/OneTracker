@@ -111,3 +111,30 @@ body {
 .fade-up {
   animation: fadeUp 0.25s ease both;
 }
+
+/* rare reflective sweep across the diamond (10/10) rating badge — parent must
+   be relative + overflow-hidden; the glint crosses in ~1s once every 12s */
+@keyframes badgeShine {
+  0%,
+  88% {
+    transform: translateX(-160%) skewX(-20deg);
+  }
+  98%,
+  100% {
+    transform: translateX(340%) skewX(-20deg);
+  }
+}
+.badge-shine {
+  position: absolute;
+  top: -25%;
+  bottom: -25%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.95) 50%,
+    transparent 100%
+  );
+  animation: badgeShine 12s ease-in-out infinite;
+}

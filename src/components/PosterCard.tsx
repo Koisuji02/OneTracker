@@ -1,4 +1,5 @@
-import { Check, Flag, Hourglass, ImageOff, Plus } from 'lucide-react'
+import { Archive, Check, Flag, Heart, Hourglass, ImageOff, Plus } from 'lucide-react'
+import Cover from './Cover'
 import RatingBadge from './RatingBadge'
 import { cn } from '../util'
 
@@ -12,12 +13,16 @@ interface PosterCardProps {
   onAdd?: () => void
   /** personal rating shown bottom-right on the cover */
   rating?: number | null
-  /** bottom-left status: hourglass = in progress / still releasing, flag = fully done */
-  statusKind?: 'ongoing' | 'done' | null
+  /** bottom-left status: hourglass = in progress, flag = fully done, archive = tucked away */
+  statusKind?: 'ongoing' | 'done' | 'archived' | null
   /** completed watchthroughs ≥2 — shows an "x2" dot next to the status icon */
   rewatchCount?: number | null
+  /** red heart badge top-right when the item is a favorite */
+  favorite?: boolean
   /** lg = wider cover, used where rating/status badges are shown */
   size?: 'md' | 'lg'
+  /** library artwork: keep the bytes for offline use */
+  persist?: boolean
   className?: string
 }
 
@@ -31,7 +36,9 @@ export default function PosterCard({
   rating,
   statusKind,
   rewatchCount,
+  favorite,
   size = 'md',
+  persist = false,
   className,
 }: PosterCardProps) {
   return (
@@ -45,10 +52,10 @@ export default function PosterCard({
     >
       <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-line bg-card2">
         {poster ? (
-          <img
+          <Cover
             src={poster}
             alt={title}
-            loading="lazy"
+            persist={persist}
             className="h-full w-full object-cover transition-transform duration-200 hover:scale-105"
           />
         ) : (
@@ -78,10 +85,21 @@ export default function PosterCard({
             <RatingBadge value={rating} />
           </span>
         )}
+        {favorite && (
+          <span className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-white shadow-lg">
+            <Heart size={14} className="text-red-500" fill="currentColor" strokeWidth={2.5} />
+          </span>
+        )}
         {statusKind && (
           <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-black shadow-lg">
-              {statusKind === 'done' ? <Flag size={14} strokeWidth={2.5} /> : <Hourglass size={14} strokeWidth={2.5} />}
+              {statusKind === 'archived' ? (
+                <Archive size={14} strokeWidth={2.5} />
+              ) : statusKind === 'done' ? (
+                <Flag size={14} strokeWidth={2.5} />
+              ) : (
+                <Hourglass size={14} strokeWidth={2.5} />
+              )}
             </span>
             {rewatchCount != null && rewatchCount >= 2 && (
               <span

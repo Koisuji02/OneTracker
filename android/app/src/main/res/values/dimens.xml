@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- widget corner radius; Android 12+ overrides it with the launcher's own
+         system radius (see values-v31) so the widget matches native widgets -->
+    <dimen name="widget_radius">16dp</dimen>
+    <dimen name="widget_inner_radius">12dp</dimen>
+</resources>
