@@ -17,6 +17,7 @@ import BottomNav from './components/BottomNav'
 import { db } from './db'
 import { resumeGoogleSession, saveToDrive } from './drive'
 import { translate } from './i18n'
+import AboutPage from './pages/AboutPage'
 import AccountPage from './pages/AccountPage'
 import AvatarPage from './pages/AvatarPage'
 import BooksPage from './pages/BooksPage'
@@ -327,6 +328,7 @@ export default function App() {
             <Route path="/lists/:id" element={<ListDetailPage />} />
             <Route path="/avatar" element={<AvatarPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route path="/media/:provider/:mediaType/:id" element={<DetailPage />} />
             <Route path="*" element={<Navigate to="/series" replace />} />
           </Routes>
