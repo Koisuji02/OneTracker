@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Clock, Tv } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getEpisodes } from '../api'
@@ -51,23 +51,33 @@ function ShowCard({
   const next = computeNextEpisode(item, watchedKeys)
   const [epInfo, setEpInfo] = useState<EpisodeInfo | null>(null)
 
+  // `item` and `next` are both rebuilt on every liveQuery emission, so the
+  // effect keys off PRIMITIVES (and reads the item through a ref): depending on
+  // the objects would refetch — and blank the line — whenever anything else in
+  // the library moved, while `totalEpisodes` still catches a season list that
+  // only grows with a later metadata refresh.
+  const latestItem = useRef(item)
+  latestItem.current = item
+  const season = next?.season
+  const slot = next?.episode
+
   useEffect(() => {
     let alive = true
     setEpInfo(null)
-    if (!next) return
-    getEpisodes(item, next.season)
+    if (season == null || slot == null) return
+    getEpisodes(latestItem.current, season)
       .then((eps) => {
-        // next.episode is a season SLOT (1..episodeCount), so index into the
-        // list instead of matching numbers: TMDB numbers long anime ABSOLUTELY
+        // `slot` is a season SLOT (1..episodeCount), so index into the list
+        // instead of matching numbers: TMDB numbers long anime ABSOLUTELY
         // inside a season (One Piece S21 starts at 892) and a number match
         // would find nothing — losing the air date this card depends on
-        if (alive) setEpInfo(eps[next.episode - 1] ?? null)
+        if (alive) setEpInfo(eps[slot - 1] ?? null)
       })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [item.id, next?.season, next?.episode])
+  }, [item.id, item.totalEpisodes, season, slot])
 
   const open = () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`)
 
@@ -150,22 +160,31 @@ function RewatchCard({
   const nav = useNavigate()
   const [epInfo, setEpInfo] = useState<EpisodeInfo | null>(null)
 
+  // same reasoning as the card above: primitives in the deps, item via a ref
+  const latestItem = useRef(item)
+  latestItem.current = item
+  const { season, episode } = next
+
   useEffect(() => {
     let alive = true
-    getEpisodes(item, next.season)
+    getEpisodes(latestItem.current, season)
       .then((eps) => {
-        if (alive) setEpInfo(eps[next.episode - 1] ?? null)
+        if (alive) setEpInfo(eps[episode - 1] ?? null)
       })
       .catch(() => {})
     return () => {
       alive = false
     }
-  }, [item.id, next.season, next.episode])
+  }, [item.id, item.totalEpisodes, season, episode])
 
   const total = totalEpisodesOf(item)
+  // how much of the ROUND is left after the unit being offered now. The badge
+  // says the same thing here as on a first watch: the grade already rides on
+  // the ✓, so repeating it next to the label was pure noise.
+  const remaining = total != null ? Math.max(0, total - next.done - 1) : 0
   const shared = {
     poster: item.poster,
-    badge: `x${next.grade}`,
+    badge: remaining > 0 ? `+${remaining}` : null,
     subtitle: epInfo?.title ?? `${t('detail.episode')} ${next.episode}`,
     progress: total ? next.done / total : null,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),

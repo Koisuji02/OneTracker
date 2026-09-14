@@ -17,6 +17,26 @@ export interface ThemePreset {
 }
 
 const darkInks = { ink: '#f4f4f5', ink2: '#a1a1aa', ink3: '#71717a', ink4: '#52525b' }
+
+/**
+ * AMOLED = pure black surface (unlit pixels) with neutral near-black cards, so
+ * only the accent changes between variants. Cards stay grey rather than tinted:
+ * a coloured card lights up the panel and defeats the point.
+ */
+const amoledBase = { surface: '#000000', card: '#0e0e11', card2: '#17171c', line: '#26262c' }
+
+/** One AMOLED preset: the shared black base plus an accent (and its fill). */
+const amoled = (
+  id: string,
+  en: string,
+  it: string,
+  accent: string,
+  brand = accent,
+): ThemePreset => ({
+  id,
+  name: { en, it },
+  vars: { accent, brand, ...amoledBase, ...darkInks },
+})
 const lightInks = { ink: '#17171a', ink2: '#4b4b52', ink3: '#6f6f76', ink4: '#9d9da4' }
 
 export const THEMES: ThemePreset[] = [
@@ -47,19 +67,15 @@ export const THEMES: ThemePreset[] = [
       ...lightInks,
     },
   },
-  {
-    id: 'amoled',
-    name: { en: 'AMOLED', it: 'AMOLED' },
-    vars: {
-      accent: '#ffd60a',
-      brand: '#ffd60a',
-      surface: '#000000',
-      card: '#0e0e11',
-      card2: '#17171c',
-      line: '#26262c',
-      ...darkInks,
-    },
-  },
+  // AMOLED family — same pure-black base, one per accent colour
+  amoled('amoled', 'AMOLED Yellow', 'AMOLED Giallo', '#ffd60a'),
+  amoled('amoled-blue', 'AMOLED Blue', 'AMOLED Blu', '#4cc9f0'),
+  amoled('amoled-green', 'AMOLED Green', 'AMOLED Verde', '#52d17c'),
+  amoled('amoled-purple', 'AMOLED Purple', 'AMOLED Viola', '#b39df8', '#a78bfa'),
+  amoled('amoled-red', 'AMOLED Red', 'AMOLED Rosso', '#ff5a5f'),
+  amoled('amoled-orange', 'AMOLED Orange', 'AMOLED Arancione', '#ff9f43'),
+  amoled('amoled-pink', 'AMOLED Pink', 'AMOLED Rosa', '#ff77c8'),
+  amoled('amoled-mono', 'AMOLED Mono', 'AMOLED Mono', '#ffffff', '#e8e8ea'),
   {
     id: 'ocean',
     name: { en: 'Ocean', it: 'Oceano' },

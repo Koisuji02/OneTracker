@@ -87,7 +87,7 @@ export default function Gallery({ urls, title }: { urls: string[]; title: string
                   e.stopPropagation()
                   step(-1)
                 }}
-                className="absolute left-3 grid h-12 w-12 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+                className="absolute left-3 grid h-12 w-12 place-items-center rounded-2xl bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
               >
                 <ChevronLeft size={24} />
               </button>
@@ -97,11 +97,11 @@ export default function Gallery({ urls, title }: { urls: string[]; title: string
                   e.stopPropagation()
                   step(1)
                 }}
-                className="absolute right-3 grid h-12 w-12 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
+                className="absolute right-3 grid h-12 w-12 place-items-center rounded-2xl bg-white/15 text-white backdrop-blur transition-colors hover:bg-white/25"
               >
                 <ChevronRight size={24} />
               </button>
-              <div className="absolute bottom-6 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white">
+              <div className="absolute bottom-6 rounded-lg bg-black/60 px-3 py-1 text-xs font-semibold text-white">
                 {open + 1} / {count}
               </div>
             </>
@@ -110,7 +110,7 @@ export default function Gallery({ urls, title }: { urls: string[]; title: string
           <button
             aria-label="close"
             onClick={() => setOpen(null)}
-            className="absolute right-3 grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur top-safe"
+            className="absolute right-3 grid h-10 w-10 place-items-center rounded-xl bg-white/15 text-white backdrop-blur top-safe"
           >
             <X size={18} />
           </button>

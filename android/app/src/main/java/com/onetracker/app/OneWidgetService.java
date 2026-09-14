@@ -1,8 +1,11 @@
 package com.onetracker.app;
 
+import android.appwidget.AppWidgetManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.os.Build;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.util.LruCache;
@@ -28,7 +31,15 @@ public class OneWidgetService extends RemoteViewsService {
 
     static class Factory implements RemoteViewsService.RemoteViewsFactory {
         private final Context ctx;
-        private final String category;
+        private final int widgetId;
+        /**
+         * Selected media. NOT taken from the adapter intent: that intent is
+         * fixed for the life of this factory, and keeping it fixed is exactly
+         * what stops the ListView from being rebuilt (and the widget from
+         * popping) when the user taps another medium. It is re-read from
+         * SharedPreferences on every onDataSetChanged instead.
+         */
+        private String category = "series";
         private final List<Item> items = new ArrayList<>();
         private OneWidgetProvider.ThemeColors th = new OneWidgetProvider.ThemeColors();
 
@@ -37,8 +48,8 @@ public class OneWidgetService extends RemoteViewsService {
 
         Factory(Context ctx, Intent intent) {
             this.ctx = ctx;
-            String cat = intent.getStringExtra(OneWidgetProvider.EXTRA_CATEGORY);
-            this.category = cat == null ? "series" : cat;
+            this.widgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID,
+                    AppWidgetManager.INVALID_APPWIDGET_ID);
         }
 
         @Override
@@ -49,6 +60,7 @@ public class OneWidgetService extends RemoteViewsService {
         public void onDataSetChanged() {
             items.clear();
             SharedPreferences prefs = ctx.getSharedPreferences(OneWidgetProvider.PREFS, Context.MODE_PRIVATE);
+            category = prefs.getString(OneWidgetProvider.KEY_FILTER + widgetId, "series");
             String json = prefs.getString(OneWidgetProvider.KEY_DATA, null);
             th = OneWidgetProvider.ThemeColors.from(json);
             if (json == null) return;
@@ -85,7 +97,20 @@ public class OneWidgetService extends RemoteViewsService {
             RemoteViews row = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
             if (position < 0 || position >= items.size()) return row;
             Item it = items.get(position);
-            row.setInt(R.id.row_root, "setBackgroundColor", th.card);
+            // rounded, bordered row: `line` frame around a `card2` card (see
+            // widget_row.xml). Tinting keeps the corners; pre-12 has no
+            // setColorStateList, so there it degrades to flat square fills.
+            row.setInt(R.id.row_root, "setBackgroundResource", R.drawable.widget_row_border);
+            row.setInt(R.id.row_card, "setBackgroundResource", R.drawable.widget_row_bg);
+            if (Build.VERSION.SDK_INT >= 31) {
+                row.setColorStateList(R.id.row_root, "setBackgroundTintList",
+                        ColorStateList.valueOf(th.line));
+                row.setColorStateList(R.id.row_card, "setBackgroundTintList",
+                        ColorStateList.valueOf(th.card2));
+            } else {
+                row.setInt(R.id.row_root, "setBackgroundColor", th.line);
+                row.setInt(R.id.row_card, "setBackgroundColor", th.card2);
+            }
             row.setTextViewText(R.id.row_title, it.title);
             row.setTextColor(R.id.row_title, th.ink);
             row.setTextViewText(R.id.row_sub, it.sub);
@@ -104,7 +129,9 @@ public class OneWidgetService extends RemoteViewsService {
             // ✓ button → queue a "mark" the app applies when it next runs
             if (it.mark != null && !it.mark.isEmpty()) {
                 row.setViewVisibility(R.id.row_check, View.VISIBLE);
-                row.setInt(R.id.row_check, "setColorFilter", th.accent);
+                // grey, not accent: an accent-filled tick looks like the unit
+                // is already watched. ink2 matches the app's unchecked button.
+                row.setInt(R.id.row_check, "setColorFilter", th.ink2);
                 Intent mark = new Intent();
                 mark.putExtra("t", "mark");
                 mark.putExtra("payload", it.route + "##" + it.mark);

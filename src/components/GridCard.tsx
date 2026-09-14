@@ -70,7 +70,7 @@ export default function GridCard({
         {locked ? (
           <span
             aria-label="not released yet"
-            className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-black/70 text-white backdrop-blur"
+            className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-xl bg-black/70 text-white backdrop-blur"
           >
             <Lock size={14} />
           </span>
@@ -84,11 +84,11 @@ export default function GridCard({
               }}
               className={cn(
                 // "not watched yet" reads the same as in the list: a HOLLOW
-                // circle you still have to press. It sits on artwork instead of
+                // control you still have to press. It sits on artwork instead of
                 // the card background, so it carries its own dark scrim to stay
                 // legible on a bright poster. A rewatch round (xN) keeps the
                 // filled badge, exactly like the list card.
-                'absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full border-2 shadow-lg transition-transform active:scale-90',
+                'absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-xl border-2 shadow-lg transition-transform active:scale-90',
                 checkContent
                   ? 'border-accent bg-brand text-[10px] font-black text-black'
                   : 'border-white/60 bg-black/45 text-white backdrop-blur',

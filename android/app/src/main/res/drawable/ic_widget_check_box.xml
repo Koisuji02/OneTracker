@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's ✓ button, drawn like the app's CheckButton in its UNCHECKED
+     state: a rounded-square outline with a tick inside, so it reads as
+     "tap me", not as "already done" (the old icon was a bare accent-coloured
+     tick, which looked like the episode was watched).
+
+     One colour filter tints the whole vector, so the frame is drawn at half
+     alpha — setColorFilter preserves per-path alpha — and comes out as the
+     dimmer border next to the brighter tick. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- rounded-square frame (matches rounded-xl on a 44px button) -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeAlpha="0.5"
+        android:strokeWidth="1.8"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M8.5 2.6 L15.5 2.6 A5.9 5.9 0 0 1 21.4 8.5 L21.4 15.5 A5.9 5.9 0 0 1 15.5 21.4 L8.5 21.4 A5.9 5.9 0 0 1 2.6 15.5 L2.6 8.5 A5.9 5.9 0 0 1 8.5 2.6 Z" />
+    <!-- the tick -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M7.8 12.3 L10.7 15.2 L16.2 9.2" />
+</vector>

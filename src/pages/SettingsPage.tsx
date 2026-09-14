@@ -129,7 +129,7 @@ function HealthRow({ h }: { h: ProviderHealth }) {
         </div>
         <div className="text-[11px] leading-snug text-ink4">
           {t(h.roleKey)}
-          {h.detail ? ` · ${h.detail}` : ''}
+          {h.detail ? ` | ${h.detail}` : ''}
         </div>
         {/* an unreachable host on an otherwise working connection is almost
             always network-level filtering — tell the user the actual remedy */}
@@ -263,7 +263,7 @@ export default function SettingsPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>
@@ -277,7 +277,7 @@ export default function SettingsPage() {
               key={lang}
               onClick={() => updateSettings({ language: lang })}
               className={cn(
-                'flex-1 rounded-full border py-2.5 text-sm font-bold transition-colors',
+                'flex-1 rounded-xl border py-2.5 text-sm font-bold transition-colors',
                 settings.language === lang
                   ? 'border-accent bg-brand text-black'
                   : 'border-line text-ink2 hover:border-accent/50',
@@ -309,7 +309,7 @@ export default function SettingsPage() {
                   className="absolute left-1.5 top-1.5 h-1.5 w-6 rounded-full opacity-80"
                   style={{ background: th.vars.card2 }}
                 />
-                <span className="grid h-5 w-5 place-items-center rounded-full" style={{ background: th.vars.brand }}>
+                <span className="grid h-5 w-5 place-items-center rounded-md" style={{ background: th.vars.brand }}>
                   {settings.theme === th.id ? (
                     <Check size={12} strokeWidth={4} className="text-black" />
                   ) : th.light ? (
@@ -345,7 +345,7 @@ export default function SettingsPage() {
               key={id}
               onClick={() => updateSettings({ detailLayout: id })}
               className={cn(
-                'flex-1 rounded-full border py-2.5 text-sm font-bold transition-colors',
+                'flex-1 rounded-xl border py-2.5 text-sm font-bold transition-colors',
                 settings.detailLayout === id
                   ? 'border-accent bg-brand text-black'
                   : 'border-line text-ink2 hover:border-accent/50',
@@ -453,7 +453,7 @@ export default function SettingsPage() {
                   src={settings.googlePicture}
                   alt=""
                   referrerPolicy="no-referrer"
-                  className="h-8 w-8 rounded-full"
+                  className="h-8 w-8 rounded-xl"
                 />
               )}
               <div className="min-w-0 flex-1">
@@ -462,10 +462,27 @@ export default function SettingsPage() {
               </div>
               <button
                 onClick={() => disconnectGoogle()}
-                className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
+                className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
               >
                 <LogOut size={13} /> {t('settings.disconnect')}
               </button>
+            </div>
+            {/* auto-backup is silent by design, so this line is the only way
+                to tell a working sync from one that has been failing */}
+            <div className="px-4 pb-3 text-[11px]">
+              <span className="text-ink3">{t('settings.lastBackup')}: </span>
+              {settings.lastBackupAt ? (
+                <span className="font-semibold text-ink2">
+                  {new Date(settings.lastBackupAt).toLocaleString(
+                    settings.language === 'it' ? 'it-IT' : 'en-GB',
+                  )}
+                </span>
+              ) : (
+                <span className="font-semibold text-ink3">{t('settings.backupNever')}</span>
+              )}
+              {settings.lastBackupError && (
+                <div className="mt-0.5 text-red-400">{t('settings.backupFailing')}</div>
+              )}
             </div>
             <ActionRow
               label={t('settings.saveDrive')}
@@ -551,7 +568,7 @@ export default function SettingsPage() {
         {importResult && (
           <div className="border-t border-line px-4 py-3 text-sm">
             <span className="font-bold text-accent">{t('tvtimport.done')}: </span>
-            {importResult.shows} {t('nav.series').toLowerCase()} · {importResult.episodes}{' '}
+            {importResult.shows} {t('nav.series').toLowerCase()} | {importResult.episodes}{' '}
             {t('common.episodes')} · {importResult.movies} {t('nav.movies').toLowerCase()}
             {importResult.skipped.length > 0 && (
               <div className="mt-1 text-xs text-ink3">
@@ -634,7 +651,7 @@ export default function SettingsPage() {
       </div>
 
       {toast && (
-        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-black shadow-2xl md:bottom-10">
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-black shadow-2xl md:bottom-10">
           {toast}
         </div>
       )}

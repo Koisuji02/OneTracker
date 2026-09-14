@@ -21,6 +21,7 @@ import type { SortMode } from './settings'
 import type {
   EpisodeCacheEntry,
   EpisodeInfo,
+  GamePlaythrough,
   ItemStatus,
   LibraryItem,
   MediaBase,
@@ -208,6 +209,32 @@ class OneTrackerDB extends Dexie {
       images: 'url',
       imageMeta: 'url, usedAt',
     })
+    // v8: game time became PER PLAYTHROUGH. `myPlaytime` was a single total for
+    // the whole game, so removing a mis-tapped replay could not remove just
+    // that run's time; every finished run now carries its own entry and
+    // `watchCount` is derived from the list (see gamePlaythroughs).
+    this.version(8)
+      .stores({
+        items: 'id, mediaType, status, favorite, addedAt',
+        episodes: 'id, itemId, watchedAt',
+        episodeCache: 'id, itemId',
+        lists: 'id, createdAt',
+        detailsCache: 'id',
+        covers: 'key',
+        images: 'url',
+        imageMeta: 'url, usedAt',
+      })
+      .upgrade((tx) =>
+        tx
+          .table('items')
+          .toCollection()
+          .modify((item: LibraryItem) => {
+            if (item.mediaType !== 'game' || item.playthroughs) return
+            item.playthroughs = legacyPlaythroughs(item)
+            item.watchCount = gameCount(item.playthroughs.length, item.status)
+            item.myPlaytime = null
+          }),
+      )
   }
 }
 
@@ -258,6 +285,7 @@ const KEEP_IF_NULLISH = [
   'runtime',
   'pages',
   'playtime',
+  'timeToBeat',
   'mangadexId',
   'lastReleaseDate',
   'releaseDate',
@@ -599,6 +627,7 @@ export async function refreshItemMetadata(details: MediaDetails): Promise<void> 
     'runtime',
     'pages',
     'playtime',
+    'timeToBeat',
     'mangadexId',
     'lastReleaseDate',
     'releaseDate',
@@ -825,13 +854,16 @@ export async function setSingleWatched(id: string, watched: boolean): Promise<vo
 }
 
 /**
- * One more full rewatch of a movie / book / game (x2, x3…).
+ * START a new viewing/reading of a finished movie or book — "Ri-inizia xN".
  *
- * The count is bumped right away (so the log survives even if the round is
- * never closed) and the item goes BACK to `watching`: a rewatch in progress
- * belongs in Continue, at the top, just like a series rewatch round. The ✓
- * on that card closes the round with `setSingleStatus('completed')`, which
- * preserves the bumped count.
+ * One-shot media have no episodes to tick off, so this is their equivalent of
+ * re-watching a series: the item goes BACK to `watching` and sits in Continue
+ * with the round on its card, and the ✓ there closes it with
+ * `setSingleStatus('completed')`. The count is bumped right away so the round
+ * is visible, while `finishedViews` deliberately does NOT count it until it is
+ * closed — the time follows only finished viewings.
+ *
+ * For an instant "seen it again" with no round, see logSingleView.
  */
 export async function rewatchSingle(id: string): Promise<void> {
   const item = await db.items.get(id)
@@ -840,6 +872,24 @@ export async function rewatchSingle(id: string): Promise<void> {
     watchCount: (item.watchCount ?? 1) + 1,
     status: 'watching',
     completedAt: null,
+    lastReadAt: Date.now(),
+  })
+}
+
+/**
+ * Log one more FINISHED viewing/reading straight away — "Rivisto xN".
+ *
+ * The counterpart of rewatchSingle for a rewatch that already happened (a film
+ * seen again in one sitting): the count grows, the item stays completed, and
+ * the extra viewing counts in the totals immediately.
+ */
+export async function logSingleView(id: string): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  await db.items.update(id, {
+    watchCount: (item.watchCount ?? 1) + 1,
+    status: 'completed',
+    completedAt: Date.now(),
     lastReadAt: Date.now(),
   })
 }
@@ -860,8 +910,84 @@ export async function setSingleStatus(id: string, status: ItemStatus): Promise<v
   })
 }
 
-/** @deprecated use setSingleStatus — kept as an alias for existing callers. */
-export const setGameStatus = setSingleStatus
+// ------------------------------------------------------------------- games
+
+/**
+ * Write a game's runs and DERIVE everything else from them, so the recorded
+ * time, the replay count and the status can never disagree. Every game
+ * mutation goes through here — that is the whole point.
+ */
+async function putPlaythroughs(
+  id: string,
+  runs: GamePlaythrough[],
+  status: ItemStatus,
+): Promise<void> {
+  await db.items.update(id, {
+    playthroughs: runs,
+    status,
+    watchCount: gameCount(runs.length, status),
+    completedAt: status === 'completed' ? (runs[runs.length - 1]?.at ?? Date.now()) : null,
+    lastReadAt: Date.now(),
+    // the pre-v8 single total is gone for good once runs are recorded
+    myPlaytime: null,
+  })
+}
+
+/**
+ * Record a finished playthrough — what "Completato" and "Rigiocato xN" do, and
+ * the ONLY way a game ever gains time. `hours` is what the user typed for THIS
+ * run; `null` counts the how-long-to-beat time for it instead.
+ */
+export async function logGamePlaythrough(id: string, hours: number | null): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  await putPlaythroughs(id, [...gamePlaythroughs(item), { hours, at: Date.now() }], 'completed')
+}
+
+/**
+ * Undo ONE recorded playthrough (a replay marked by mistake): its time entry
+ * goes with it, and with no run left the game stops being completed — it is
+ * back to being played, not beaten.
+ */
+export async function removeGamePlaythrough(id: string, index: number): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  const runs = gamePlaythroughs(item).filter((_, i) => i !== index)
+  await putPlaythroughs(id, runs, runs.length === 0 ? 'watching' : 'completed')
+}
+
+/**
+ * START a new playthrough of a game already beaten — "Ri-inizia xN".
+ *
+ * The runs behind it stay recorded (and keep their time in the totals); the
+ * game moves back to Continue, where its ✓ opens the time sheet and records
+ * this run with logGamePlaythrough. That is the difference from
+ * `setGameStatus(id, 'watching')`, which means "it wasn't finished after all"
+ * and un-records the last run.
+ */
+export async function startGameReplay(id: string): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  await putPlaythroughs(id, gamePlaythroughs(item), 'watching')
+}
+
+/**
+ * A game's 3-state picker. Only planned/watching by type: reaching `completed`
+ * always means recording a run, which is logGamePlaythrough's job.
+ *
+ * Leaving `completed` UN-RECORDS the most recent run — the game is no longer
+ * beaten, so the time that run contributed goes with it. Moving between
+ * planned and watching touches no run at all.
+ */
+export async function setGameStatus(
+  id: string,
+  status: 'planned' | 'watching',
+): Promise<void> {
+  const item = await db.items.get(id)
+  if (!item) return
+  const runs = gamePlaythroughs(item)
+  await putPlaythroughs(id, item.status === 'completed' ? runs.slice(0, -1) : runs, status)
+}
 
 /**
  * "Waiting" = an item with nothing to do right now, parked in its own section
@@ -898,11 +1024,6 @@ export function isWaiting(
   // otherwise the next unit exists but must have already aired to be actionable
   if (!next) return !!item.ongoing
   return !unitAired(item, next.season, next.episode, airDateOf?.(next.season, next.episode))
-}
-
-/** Games: personal hours played. */
-export async function setMyPlaytime(id: string, hours: number | null): Promise<void> {
-  await db.items.update(id, { myPlaytime: hours })
 }
 
 // ------------------------------------------------------------------ lists
@@ -963,9 +1084,82 @@ export interface Stats {
 }
 
 /**
+ * How long ONE playthrough of a game takes, in hours (0 = nothing knows).
+ *
+ * The how-long-to-beat main story is the baseline everywhere — stats, cards,
+ * progress bars — so a game the user never timed still contributes its real
+ * length. `playtime` normally already holds it; the breakdown behind it is the
+ * fallback for snapshots written before the length landed.
+ */
+export function gameBaseHours(item: LibraryItem): number {
+  const t = item.timeToBeat
+  return item.playtime ?? t?.main ?? t?.plus ?? t?.full ?? 0
+}
+
+/**
+ * `watchCount` for a game, DERIVED from its runs so the badge can never
+ * disagree with the recorded time: completed = the runs behind it, otherwise
+ * the run being played now (2 runs done + playing = "x3").
+ */
+function gameCount(runs: number, status: ItemStatus): number {
+  return Math.max(1, status === 'completed' ? runs : runs + 1)
+}
+
+/**
+ * Runs of a game stored before db v8 (or restored from an older backup), where
+ * the whole game had ONE manual total and a replay in progress meant `watching`
+ * with the count already bumped.
+ */
+function legacyPlaythroughs(item: LibraryItem): GamePlaythrough[] {
+  const count = item.watchCount ?? 1
+  const runs = item.status === 'completed' ? count : count - 1
+  const at = item.completedAt ?? item.lastReadAt ?? item.addedAt
+  return Array.from({ length: Math.max(0, runs) }, (_, i) => ({
+    // the old total described the whole game: charge it to the first run
+    hours: i === 0 ? (item.myPlaytime ?? null) : null,
+    at,
+  }))
+}
+
+/**
+ * The game's finished playthroughs. Every write in this module stores the list
+ * (an empty array = never finished), so a MISSING one only ever means an
+ * un-migrated row or an old backup, which is derived on the spot.
+ */
+export function gamePlaythroughs(item: LibraryItem): GamePlaythrough[] {
+  return item.playthroughs ?? legacyPlaythroughs(item)
+}
+
+/**
+ * Times a movie/book was actually FINISHED.
+ *
+ * `rewatchSingle` bumps the count and sends the item back to `watching`, so a
+ * rewatch in progress means "watched N times, watching it again" — the N
+ * viewings already done keep their time, and the one underway earns it only
+ * when it is closed. Same rule as a game's playthroughs, without the per-run
+ * hours: nothing to type, a 2nd viewing is simply the runtime again.
+ */
+export function finishedViews(item: LibraryItem): number {
+  const views = item.watchCount ?? 1
+  return item.status === 'completed' ? views : views - 1
+}
+
+/**
+ * Hours a game contributes to the totals: the sum of its FINISHED playthroughs,
+ * each with the method chosen for that run (typed hours, or the how-long-to-beat
+ * time). A game never finished contributes nothing at all — its length is how
+ * long it WILL take, so counting it would fill the totals with time not spent.
+ */
+export function gameHoursOf(item: LibraryItem): number {
+  const base = gameBaseHours(item)
+  return gamePlaythroughs(item).reduce((sum, p) => sum + (p.hours ?? base), 0)
+}
+
+/**
  * Aggregate watch-time statistics. Rewatches count as extra time: a 40-min
- * episode at x3 contributes 120 minutes. Game time uses the personal playtime
- * when set, otherwise the provider's average, for every started game.
+ * episode at x3 contributes 120 minutes. Game time is the sum of a game's
+ * recorded playthroughs (see gameHoursOf), so nothing is counted for a game
+ * that was never finished.
  */
 export async function computeStats(): Promise<Stats> {
   const [items, episodes] = await Promise.all([db.items.toArray(), db.episodes.toArray()])
@@ -998,18 +1192,25 @@ export async function computeStats(): Promise<Stats> {
     else stats.tvMin += min
   }
   for (const item of items) {
-    if (item.mediaType === 'game' && item.status !== 'planned') {
-      // expected time until the user tracks their own hours
-      const hours = (item.myPlaytime ?? item.playtime ?? 0) * (item.watchCount ?? 1)
-      stats.gameHours += hours
-      if (item.status === 'completed') stats.gamesPlayed++
+    if (item.mediaType === 'game') {
+      // a game mid-replay still counts the runs it already finished
+      if (gamePlaythroughs(item).length === 0) continue
+      stats.gamesPlayed++
+      stats.gameHours += gameHoursOf(item)
       continue
     }
-    if (item.status !== 'completed') continue
+    // manga re-reads live in the episode rows above and keep the item
+    // `completed`, so the count is simply "read at least once"
+    if (item.mediaType === 'manga') {
+      if (item.status === 'completed') stats.booksRead++
+      continue
+    }
+    const views = finishedViews(item)
+    if (views <= 0) continue
     if (item.mediaType === 'movie') {
       stats.moviesWatched++
-      stats.movieMin += (item.runtime ?? 110) * (item.watchCount ?? 1)
-    } else if (item.mediaType === 'book' || item.mediaType === 'manga') {
+      stats.movieMin += (item.runtime ?? 110) * views
+    } else if (item.mediaType === 'book') {
       stats.booksRead++
     }
   }

@@ -4,4 +4,7 @@
          system radius (see values-v31) so the widget matches native widgets -->
     <dimen name="widget_radius">16dp</dimen>
     <dimen name="widget_inner_radius">12dp</dimen>
+    <!-- one "Continue" row: the frame and, 1dp tighter, the card inside it -->
+    <dimen name="widget_row_radius">14dp</dimen>
+    <dimen name="widget_row_inner_radius">13dp</dimen>
 </resources>

@@ -1,10 +1,10 @@
 /**
- * Personal-rating badge — always a circle, tiered by value:
- * - 0–8.4   → white circle, black centered number
- * - 8.5–8.9 → metallic bronze circle, plain white number (no outline)
- * - 9–9.4   → metallic silver circle, white number
- * - 9.5–9.9 → metallic gold circle, white number
- * - 10      → reflective "diamond" circle with a rare shine sweep, white number
+ * Personal-rating badge — a rounded square, tiered by value:
+ * - 0–8.4   → white tile, black centered number
+ * - 8.5–8.9 → metallic bronze tile, plain white number (no outline)
+ * - 9–9.4   → metallic silver tile, white number
+ * - 9.5–9.9 → metallic gold tile, white number
+ * - 10      → reflective "diamond" tile with a rare shine sweep, white number
  */
 import { cn } from '../util'
 
@@ -29,7 +29,7 @@ const METALS: Record<Exclude<Tier, 'plain'>, [string, string, string]> = {
 const SIZES = {
   sm: 'h-7 w-7 text-[11px]',
   md: 'h-9 w-9 text-sm',
-  // matches the h-11 detail-page action circles (star/heart/archive/trash)
+  // matches the h-11 detail-page action buttons (star/heart/archive/trash)
   lg: 'h-11 w-11 text-[17px]',
 }
 
@@ -47,7 +47,7 @@ export default function RatingBadge({
   return (
     <span
       className={cn(
-        'relative grid shrink-0 place-items-center overflow-hidden rounded-full font-black leading-none shadow-lg',
+        'relative grid shrink-0 place-items-center overflow-hidden rounded-xl font-black leading-none shadow-lg',
         SIZES[size],
         metal ? 'text-white' : 'bg-white text-black',
       )}

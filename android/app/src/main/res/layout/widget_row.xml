@@ -1,56 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- One "Continue" row. Two nested layouts on purpose: row_root is tinted with
+     the theme's `line` and its 1dp padding shows through as a border around
+     row_card (tinted `card2`), which is what makes each row visibly separate
+     on a pure-black AMOLED theme. row_root stays the row's click target. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row_root"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="horizontal"
-    android:background="#17171c"
-    android:gravity="center_vertical"
-    android:padding="8dp"
+    android:orientation="vertical"
+    android:padding="1dp"
     android:layout_marginBottom="6dp">
 
-    <ImageView
-        android:id="@+id/row_poster"
-        android:layout_width="42dp"
-        android:layout_height="60dp"
-        android:scaleType="centerCrop"
-        android:src="@drawable/widget_poster_placeholder"
-        android:contentDescription="Poster" />
-
     <LinearLayout
-        android:layout_width="0dp"
+        android:id="@+id/row_card"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:layout_marginStart="10dp"
-        android:orientation="vertical">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="8dp">
 
-        <TextView
-            android:id="@+id/row_title"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#f4f4f5"
-            android:textSize="14sp"
-            android:textStyle="bold" />
+        <ImageView
+            android:id="@+id/row_poster"
+            android:layout_width="42dp"
+            android:layout_height="60dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/widget_poster_placeholder"
+            android:contentDescription="Poster" />
 
-        <TextView
-            android:id="@+id/row_sub"
-            android:layout_width="match_parent"
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:textColor="#71717a"
-            android:textSize="12sp"
-            android:layout_marginTop="2dp" />
+            android:layout_weight="1"
+            android:layout_marginStart="10dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/row_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#f4f4f5"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/row_sub"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="#71717a"
+                android:textSize="12sp"
+                android:layout_marginTop="2dp" />
+        </LinearLayout>
+
+        <ImageView
+            android:id="@+id/row_check"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
+            android:padding="7dp"
+            android:src="@drawable/ic_widget_check_box"
+            android:contentDescription="Mark watched" />
     </LinearLayout>
-
-    <ImageView
-        android:id="@+id/row_check"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_marginStart="6dp"
-        android:padding="9dp"
-        android:src="@drawable/ic_widget_check"
-        android:contentDescription="Mark watched" />
 </LinearLayout>

@@ -1,15 +1,24 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Clock, Gamepad2 } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
+import GameTimeDialog from '../components/GameTimeDialog'
 import GridCard from '../components/GridCard'
 import PageHeader from '../components/PageHeader'
 import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
 import ViewToggle from '../components/ViewToggle'
 import { platformLabel } from '../components/PlatformChips'
-import { db, isWaiting, lastActivity, setSingleStatus } from '../db'
+import {
+  db,
+  gameBaseHours,
+  gamePlaythroughs,
+  isWaiting,
+  lastActivity,
+  logGamePlaythrough,
+  setGameStatus,
+} from '../db'
 import { useT } from '../i18n'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
@@ -23,32 +32,31 @@ function GameCard({
   item,
   stage,
   view,
+  onComplete,
 }: {
   item: LibraryItem
   stage: 'planned' | 'watching' | 'waiting'
   view: ViewMode
+  /** ✓ on a game in progress: the page asks for the played hours first */
+  onComplete: (item: LibraryItem) => void
 }) {
   const t = useT()
   const nav = useNavigate()
   const { language } = useSettings()
   const playing = stage === 'watching'
 
+  // how long the game takes (HowLongToBeat main story, see db.gameBaseHours)
+  const base = gameBaseHours(item)
+
+  // Same line whatever the stage: year, length, platforms. The hours already
+  // banked by earlier runs used to replace the year on a replay, which made
+  // the card jump to a different shape for no gain — the round is on the ✓.
   const parts: string[] = []
-  if (playing) {
-    if (item.myPlaytime != null) parts.push(`${item.myPlaytime} ${t('games.hoursPlayed')}`)
-    if (item.playtime) parts.push(`~${item.playtime} h`)
-  } else {
-    if (item.year) parts.push(String(item.year))
-    if (item.playtime) parts.push(`~${item.playtime} h`)
-  }
+  if (item.year) parts.push(String(item.year))
+  if (base) parts.push(`~${base} h`)
   if (item.platforms?.length) {
     parts.push(item.platforms.slice(0, 4).map(platformLabel).join('/'))
   }
-
-  const progress =
-    playing && item.myPlaytime != null && item.playtime
-      ? Math.min(1, item.myPlaytime / item.playtime)
-      : null
 
   const when = item.releaseDate ? formatDate(item.releaseDate, language) : t('common.waiting')
   // replay in progress: "Rigiocato (x2)" sends the game back to Continue and
@@ -61,34 +69,35 @@ function GameCard({
         {when}
       </span>
     ) : (
-      parts.join(' • ')
+      parts.join(' | ')
     )
+  // no progress bar for games: hours are recorded when a run is CLOSED, so
+  // there is nothing honest to measure a run in progress against
   const shared = {
     poster: item.poster,
     title: item.title,
-    progress,
-    badge: round,
+    // a game has no unit to name on the cover: the round is on the ✓ only
     checkContent: round ?? undefined,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
     onCheck:
       stage === 'waiting'
         ? undefined
-        : () => setSingleStatus(item.id, playing ? 'completed' : 'watching'),
+        : () => (playing ? onComplete(item) : setGameStatus(item.id, 'watching')),
   }
 
   if (view === 'grid') {
     return (
       <GridCard
         {...shared}
-        caption={stage === 'waiting' ? when : round}
-        subtitle={stage === 'waiting' ? null : parts.join(' • ')}
+        caption={stage === 'waiting' ? when : null}
+        subtitle={stage === 'waiting' ? null : parts.join(' | ')}
       />
     )
   }
   return (
     <TrackCard
       {...shared}
-      topLabel={item.genres?.slice(0, 2).join(' • ') || t('nav.games')}
+      topLabel={item.genres?.slice(0, 2).join(' | ') || t('nav.games')}
       subtitle={subtitle}
     />
   )
@@ -106,6 +115,8 @@ function SectionTitle({ text }: { text: string }) {
 export default function GamesPage() {
   const t = useT()
   const { viewGames } = useSettings()
+  /** game whose ✓ was tapped, waiting for its played hours */
+  const [closing, setClosing] = useState<LibraryItem | null>(null)
   const items = useLiveQuery(
     () =>
       db.items
@@ -152,7 +163,7 @@ export default function GamesPage() {
         ) : (
           lay(
             playing.map((item) => (
-              <GameCard key={item.id} item={item} stage="watching" view={viewGames} />
+              <GameCard key={item.id} item={item} stage="watching" view={viewGames} onComplete={setClosing} />
             )),
           )
         )}
@@ -165,7 +176,7 @@ export default function GamesPage() {
         ) : (
           lay(
             backlog.map((item) => (
-              <GameCard key={item.id} item={item} stage="planned" view={viewGames} />
+              <GameCard key={item.id} item={item} stage="planned" view={viewGames} onComplete={setClosing} />
             )),
           )
         )}
@@ -176,10 +187,30 @@ export default function GamesPage() {
           <SectionTitle text={t('common.waiting')} />
           {lay(
             waiting.map((item) => (
-              <GameCard key={item.id} item={item} stage="waiting" view={viewGames} />
+              <GameCard key={item.id} item={item} stage="waiting" view={viewGames} onComplete={setClosing} />
             )),
           )}
         </section>
+      )}
+
+      {closing && (
+        <GameTimeDialog
+          // keyed so switching game re-seeds the wheels instead of keeping
+          // the previous game's hours
+          key={closing.id}
+          title={closing.title}
+          round={gamePlaythroughs(closing).length + 1}
+          length={closing.timeToBeat ?? null}
+          initial={
+            [...gamePlaythroughs(closing)].reverse().find((r) => r.hours != null)?.hours ?? null
+          }
+          onConfirm={async (hours) => {
+            const item = closing
+            setClosing(null)
+            await logGamePlaythrough(item.id, hours)
+          }}
+          onClose={() => setClosing(null)}
+        />
       )}
     </div>
   )

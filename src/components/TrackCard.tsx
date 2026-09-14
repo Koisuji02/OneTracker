@@ -74,7 +74,7 @@ export default function TrackCard({
       {locked && (
         <span
           aria-label="not released yet"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink4"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-line text-ink4"
         >
           <Lock size={16} />
         </span>
@@ -88,7 +88,7 @@ export default function TrackCard({
               e.stopPropagation()
               onCheck()
             }}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 border-accent bg-brand text-xs font-black text-black transition-all active:scale-90"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border-2 border-accent bg-brand text-xs font-black text-black transition-all active:scale-90"
           >
             {checkContent}
           </button>

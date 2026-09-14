@@ -97,12 +97,19 @@
             android:layout_height="match_parent"
             android:layout_weight="1">
 
+            <!-- overScrollMode=never kills Android 12+'s stretch overscroll:
+                 without it the whole list squashes and springs back under the
+                 finger, which reads as the widget wobbling. Layout attributes
+                 like this ARE honoured in a widget (the launcher inflates this
+                 file normally; only runtime calls go through RemoteViews). -->
             <ListView
                 android:id="@+id/widget_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:divider="@null"
-                android:dividerHeight="0dp" />
+                android:dividerHeight="0dp"
+                android:overScrollMode="never"
+                android:scrollbars="none" />
 
             <TextView
                 android:id="@+id/widget_empty"

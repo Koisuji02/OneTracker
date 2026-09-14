@@ -4,8 +4,13 @@ import type { LibraryItem, WatchList, WatchedEpisode } from './types'
 
 export interface BackupData {
   app: 'onetracker'
-  /** 1 = items+episodes · 2 = +lists/rewatch · 3 = +avatar/layout/sort */
-  version: 1 | 2 | 3
+  /**
+   * 1 = items+episodes · 2 = +lists/rewatch · 3 = +avatar/layout/sort
+   * 4 = game times moved to per-playthrough entries (`item.playthroughs`).
+   * Older files still restore: db.gamePlaythroughs derives the runs from the
+   * legacy `myPlaytime` + `watchCount` pair.
+   */
+  version: 1 | 2 | 3 | 4
   exportedAt: string
   settings: {
     language: string | null
@@ -31,11 +36,11 @@ export async function buildBackup(): Promise<string> {
   const s = getSettings()
   const data: BackupData = {
     app: 'onetracker',
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     // everything the user personalizes — per-item state (status, rating,
-    // favorite, archived, rewatch counts, playtime) already travels inside
-    // `items`; here we add the app-wide preferences. API keys and Google
+    // favorite, archived, rewatch counts, per-playthrough game times) already
+    // travels inside `items`; here we add the app-wide preferences. API keys and Google
     // identity are deliberately excluded (secrets / device-specific).
     settings: {
       language: s.language,

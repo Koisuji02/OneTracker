@@ -4,4 +4,7 @@
          widget has exactly the same rounding as the system/Google widgets -->
     <dimen name="widget_radius">@android:dimen/system_app_widget_background_radius</dimen>
     <dimen name="widget_inner_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+    <!-- one "Continue" row: the frame and, 1dp tighter, the card inside it -->
+    <dimen name="widget_row_radius">@android:dimen/system_app_widget_inner_radius</dimen>
+    <dimen name="widget_row_inner_radius">@android:dimen/system_app_widget_inner_radius</dimen>
 </resources>

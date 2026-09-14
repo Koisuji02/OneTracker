@@ -32,7 +32,9 @@ public class OneWidgetActionReceiver extends BroadcastReceiver {
                 ctx.getSharedPreferences(OneWidgetProvider.PREFS, Context.MODE_PRIVATE)
                         .edit().putString(OneWidgetProvider.KEY_FILTER + id, cat).apply();
                 AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
-                mgr.notifyAppWidgetViewDataChanged(id, R.id.widget_list);
+                // re-render (the icon highlight moves) and let the factory
+                // re-read the new category — updateWidget notifies at the end,
+                // so a second notify here would only reload the list twice
                 OneWidgetProvider.updateWidget(ctx, mgr, id);
             }
         } else if (OneWidgetProvider.ACTION_ITEM.equals(action)) {

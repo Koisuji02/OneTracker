@@ -27,7 +27,7 @@ export default function SortMenu({
         aria-label={t('sort.label')}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'grid h-10 w-10 place-items-center rounded-full border transition-colors',
+          'grid h-10 w-10 place-items-center rounded-xl border transition-colors',
           open
             ? 'border-accent text-accent'
             : 'border-line text-ink2 hover:border-accent hover:text-accent',

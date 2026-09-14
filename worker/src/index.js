@@ -16,6 +16,8 @@
  *   ANY  /p/{provider}/{path...}      → proxied provider call, key injected
  *   GET  /img/{provider}/{path...}    → proxied image host (blocked CDNs)
  *   POST /igdb/{endpoint}             → IGDB with a managed Twitch token
+ *   POST /hltb/search                 → HowLongToBeat game lengths
+ *   POST /google/token                → OAuth code/refresh → Drive access token
  *
  * Free tier: 100k requests/day, and the CPU cost here is negligible (pure I/O).
  */
@@ -172,6 +174,194 @@ async function handleIgdb(body, env, endpoint) {
   return passThrough(res)
 }
 
+// ---------------------------------------------------------------- Google
+
+/**
+ * Google OAuth token exchange — what makes the Drive backup work in the
+ * background FOREVER, instead of for the hour an access token lasts.
+ *
+ * The app signs in with the plugin in `offline` mode, which yields a
+ * `serverAuthCode` instead of an access token. Exchanging that code for a
+ * REFRESH token needs the web client's secret, which must never ship inside an
+ * APK — so it lives here, and this route is the only thing that ever sees it.
+ *
+ * Three operations, all on the same endpoint:
+ * - `{ code }`          → first exchange: access token + refresh token
+ * - `{ refresh_token }` → a new access token, silently, at any later time
+ * - `{ revoke }`        → hand the refresh token back to Google (disconnect)
+ *
+ * Responses are NEVER cached: they are credentials, and one is single-use.
+ */
+async function handleGoogleToken(body, env) {
+  let payload = {}
+  try {
+    payload = JSON.parse(body || '{}')
+  } catch {
+    return json({ error: 'bad-json' }, 400)
+  }
+  const secret = env.GOOGLE_CLIENT_SECRET
+  const clientId = env.GOOGLE_CLIENT_ID || payload.client_id
+  if (!secret || !clientId) return json({ error: 'google-not-configured' }, 501)
+
+  if (payload.revoke) {
+    // best-effort: a token already dead answers 400, which is fine by us
+    await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(payload.revoke)}`, {
+      method: 'POST',
+    }).catch(() => {})
+    return json({ ok: true })
+  }
+
+  const form = new URLSearchParams()
+  form.set('client_id', clientId)
+  form.set('client_secret', secret)
+  if (payload.code) {
+    form.set('code', payload.code)
+    form.set('grant_type', 'authorization_code')
+    // codes minted by requestOfflineAccess() on Android belong to the WEB
+    // client but have no redirect: Google's own backend-server flow sends the
+    // parameter empty rather than omitting it
+    form.set('redirect_uri', '')
+  } else if (payload.refresh_token) {
+    form.set('refresh_token', payload.refresh_token)
+    form.set('grant_type', 'refresh_token')
+  } else {
+    return json({ error: 'code-or-refresh-token-required' }, 400)
+  }
+
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  })
+  const data = await res.json().catch(() => ({ error: 'google-token-unparsable' }))
+  // pass Google's own error through: `invalid_grant` is what tells the app the
+  // refresh token was revoked and the account must be reconnected
+  return json(data, res.ok ? 200 : res.status)
+}
+
+// ------------------------------------------------------------------ HLTB
+
+/**
+ * HowLongToBeat — the game-length source ("how long does it take to beat").
+ *
+ * It has no public API and no CORS headers, so it can only work from here. The
+ * site's own search is guarded: a GET to `/api/search/site/init` hands out a
+ * short-lived `token` plus a one-shot `hpKey`/`hpVal` pair, and the search POST
+ * must echo all three (the key/value also inside the JSON body). The token is
+ * bound to the caller's IP **and User-Agent**, so both requests must go out
+ * with the exact same UA — and a token is never reused across requests here,
+ * because the two hops can leave Cloudflare from different egress IPs.
+ *
+ * Everything is best-effort by design: a shape change upstream must degrade to
+ * "no length data", never break game pages (the app falls back to IGDB).
+ */
+const HLTB_ORIGIN = 'https://howlongtobeat.com'
+const HLTB_HEADERS = {
+  'User-Agent':
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36',
+  Referer: `${HLTB_ORIGIN}/`,
+  Origin: HLTB_ORIGIN,
+  'Accept-Language': 'en-US,en;q=0.9',
+}
+
+async function hltbInit() {
+  const res = await fetch(`${HLTB_ORIGIN}/api/search/site/init?t=${Date.now()}`, {
+    headers: { ...HLTB_HEADERS, Accept: 'application/json' },
+  })
+  if (!res.ok) throw new Error(`hltb-init-${res.status}`)
+  return res.json()
+}
+
+/** The site's own search payload, trimmed to "no filters, most popular first". */
+function hltbBody(terms, sec) {
+  const any = { mode: 'include', values: [] }
+  const body = {
+    searchType: 'games',
+    searchTerms: terms,
+    searchPage: 1,
+    size: 20,
+    searchOptions: {
+      games: {
+        userId: 0,
+        platform: any,
+        sortCategory: 'popular',
+        rangeCategory: 'main',
+        rangeTime: { min: null, max: null },
+        gameplay: { perspective: any, flow: any, genre: any, difficulty: '' },
+        year: any,
+        modifier: '',
+      },
+      users: { sortCategory: 'postcount' },
+      lists: { sortCategory: 'follows' },
+      filter: '',
+      sort: 0,
+      randomizer: 0,
+    },
+    useCache: true,
+  }
+  if (sec?.hpKey) body[sec.hpKey] = sec.hpVal
+  return body
+}
+
+function hltbSearch(terms, sec) {
+  return fetch(`${HLTB_ORIGIN}/api/search/site`, {
+    method: 'POST',
+    headers: {
+      ...HLTB_HEADERS,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-auth-token': sec?.token ?? '',
+      'x-hp-key': sec?.hpKey ?? '',
+      'x-hp-val': sec?.hpVal ?? '',
+    },
+    body: JSON.stringify(hltbBody(terms, sec)),
+  })
+}
+
+/**
+ * Times come back in SECONDS. Only what the app matches on and displays is
+ * forwarded — the raw row carries ~35 fields (images, forum counts, review
+ * scores) that would triple the payload for nothing.
+ */
+async function handleHltb(query) {
+  const terms = String(query ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 12)
+  if (terms.length === 0) return json({ data: [] })
+
+  let sec = await hltbInit()
+  let res = await hltbSearch(terms, sec)
+  // the guard token expires fast (and is IP-bound): one fresh retry, like the
+  // site's own client does on a 403
+  if (res.status === 401 || res.status === 403) {
+    sec = await hltbInit()
+    res = await hltbSearch(terms, sec)
+  }
+  if (!res.ok) return json({ error: `hltb-${res.status}` }, 502)
+  const data = await res.json()
+  return json({
+    data: ((data?.data ?? []).slice(0, 20)).map((g) => ({
+      id: g.game_id,
+      name: g.game_name ?? '',
+      alias: g.game_alias ?? '',
+      year: g.release_world || null,
+      type: g.game_type ?? 'game',
+      // seconds: main story · main + extras · completionist · all styles
+      main: g.comp_main || 0,
+      plus: g.comp_plus || 0,
+      full: g.comp_100 || 0,
+      all: g.comp_all || 0,
+      /** multiplayer-only titles have no completion time, just invested hours */
+      coop: g.invested_co || 0,
+      versus: g.invested_mp || 0,
+      /** submissions behind the numbers — the popularity/confidence signal */
+      samples: g.count_comp || 0,
+    })),
+  })
+}
+
 // ------------------------------------------------------------- entrypoint
 
 export default {
@@ -199,6 +389,9 @@ export default {
             omdb: !!env.OMDB_KEY,
             comicvine: !!env.COMICVINE_KEY,
             igdb: !!(env.IGDB_CLIENT_ID && env.IGDB_CLIENT_SECRET),
+            // with this on, the app can hold a Google REFRESH token and back
+            // up to Drive in the background indefinitely
+            google: !!(env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CLIENT_ID),
             appToken: !!env.APP_TOKEN,
           },
           // Deliberately only booleans. This used to also report the LENGTH of
@@ -207,6 +400,25 @@ export default {
           // inside the APK). "Configured or not" is all the Settings screen
           // needs to diagnose a provider.
         })
+      }
+
+      if (section === 'google' && provider === 'token') {
+        return await handleGoogleToken(await request.text(), env)
+      }
+
+      if (section === 'hltb') {
+        const body = request.method === 'POST' ? await request.text() : ''
+        let query = url.searchParams.get('q') ?? ''
+        if (body) {
+          try {
+            query = JSON.parse(body).query ?? query
+          } catch {
+            query = body.trim()
+          }
+        }
+        // game lengths barely move; cache them for the full detail TTL
+        const key = await cacheKeyFor(request, url, `hltb:${query}`)
+        return await cached(ctx, key, TTL_DETAIL, () => handleHltb(query))
       }
 
       if (section === 'igdb') {

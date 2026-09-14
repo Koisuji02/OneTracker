@@ -5,7 +5,7 @@ import { cn } from '../util'
 /**
  * The user's avatar. `settings.avatar` encodes the choice:
  * - null            → Google photo if connected, else the anonymous icon
- * - `emoji:<c>:<bg>` → built-in character preset (emoji on a colored circle)
+ * - `emoji:<c>:<bg>` → built-in character preset (emoji on a colored tile)
  * - anything else   → an image URL / data-URL (uploaded photo or poster)
  */
 export default function Avatar({ className }: { className?: string }) {
@@ -15,7 +15,7 @@ export default function Avatar({ className }: { className?: string }) {
     const [, emoji, bg] = avatar.split(':')
     return (
       <div
-        className={cn('grid place-items-center overflow-hidden rounded-full', className)}
+        className={cn('grid place-items-center overflow-hidden rounded-2xl', className)}
         style={{ background: bg }}
       >
         <span className="text-[55%] leading-none">{emoji}</span>
@@ -30,7 +30,7 @@ export default function Avatar({ className }: { className?: string }) {
         src={src}
         alt=""
         referrerPolicy="no-referrer"
-        className={cn('rounded-full bg-card object-cover', className)}
+        className={cn('rounded-2xl bg-card object-cover', className)}
       />
     )
   }
@@ -38,7 +38,7 @@ export default function Avatar({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'grid place-items-center rounded-full bg-card text-ink3',
+        'grid place-items-center rounded-2xl bg-card text-ink3',
         className,
       )}
     >

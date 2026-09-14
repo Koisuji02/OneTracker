@@ -45,7 +45,13 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `setSingleWatched` | `(id, watched) → void` | movies/books: completed ⇄ planned |
 | `rewatchSingle` | `(id) → void` | movies/books/games: `watchCount + 1` |
 | `setGameStatus` | `(id, status) → void` | games: planned / watching ("Playing") / completed |
-| `setMyPlaytime` | `(id, hours\|null) → void` | games: personal hours (overrides RAWG average in stats) |
+| `logGamePlaythrough` | `(id, hours\|null) → void` | games: record a finished run — typed hours, or `null` to count the how-long-to-beat time |
+| `startGameReplay` | `(id) → void` | games: "Ri-inizia xN" — back to Continue for another run, recorded runs untouched |
+| `rewatchSingle` | `(id) → void` | movies/books: "Ri-inizia xN" — back to Continue; the ✓ there closes the round |
+| `logSingleView` | `(id) → void` | movies/books: "Rivisto xN" — one more finished viewing straight away |
+| `removeGamePlaythrough` | `(id, index) → void` | games: drop one recorded run and the time it contributed |
+| `setGameStatus` | `(id, 'planned'\|'watching') → void` | games: 3-state picker; leaving `completed` un-records the most recent run |
+| `gamePlaythroughs` | `(item) → GamePlaythrough[]` | games: the finished runs (derives them for pre-v8 rows and old backups) |
 | `recomputeStatus` | `(itemId, touch = true) → void` | re-derives status from progress (internal, exported for metadata refresh). `touch` stamps `lastReadAt` — background refreshes pass `false` so they don't reorder "Continue" |
 | `refreshItemMetadata` | `(details) → void` | merges fresh provider data into the metadata snapshot, keeps library state, re-derives status. Writes NOTHING when the payload brings no change. Called on every detail-page open and by the background sync |
 | `computeNextEpisode` | `(item, watchedKeys) → {season, episode}\|null` | first unwatched unit in watch order |
@@ -53,6 +59,8 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `isWaiting` | `(item, watchedKeys, airDateOf?) → boolean` | item with nothing to do right now (unreleased, or caught up on everything aired). `airDateOf(season, slot)` supplies the next unit's own air date so an episode released **today** leaves "Waiting" immediately instead of waiting for the next metadata refresh |
 | `isCaughtUp` | `(item, watchedCount) → boolean` | ongoing + everything released watched |
 | `computeStats` | `() → Stats` | totals: tv/anime/movie/game minutes (rewatches multiply), episodes, chapters, counts |
+| `gameBaseHours` | `(item) → number` | one playthrough of a game in hours — the how-long-to-beat main story |
+| `gameHoursOf` | `(item) → number` | what a game adds to the totals: the sum of its runs, each at its own chosen time |
 | `createList` / `deleteList` / `toggleListItem` | — | user lists CRUD |
 | `putCachedEpisodes` | `(itemId, season, episodes) → void` | episode metadata cache write (reads go through `getEpisodes`) |
 
@@ -70,7 +78,7 @@ a connection, and they say so instead of failing silently.
 | `forget` | `(urls[]) → void` | drops cached bytes (an item leaving the library takes its artwork with it) |
 | `evict` | `() → void` | LRU trim to the 48 MB budget, reading only `imageMeta` |
 | `clearImageCache` | `() → void` | wipes every cached image (Settings → delete all data) |
-| `syncLibrary` | `(force = false) → void` | catch-up pass: refresh the items that can have changed (still releasing, or an announced date that has arrived — 20 at a time, 3 at a time in flight, throttled to 30 min) then push the Drive backup if a token is already in memory. Runs at startup, on reconnect and on foreground |
+| `syncLibrary` | `(force = false) → void` | catch-up pass: refresh the items that can have changed (still releasing, or an announced date that has arrived — 20 at a time, 3 at a time in flight, throttled to 30 min) then push the Drive backup (resuming the Google session silently first, never with a sign-in sheet). Runs at startup, on reconnect and on foreground |
 
 `<Cover>` (`src/components/Cover.tsx`) is the `<img>` every cover goes through;
 `persist` marks the library artwork worth keeping. Search results, cast photos

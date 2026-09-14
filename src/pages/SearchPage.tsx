@@ -208,7 +208,7 @@ export default function SearchPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t('search.placeholder')}
-            className="w-full rounded-full border border-line bg-card py-3 pl-11 pr-4 text-[15px] outline-none transition-colors placeholder:text-ink4 focus:border-accent"
+            className="w-full rounded-2xl border border-line bg-card py-3 pl-11 pr-4 text-[15px] outline-none transition-colors placeholder:text-ink4 focus:border-accent"
           />
         </div>
       </div>
