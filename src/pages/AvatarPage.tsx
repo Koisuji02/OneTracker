@@ -1,7 +1,7 @@
 /**
  * Avatar picker: upload a personal photo (downscaled and stored locally as a
  * data-URL), pick a poster from your own library, or use one of the bundled
- * character presets (emoji on a colored circle — original, license-free).
+ * character presets (emoji on a colored tile — original, license-free).
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import { ArrowLeft, Trash2, Upload } from 'lucide-react'
@@ -79,7 +79,7 @@ export default function AvatarPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>
@@ -90,14 +90,14 @@ export default function AvatarPage() {
       <div className="flex gap-2.5 px-4">
         <button
           onClick={() => fileRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95"
+          className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95"
         >
           <Upload size={16} strokeWidth={2.5} /> {t('avatar.upload')}
         </button>
         {settings.avatar && (
           <button
             onClick={() => pick(null)}
-            className="flex items-center justify-center gap-2 rounded-full border border-line px-4 py-3 text-sm font-bold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-line px-4 py-3 text-sm font-bold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
           >
             <Trash2 size={16} /> {t('avatar.reset')}
           </button>
@@ -122,7 +122,7 @@ export default function AvatarPage() {
             <button
               key={emoji + bg}
               onClick={() => pick(`emoji:${emoji}:${bg}`)}
-              className="grid aspect-square place-items-center rounded-full border-2 border-line text-3xl transition-transform hover:scale-105 active:scale-95"
+              className="grid aspect-square place-items-center rounded-2xl border-2 border-line text-3xl transition-transform hover:scale-105 active:scale-95"
               style={{ background: bg }}
             >
               {emoji}
@@ -140,7 +140,7 @@ export default function AvatarPage() {
                 key={i.id}
                 onClick={() => pick(i.poster!)}
                 title={i.title}
-                className="aspect-square overflow-hidden rounded-full border-2 border-line transition-transform hover:scale-105 active:scale-95"
+                className="aspect-square overflow-hidden rounded-2xl border-2 border-line transition-transform hover:scale-105 active:scale-95"
               >
                 <img
                   src={i.poster!}

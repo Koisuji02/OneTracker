@@ -50,6 +50,21 @@ export interface Settings {
   googleEmail: string | null
   googleName: string | null
   googlePicture: string | null
+  /**
+   * Long-lived Google refresh token, obtained through the gateway's
+   * /google/token route (offline sign-in). It is what lets the background
+   * backup mint access tokens forever instead of dying with the hour-long one.
+   * Null when the gateway can't do the exchange — the app then falls back to
+   * the plugin's own ~1h session.
+   */
+  googleRefreshToken: string | null
+  /**
+   * When the library last actually reached Drive (ms), and why it didn't.
+   * Auto-backup is silent by design, so without these two the Settings screen
+   * can only say "connected" — never "backed up 5 minutes ago".
+   */
+  lastBackupAt: number | null
+  lastBackupError: string | null
 }
 
 const STORAGE_KEY = 'onetracker.settings'
@@ -82,6 +97,9 @@ const defaults: Settings = {
   googleEmail: null,
   googleName: null,
   googlePicture: null,
+  googleRefreshToken: null,
+  lastBackupAt: null,
+  lastBackupError: null,
 }
 
 /** API-key fields where a baked-in .env value acts as fallback default. */

@@ -29,7 +29,7 @@ export default function ViewToggle({
       aria-pressed={value === mode}
       onClick={() => onChange(mode)}
       className={cn(
-        'grid h-9 w-10 place-items-center rounded-full transition-colors',
+        'grid h-9 w-10 place-items-center rounded-lg transition-colors',
         value === mode ? 'bg-brand text-black' : 'text-ink3 hover:text-accent',
       )}
     >
@@ -38,7 +38,7 @@ export default function ViewToggle({
   )
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-line bg-card p-0.5">
+    <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-line bg-card p-0.5">
       {half('list', t('view.list'), <List size={17} strokeWidth={2.5} />)}
       {half('grid', t('view.grid'), <LayoutGrid size={17} strokeWidth={2.5} />)}
     </div>

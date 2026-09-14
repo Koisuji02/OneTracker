@@ -8,12 +8,24 @@
  * and forwards APIcalypse queries (see worker/README.md). Without a gateway the
  * app keeps using RAWG.
  */
-import type { MediaDetails, SearchResult } from '../types'
+import type { GameLength, MediaDetails, SearchResult } from '../types'
 import { gatewayEnabled, igdbQuery } from './gateway'
 
-/** IGDB image ids expand into any size; `t_cover_big` is 264×374, `t_720p` HD. */
-const IMG = (hash: string, size: 't_cover_big' | 't_720p' | 't_screenshot_med') =>
-  `https://images.igdb.com/igdb/image/upload/${size}/${hash}.jpg`
+/**
+ * IGDB image ids expand into any of its named sizes, and appending `_2x` gives
+ * the retina variant.
+ *
+ * Sizes matter here: `t_cover_big` is only 264×374, which is FEWER pixels than
+ * the poster occupies on a phone (and less than TMDB's w342 for series/films),
+ * so game covers arrived visibly soft while everything else was crisp. The
+ * detail page therefore asks for `t_cover_big_2x` (528×748) and full-bleed art
+ * for `t_1080p`; search rows keep the small cover, where 14 retina posters per
+ * query would be paid for nothing.
+ */
+const IMG = (
+  hash: string,
+  size: 't_cover_big' | 't_cover_big_2x' | 't_720p' | 't_1080p' | 't_screenshot_med',
+) => `https://images.igdb.com/igdb/image/upload/${size}/${hash}.jpg`
 
 /** True when games should come from IGDB (gateway configured). */
 export const igdbAvailable = (): boolean => gatewayEnabled()
@@ -89,6 +101,38 @@ const DETAIL_FIELDS = [
   'status',
 ].join(',')
 
+/**
+ * IGDB's own time-to-beat — the fallback when HowLongToBeat has no confident
+ * match for a title. Same idea, far fewer submissions (tens, where HLTB has
+ * thousands), which is exactly why it comes second.
+ *
+ * Values arrive in SECONDS as `hastily` (rushed), `normally` (a typical
+ * playthrough) and `completely` (everything), so `normally` is what feeds the
+ * stats. NOTE the endpoint is `game_time_to_beats` and its key is `game_id`,
+ * not `id`.
+ */
+export async function igdbTimeToBeat(id: string): Promise<GameLength | null> {
+  if (!igdbAvailable()) return null
+  const hours = (sec: unknown): number | null => {
+    const n = Number(sec)
+    return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n / 3600)) : null
+  }
+  try {
+    const rows = await igdbQuery(
+      'game_time_to_beats',
+      `fields hastily,normally,completely,count; where game_id = ${Number(id)};`,
+    )
+    const r = rows[0]
+    if (!r) return null
+    const main = hours(r.normally) ?? hours(r.hastily)
+    const full = hours(r.completely)
+    if (main == null && full == null) return null
+    return { main: main ?? full, plus: null, full, source: 'igdb', samples: r.count || null }
+  } catch {
+    return null // no gateway, no data, endpoint renamed — the caller degrades
+  }
+}
+
 export async function igdbDetails(id: string): Promise<MediaDetails> {
   const rows = await igdbQuery('games', `fields ${DETAIL_FIELDS}; where id = ${Number(id)};`)
   const g = rows[0]
@@ -111,10 +155,12 @@ export async function igdbDetails(id: string): Promise<MediaDetails> {
     title: g.name,
     overview: (g.summary as string | undefined) || (g.storyline as string | undefined) || null,
     // IGDB covers are the real box art with the logo (what Stash shows)
-    poster: g.cover?.image_id ? IMG(g.cover.image_id, 't_cover_big') : null,
+    poster: g.cover?.image_id ? IMG(g.cover.image_id, 't_cover_big_2x') : null,
+    // the backdrop is stretched full-bleed behind the whole page, so it gets
+    // the largest sane size — 720p was being upscaled on any modern phone
     backdrop: (g.artworks ?? [])[0]?.image_id
-      ? IMG(g.artworks[0].image_id, 't_720p')
-      : ((g.screenshots ?? [])[0]?.image_id ? IMG(g.screenshots[0].image_id, 't_720p') : null),
+      ? IMG(g.artworks[0].image_id, 't_1080p')
+      : ((g.screenshots ?? [])[0]?.image_id ? IMG(g.screenshots[0].image_id, 't_1080p') : null),
     year: g.first_release_date
       ? new Date(g.first_release_date * 1000).getUTCFullYear()
       : null,

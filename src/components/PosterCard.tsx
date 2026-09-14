@@ -71,7 +71,7 @@ export default function PosterCard({
               if (!inLibrary) onAdd()
             }}
             className={cn(
-              'absolute bottom-1.5 right-1.5 grid h-8 w-8 place-items-center rounded-full shadow-lg transition-colors',
+              'absolute bottom-1.5 right-1.5 grid h-8 w-8 place-items-center rounded-xl shadow-lg transition-colors',
               inLibrary
                 ? 'bg-brand text-black'
                 : 'bg-black/70 text-white backdrop-blur hover:bg-brand hover:text-black',
@@ -86,13 +86,13 @@ export default function PosterCard({
           </span>
         )}
         {favorite && (
-          <span className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-white shadow-lg">
+          <span className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-white shadow-lg">
             <Heart size={14} className="text-red-500" fill="currentColor" strokeWidth={2.5} />
           </span>
         )}
         {statusKind && (
           <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-black shadow-lg">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-white text-black shadow-lg">
               {statusKind === 'archived' ? (
                 <Archive size={14} strokeWidth={2.5} />
               ) : statusKind === 'done' ? (
@@ -103,7 +103,7 @@ export default function PosterCard({
             </span>
             {rewatchCount != null && rewatchCount >= 2 && (
               <span
-                className="grid h-7 min-w-7 place-items-center rounded-full bg-white px-1 text-[11px] font-black leading-none text-black shadow-lg"
+                className="grid h-7 min-w-7 place-items-center rounded-lg bg-white px-1 text-[11px] font-black leading-none text-black shadow-lg"
                 style={{ fontVariantNumeric: 'tabular-nums' }}
               >
                 x{rewatchCount}

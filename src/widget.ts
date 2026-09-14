@@ -10,6 +10,7 @@ import {
   epKey,
   isWaiting,
   lastActivity,
+  logGamePlaythrough,
   markRewatchUnit,
   markUpTo,
   seasonsOf,
@@ -102,7 +103,7 @@ function rewatchSteps(
 /** Row label of a single in progress — with the round when it's a rewatch. */
 function inProgress(item: LibraryItem): string {
   const g = item.watchCount ?? 1
-  return g >= 2 ? `In corso · x${g}` : 'In corso'
+  return g >= 2 ? `In corso | x${g}` : 'In corso'
 }
 
 /** Chapter label for manga rewatch steps (chapters are season-1 episodes). */
@@ -122,8 +123,11 @@ function mangaSteps(item: LibraryItem, readCount: number): WidgetStep[] {
 function themeVars() {
   const s = getSettings()
   const th = THEMES.find((t) => t.id === s.theme) ?? THEMES[0]
-  const { surface, card, ink, ink3, accent } = th.vars
-  return { surface, card, ink, ink3, accent }
+  // card2 + line draw the rows (a filled card with a real border reads as a
+  // separate, tappable item — plain `card` on an AMOLED theme is invisible),
+  // ink2 draws the un-ticked check so it looks pressable and not already done
+  const { surface, card, card2, line, ink, ink2, ink3, accent } = th.vars
+  return { surface, card, card2, line, ink, ink2, ink3, accent }
 }
 
 /** Recompute the continue list and push it (+theme) to the native widget. */
@@ -234,7 +238,10 @@ export async function drainWidgetActions(): Promise<void> {
       const item = await db.items.get(`${parts[2]}:${parts[4]}`)
       if (!item || !mark) continue
       if (mark === 'single') {
-        await setSingleStatus(item.id, 'completed')
+        // a game's hours are a per-run choice the home screen can't offer, so a
+        // widget ✓ records the run at the how-long-to-beat time (the default)
+        if (item.mediaType === 'game') await logGamePlaythrough(item.id, null)
+        else await setSingleStatus(item.id, 'completed')
       } else if (mark.startsWith('ep:')) {
         const [, s, e] = mark.split(':')
         await markUpTo(item, Number(s), Number(e))

@@ -14,6 +14,22 @@
   --color-ink3: var(--ink3);
   --color-ink4: var(--ink4);
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /*
+   * Corner radii, TIGHTER than Tailwind's defaults (which are 6/8/12/16/24px).
+   * The whole UI is built from rounded rectangles, and at the stock scale a
+   * 44px button reads as a lozenge rather than a square with soft corners —
+   * the look we're after (Stash-style) keeps roughly 10px even on large
+   * elements. Overriding the scale here rather than at ~150 call sites keeps
+   * every future `rounded-*` on the same ratio, and preserves the hierarchy:
+   * chips a little tighter than buttons, sheets softer than everything.
+   */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 7px;
+  --radius-xl: 9px;
+  --radius-2xl: 11px;
+  --radius-3xl: 16px;
 }
 
 :root {

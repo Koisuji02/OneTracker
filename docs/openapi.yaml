@@ -162,6 +162,37 @@ paths:
       responses: { "200": { description: OK } }
       tags: [Google]
       summary: Find the backup file in appDataFolder
+  # -------------------------------------------------- HowLongToBeat
+  /hltb/search/site/init:
+    get:
+      responses: { "200": { description: OK } }
+      tags: [HowLongToBeat]
+      summary: Guard token for the search call (token + hpKey/hpVal)
+      description: >
+        GET https://howlongtobeat.com/api/search/site/init?t=… — the token is
+        bound to the caller's IP and User-Agent, so this hop and the search
+        below only ever run inside the API gateway.
+  /hltb/search/site:
+    post:
+      responses: { "200": { description: OK } }
+      tags: [HowLongToBeat]
+      summary: Game lengths (main story / +extras / completionist, seconds)
+      description: >
+        POST https://howlongtobeat.com/api/search/site with the x-auth-token
+        and x-hp-key/x-hp-val headers from init. Reached as POST /hltb/search
+        on the gateway; unofficial API, best-effort (falls back to IGDB).
+  /google/oauth2/token:
+    post:
+      responses: { "200": { description: OK } }
+      tags: [Google]
+      summary: Authorization code / refresh token -> Drive access token
+      description: >
+        POST https://oauth2.googleapis.com/token, reached as POST
+        /google/token on the gateway: the web client SECRET is required, so the
+        exchange only ever runs inside the Worker. `code` (from the native
+        offline sign-in) returns a refresh token; `refresh_token` returns a new
+        access token silently, which is what makes the background Drive backup
+        work indefinitely.
   /google/drive/upload:
     post:
       responses: { "200": { description: OK } }
@@ -190,5 +221,7 @@ tags:
     description: "Titled game box art, all platforms — key required"
   - name: Ratings
     description: "OMDb (key) and Jikan/MAL (keyless)"
+  - name: HowLongToBeat
+    description: "Game lengths — keyless, unofficial, gateway-only (no CORS)"
   - name: Google
     description: "Optional Drive backup + account link"

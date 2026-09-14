@@ -39,7 +39,7 @@ export default function ListsPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>
@@ -47,7 +47,7 @@ export default function ListsPage() {
         <button
           onClick={() => setCreating(!creating)}
           aria-label={t('lists.new')}
-          className="grid h-10 w-10 place-items-center rounded-full bg-brand text-black transition-transform active:scale-90"
+          className="grid h-10 w-10 place-items-center rounded-xl bg-brand text-black transition-transform active:scale-90"
         >
           <Plus size={18} strokeWidth={3} />
         </button>
@@ -71,7 +71,7 @@ export default function ListsPage() {
                 aria-label={`color ${c}`}
                 onClick={() => setColor(c)}
                 className={cn(
-                  'h-7 w-7 rounded-full transition-transform',
+                  'h-7 w-7 rounded-lg transition-transform',
                   color === c && 'scale-110 ring-2 ring-white/70',
                 )}
                 style={{ background: c }}
@@ -79,7 +79,7 @@ export default function ListsPage() {
             ))}
             <button
               onClick={submit}
-              className="ml-auto rounded-full bg-brand px-4 py-2 text-xs font-bold text-black"
+              className="ml-auto rounded-xl bg-brand px-4 py-2 text-xs font-bold text-black"
             >
               {t('common.save')}
             </button>

@@ -9,7 +9,7 @@
  * Marking an item owned (the key button on its detail page) drops it from here.
  */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { ArrowLeft, Banknote } from 'lucide-react'
+import { ArrowLeft, DollarSign } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import PosterCard from '../components/PosterCard'
@@ -82,7 +82,7 @@ export default function ToBuyPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>
@@ -97,7 +97,7 @@ export default function ToBuyPage() {
 
       {toBuy.length === 0 ? (
         <div className="mt-8">
-          <EmptyState icon={<Banknote size={32} />} text={t('account.emptyRow')} />
+          <EmptyState icon={<DollarSign size={32} />} text={t('account.emptyRow')} />
         </div>
       ) : (
         <>

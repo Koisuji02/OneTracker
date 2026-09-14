@@ -6,11 +6,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Archive,
-  Banknote,
   BookOpen,
   Check,
-  Key,
   ChevronDown,
+  DollarSign,
+  Key,
   ChevronRight,
   Clapperboard,
   Gamepad2,
@@ -165,7 +165,7 @@ export default function AccountPage() {
           <Link
             to="/settings"
             aria-label={t('settings.title')}
-            className="absolute right-4 top-safe-lg grid h-10 w-10 place-items-center rounded-full bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
+            className="absolute right-4 top-safe-lg grid h-10 w-10 place-items-center rounded-xl bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
           >
             <Settings size={18} />
           </Link>
@@ -193,7 +193,7 @@ export default function AccountPage() {
                 <button
                   onClick={saveName}
                   aria-label="save name"
-                  className="grid h-8 w-8 place-items-center rounded-full bg-brand text-black"
+                  className="grid h-8 w-8 place-items-center rounded-xl bg-brand text-black"
                 >
                   <Check size={15} strokeWidth={3} />
                 </button>
@@ -207,7 +207,7 @@ export default function AccountPage() {
                     setEditingName(true)
                   }}
                   aria-label="edit name"
-                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-line text-ink3 transition-colors hover:border-accent hover:text-accent"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line text-ink3 transition-colors hover:border-accent hover:text-accent"
                 >
                   <Pencil size={12} />
                 </button>
@@ -263,7 +263,7 @@ export default function AccountPage() {
         to="/favorites"
         className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
       >
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
           <Heart size={18} fill="currentColor" />
         </span>
         <span className="flex-1 font-bold">{t('account.favorites')}</span>
@@ -327,7 +327,7 @@ export default function AccountPage() {
         to="/archived"
         className="mx-4 mt-8 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
       >
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
           <Archive size={18} />
         </span>
         <span className="flex-1 font-bold">{t('account.archived')}</span>
@@ -340,7 +340,7 @@ export default function AccountPage() {
         to="/owned"
         className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
       >
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
           <Key size={18} />
         </span>
         <span className="flex-1 font-bold">{t('account.owned')}</span>
@@ -353,8 +353,8 @@ export default function AccountPage() {
         to="/tobuy"
         className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
       >
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand/10 text-accent">
-          <Banknote size={18} />
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
+          <DollarSign size={18} />
         </span>
         <span className="flex-1 font-bold">{t('account.toBuy')}</span>
         <span className="text-sm text-ink3">{toBuyCount}</span>

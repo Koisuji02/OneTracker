@@ -93,6 +93,66 @@ Expected: `{"ok":true,"configured":{...}}` with `true` for every key you set.
 | `/p/{provider}/{path…}` | proxied JSON call, key injected (`tmdb`, `rawg`, `omdb`, `comicvine`, `mangadex`, `jikan`, `anilist`, `openlibrary`) |
 | `/img/{provider}/{path…}` | proxied images for blocked CDNs (`mangadex`, `tmdb`, `igdb`) |
 | `/igdb/{endpoint}` | IGDB v4 with a managed Twitch token (POST, APIcalypse body) |
+| `/hltb/search` | HowLongToBeat game lengths (POST `{"query":"elden ring"}`) |
+| `/google/token` | Google OAuth: code → refresh token, refresh → access token, revoke |
+
+## 5. Game lengths (HowLongToBeat)
+
+Nothing to configure — but the route only exists in a Worker deployed from this
+version of the repo, so **redeploy** if yours is older:
+
+```bash
+cd worker && npx wrangler@4.86.0 deploy -c wrangler.toml
+```
+
+`/hltb/search` is what makes games count in the time stats. HowLongToBeat has
+no public API: the Worker fetches a guard token from
+`/api/search/site/init`, echoes it back on the search POST (`x-auth-token` +
+`x-hp-key`/`x-hp-val`, the pair also inside the JSON body) and forwards the four
+length figures. The token is bound to the caller's IP AND User-Agent, so both
+hops send the same UA and no token is ever reused — a 403 just re-inits once.
+
+Being an unofficial API, it will break the day HLTB changes shape. That is
+expected and harmless: the app treats a failure as "no data" and falls back to
+IGDB's own time-to-beat, so game pages and stats keep working.
+
+```bash
+curl -X POST -H "X-OT-Token: <APP_TOKEN>" -H 'Content-Type: application/json' -d '{"query":"elden ring"}' https://onetracker-api.<your-subdomain>.workers.dev/hltb/search
+```
+
+## 6. Background Drive backup (Google refresh tokens)
+
+Without this the app can only hold Google's hour-long access token: after that
+the automatic backup stops until the user taps "Backup su Drive" by hand. With
+it, sign-in runs in the plugin's `offline` mode and the Worker turns the
+returned authorization code into a REFRESH token, so the app mints access
+tokens silently forever.
+
+Two secrets, both from the **Web** OAuth client (`APIs & Services →
+Credentials`) — the same client id the app uses as `VITE_GOOGLE_CLIENT_ID_WEB`:
+
+```bash
+npx wrangler@4.86.0 secret put -c wrangler.toml GOOGLE_CLIENT_ID
+```
+
+```bash
+npx wrangler@4.86.0 secret put -c wrangler.toml GOOGLE_CLIENT_SECRET
+```
+
+`/health` then reports `"google": true`, which is exactly how the app decides
+between offline and online mode — set them and redeploy, and no app change is
+needed. The client secret is why this must live here: shipped in an APK it
+would be readable by anyone who unzips it.
+
+Notes:
+- The refresh token itself is stored by the app in `localStorage`. It is a
+  long-lived credential on the device; disconnecting the account revokes it
+  through this same route. It is deliberately NOT part of the Drive backup.
+- Android also needs the app's signing SHA-1 on the **Android** OAuth client
+  (package `com.onetracker.app`), or the native sign-in fails with
+  `DEVELOPER_ERROR` before any of this is reached. A new machine means a new
+  debug keystore, hence a new fingerprint to add:
+  `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
 
 ## Updating later
 

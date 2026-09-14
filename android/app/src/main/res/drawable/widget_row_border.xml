@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Outer half of a row: the 1dp frame around the card. Solid WHITE on purpose,
+     like widget_bg — the service tints it with the theme's `line` colour, while
+     the inner widget_row_bg gets `card2`. Two tinted shapes are how a bordered,
+     rounded row is possible at all in RemoteViews: setBackgroundTintList paints
+     fill and stroke the same colour, so a single drawable can't show a border. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@android:color/white" />
+    <corners android:radius="@dimen/widget_row_radius" />
+</shape>

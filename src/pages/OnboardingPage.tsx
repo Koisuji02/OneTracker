@@ -40,7 +40,7 @@ function HeroIcon({ children }: { children: ReactNode }) {
         className="absolute inset-0 scale-150 rounded-full opacity-30 blur-2xl"
         style={{ background: 'var(--brand)' }}
       />
-      <div className="relative grid h-28 w-28 place-items-center rounded-[2rem] border border-line bg-card">
+      <div className="relative grid h-28 w-28 place-items-center rounded-3xl border border-line bg-card">
         <span className="text-accent">{children}</span>
       </div>
     </div>
@@ -69,13 +69,13 @@ function OptInStep({
       <div className="flex w-full max-w-xs flex-col gap-3">
         <button
           onClick={() => onChoice(true)}
-          className="rounded-full bg-brand py-3.5 font-bold text-black transition-transform active:scale-95"
+          className="rounded-2xl bg-brand py-3.5 font-bold text-black transition-transform active:scale-95"
         >
           {t('wizard.enable')}
         </button>
         <button
           onClick={() => onChoice(false)}
-          className="rounded-full border border-line py-3.5 font-bold text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="rounded-2xl border border-line py-3.5 font-bold text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           {t('wizard.skip')}
         </button>
@@ -146,7 +146,7 @@ export default function OnboardingPage() {
                     updateSettings({ language: lang })
                     setStep(1)
                   }}
-                  className="flex items-center justify-center gap-2.5 rounded-full border border-line bg-card py-3.5 font-bold transition-colors hover:border-accent hover:text-accent"
+                  className="flex items-center justify-center gap-2.5 rounded-2xl border border-line bg-card py-3.5 font-bold transition-colors hover:border-accent hover:text-accent"
                 >
                   <span className="text-lg">{flag}</span> {label}
                 </button>

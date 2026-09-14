@@ -39,7 +39,7 @@ export default function BottomNav() {
         <>
           <span
             className={cn(
-              'grid place-items-center rounded-full px-4 py-1 transition-colors',
+              'grid place-items-center rounded-xl px-4 py-1 transition-colors',
               isActive && 'bg-brand/10',
             )}
           >

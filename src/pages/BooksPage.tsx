@@ -6,8 +6,9 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import { BookOpen, Clock } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getEpisodes } from '../api'
 import EmptyState from '../components/EmptyState'
 import GridCard from '../components/GridCard'
 import PageHeader from '../components/PageHeader'
@@ -28,8 +29,38 @@ import {
 } from '../db'
 import { useT } from '../i18n'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
-import type { LibraryItem, WatchedEpisode } from '../types'
+import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
 import { formatDate } from '../util'
+
+/**
+ * Title of one chapter, so a manga/comic card carries the same information a
+ * series card does — the unit's name under its number. Chapters are stored as
+ * season-1 episodes and `getEpisodes` already caches the list (titles come
+ * from MangaDex or Comic Vine), so this costs nothing after the first read.
+ */
+function useChapterInfo(item: LibraryItem, episode: number): EpisodeInfo | null {
+  const [info, setInfo] = useState<EpisodeInfo | null>(null)
+  // The item comes from a liveQuery, so it is a NEW object on every library
+  // change: depending on it would refetch (and blank the line) whenever
+  // anything else moved. It is read through a ref instead, and the deps name
+  // the fields the chapter list actually derives from — so a `mangadexId` or a
+  // chapter count that only arrives with a later metadata refresh still lands.
+  const latest = useRef(item)
+  latest.current = item
+  useEffect(() => {
+    let alive = true
+    setInfo(null)
+    getEpisodes(latest.current, 1)
+      .then((eps) => {
+        if (alive) setInfo(eps[episode - 1] ?? null)
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [item.id, item.mangadexId, item.totalEpisodes, episode])
+  return info
+}
 
 function MangaCard({
   item,
@@ -46,13 +77,16 @@ function MangaCard({
   const total = item.totalEpisodes ?? null
   const caughtUp = isCaughtUp(item, readCount)
   const remaining = total != null ? Math.max(0, total - readCount - 1) : 0
+  const chapter = useChapterInfo(item, caughtUp ? readCount : readCount + 1)
 
-  const subtitle = caughtUp ? (
+  // the chapter's name is the most useful line when there IS one to read; the
+  // release status takes over when there is nothing actionable
+  const status = caughtUp ? (
     <span className="inline-flex items-center gap-1.5 text-accent">
       <Clock size={13} /> {t('books.waiting')}
       {item.lastReleaseDate && (
         <span className="text-ink3">
-          • {t('books.lastOn')} {formatDate(item.lastReleaseDate, language)}
+          | {t('books.lastOn')} {formatDate(item.lastReleaseDate, language)}
         </span>
       )}
     </span>
@@ -63,10 +97,12 @@ function MangaCard({
   ) : total != null ? (
     `${total} ${t('books.chapters').toLowerCase()}`
   ) : null
+  const subtitle = !caughtUp && chapter?.title ? chapter.title : status
 
   const shared = {
     poster: item.poster,
     badge: !caughtUp && remaining > 0 ? `+${remaining}` : null,
+    subtitle,
     progress: item.status === 'watching' && total ? readCount / total : null,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
     onCheck: caughtUp ? undefined : () => markUpTo(item, 1, readCount + 1),
@@ -79,11 +115,19 @@ function MangaCard({
         {...shared}
         title={item.title}
         caption={label}
-        subtitle={caughtUp ? t('books.waiting') : item.ongoing ? t('books.ongoing') : null}
+        subtitle={
+          !caughtUp && chapter?.title
+            ? chapter.title
+            : caughtUp
+              ? t('books.waiting')
+              : item.ongoing
+                ? t('books.ongoing')
+                : null
+        }
       />
     )
   }
-  return <TrackCard {...shared} topLabel={item.title} title={label} subtitle={subtitle} />
+  return <TrackCard {...shared} topLabel={item.title} title={label} />
 }
 
 /**
@@ -103,9 +147,13 @@ function MangaRewatchCard({
   const t = useT()
   const nav = useNavigate()
   const total = totalEpisodesOf(item)
+  // chapters left in the round — the grade is on the ✓ already (see SeriesPage)
+  const remaining = total != null ? Math.max(0, total - next.done - 1) : 0
+  const chapter = useChapterInfo(item, next.episode)
   const shared = {
     poster: item.poster,
-    badge: `x${next.grade}`,
+    badge: remaining > 0 ? `+${remaining}` : null,
+    subtitle: chapter?.title ?? null,
     progress: total ? next.done / total : null,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
     onCheck: () => markRewatchUnit(item, next.season, next.episode, next.grade),
@@ -139,15 +187,17 @@ function BookCard({
   const shared = {
     poster: item.poster,
     title: item.title,
-    subtitle: parts.join(' • '),
-    badge: round,
+    subtitle: parts.join(' | '),
+    // no caption/badge for a one-shot: there is no chapter or episode to name,
+    // so the round would be the only thing written there — and it is already
+    // on the ✓ (`checkContent`)
     checkContent: round ?? undefined,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
     onCheck: () => setSingleStatus(item.id, stage === 'watching' ? 'completed' : 'watching'),
   }
 
-  if (view === 'grid') return <GridCard {...shared} caption={round} />
-  return <TrackCard {...shared} topLabel={item.genres?.slice(0, 2).join(' • ') || 'Book'} />
+  if (view === 'grid') return <GridCard {...shared} />
+  return <TrackCard {...shared} topLabel={item.genres?.slice(0, 2).join(' | ') || 'Book'} />
 }
 
 function SectionTitle({ text }: { text: string }) {

@@ -9,7 +9,15 @@
  */
 import { db, putCachedEpisodes } from '../db'
 import { isOnline } from '../net'
-import type { EpisodeInfo, MediaBase, MediaDetails, MediaType, Provider, SearchResult } from '../types'
+import type {
+  EpisodeInfo,
+  GameLength,
+  MediaBase,
+  MediaDetails,
+  MediaType,
+  Provider,
+  SearchResult,
+} from '../types'
 import {
   anilistDetails,
   anilistMangaTitleKeys,
@@ -19,7 +27,8 @@ import {
 } from './anilist'
 import { comicDetails, comicvineIssueTitles, searchComics } from './comicvine'
 import { ApiKeyMissingError } from './errors'
-import { igdbAvailable, igdbDetails, searchGamesIgdb } from './igdb'
+import { hltbLength } from './hltb'
+import { igdbAvailable, igdbDetails, igdbTimeToBeat, searchGamesIgdb } from './igdb'
 import { jikanEpisodeTitles } from './jikan'
 import { mangadexChapterTitles, mangadexDetails, searchManga as searchMangaMangadex } from './mangadex'
 import { bookDetails, searchBooks } from './openlibrary'
@@ -167,6 +176,37 @@ function dedupeSameWork(
   return out
 }
 
+/**
+ * How long a game takes — the number the whole time stat is built on, and the
+ * one thing neither IGDB's nor RAWG's detail payload carries.
+ *
+ * Sources in order of trust:
+ * 1. **HowLongToBeat** — thousands of submitted playthroughs per title, split
+ *    into main story / +extras / completionist. Needs the gateway.
+ * 2. **IGDB time-to-beat** — the same idea with far fewer submissions; the
+ *    fallback for titles HLTB doesn't match confidently.
+ * 3. **RAWG `playtime`** — an average of what RAWG users logged, already in
+ *    the payload. Coarse, but better than nothing.
+ *
+ * `playtime` ends up holding the main-story hours, i.e. what the stats and the
+ * cards read; `timeToBeat` keeps the whole breakdown and the source, so the
+ * detail page can show where the number came from.
+ */
+async function withGameLength(details: MediaDetails): Promise<MediaDetails> {
+  if (details.mediaType !== 'game') return details
+  let len: GameLength | null = await hltbLength(details.title, details.year)
+  if (!len) len = await igdbTimeToBeat(details.providerId)
+  if (!len && details.playtime) {
+    len = { main: details.playtime, plus: null, full: null, source: 'rawg' }
+  }
+  if (!len) return details
+  return {
+    ...details,
+    timeToBeat: len,
+    playtime: len.main ?? len.plus ?? len.full ?? details.playtime ?? null,
+  }
+}
+
 function fetchDetails(
   provider: Provider,
   mediaType: MediaType,
@@ -182,9 +222,9 @@ function fetchDetails(
     case 'openlibrary':
       return bookDetails(providerId)
     case 'rawg':
-      return gameDetails(providerId)
+      return gameDetails(providerId).then(withGameLength)
     case 'igdb':
-      return igdbDetails(providerId)
+      return igdbDetails(providerId).then(withGameLength)
     case 'comicvine':
       return comicDetails(providerId)
   }
@@ -203,8 +243,12 @@ const REVALIDATE_TTL = 1000 * 60 * 60 * 6 // 6h
  * - on a cache miss the fetch is synchronous; failures fall back to any
  *   cached copy, so a rate-limited provider can't blank a detail page.
  */
-/** Bump when cached payloads must be re-derived (v2: CJK-title EN fallback). */
-const CACHE_V = 2
+/**
+ * Bump when cached payloads must be re-derived.
+ * v2: CJK-title EN fallback · v3: games carry how-long-to-beat times ·
+ * v4: game artwork at retina/1080p sizes.
+ */
+const CACHE_V = 4
 
 export async function getDetails(
   provider: Provider,
@@ -229,9 +273,13 @@ export async function getDetails(
 
   if (cached) {
     // entries cached before the CJK-title fix hold raw Japanese titles that
-    // then leak into the library — refetch those NOW instead of after the
-    // 6h SWR window (once: the rewrite stamps the current version)
-    if ((cached.v ?? 1) < CACHE_V && CJK_RE.test(cached.details.title)) {
+    // then leak into the library, and an OLD game payload is stale twice over
+    // (no how-long-to-beat times, low-res artwork) — refetch those NOW instead
+    // of after the 6h SWR window (once: the rewrite stamps the current version)
+    const outdated =
+      (cached.v ?? 1) < CACHE_V &&
+      (CJK_RE.test(cached.details.title) || cached.details.mediaType === 'game')
+    if (outdated) {
       try {
         return await revalidate()
       } catch {

@@ -189,11 +189,16 @@ public class OneWidgetProvider extends AppWidgetProvider {
                     PendingIntent.getBroadcast(ctx, 0, cyc, cflags));
         }
 
-        // collection adapter — unique data URI per (id, filter) forces a reload
+        // Collection adapter. The data URI is per WIDGET only, deliberately
+        // WITHOUT the selected media: setRemoteAdapter keeps the existing
+        // adapter when the intent still filterEquals the old one, so tapping
+        // Games no longer tears the ListView down and builds a new one — which
+        // is what made the widget pop in and out on every switch. The category
+        // is read from SharedPreferences by the factory instead, and
+        // notifyAppWidgetViewDataChanged below rebinds the rows in place.
         Intent svc = new Intent(ctx, OneWidgetService.class);
         svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
-        svc.putExtra(EXTRA_CATEGORY, filter);
-        svc.setData(Uri.parse("onetracker://widget/" + id + "/" + filter));
+        svc.setData(Uri.parse("onetracker://widget/" + id));
         rv.setRemoteAdapter(R.id.widget_list, svc);
 
         rv.setEmptyView(R.id.widget_list, R.id.widget_empty);
@@ -232,7 +237,10 @@ public class OneWidgetProvider extends AppWidgetProvider {
     static class ThemeColors {
         int surface = Color.parseColor("#0b0b0e");
         int card = Color.parseColor("#17171c");
+        int card2 = Color.parseColor("#1f1f26");
+        int line = Color.parseColor("#2a2a33");
         int ink = Color.parseColor("#f4f4f5");
+        int ink2 = Color.parseColor("#a1a1aa");
         int ink3 = Color.parseColor("#71717a");
         int accent = Color.parseColor("#ffd60a");
 
@@ -244,7 +252,10 @@ public class OneWidgetProvider extends AppWidgetProvider {
                 if (theme != null) {
                     t.surface = parse(theme.optString("surface"), t.surface);
                     t.card = parse(theme.optString("card"), t.card);
+                    t.card2 = parse(theme.optString("card2"), t.card2);
+                    t.line = parse(theme.optString("line"), t.line);
                     t.ink = parse(theme.optString("ink"), t.ink);
+                    t.ink2 = parse(theme.optString("ink2"), t.ink2);
                     t.ink3 = parse(theme.optString("ink3"), t.ink3);
                     t.accent = parse(theme.optString("accent"), t.accent);
                 }

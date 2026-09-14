@@ -18,6 +18,38 @@ export interface ExternalRating {
   score: string
 }
 
+/**
+ * How long a game takes, in HOURS — the three HowLongToBeat styles plus where
+ * the numbers came from. The stats build on this, so it travels with the item
+ * (see `LibraryItem.myPlaytime` for the personal override).
+ */
+/**
+ * One FINISHED playthrough of a game, with the time counted for that run.
+ *
+ * `hours: null` means "count the how-long-to-beat time", so the run keeps
+ * following HLTB if the numbers are refreshed; a number is what the user typed
+ * for THAT run. One entry per run is what makes removing a replay able to
+ * remove exactly its own time.
+ */
+export interface GamePlaythrough {
+  hours: number | null
+  /** when the run was recorded (ms) */
+  at: number
+}
+
+export interface GameLength {
+  /** main story */
+  main?: number | null
+  /** main story + extras */
+  plus?: number | null
+  /** completionist (100%) */
+  full?: number | null
+  /** hltb = HowLongToBeat · igdb = IGDB time-to-beat · rawg = RAWG average */
+  source: 'hltb' | 'igdb' | 'rawg'
+  /** how many players submitted times (confidence signal, HLTB/IGDB) */
+  samples?: number | null
+}
+
 export interface Season {
   number: number
   name?: string
@@ -64,7 +96,10 @@ export interface MediaBase {
   // single media
   runtime?: number | null // movie minutes
   pages?: number | null // book pages / manga chapters
-  playtime?: number | null // game avg hours (from provider)
+  /** games: the length used everywhere (hours) — `timeToBeat`'s main story */
+  playtime?: number | null
+  /** games: full "how long to beat" breakdown behind `playtime` */
+  timeToBeat?: GameLength | null
   authors?: string[]
   /** still airing / releasing new chapters */
   ongoing?: boolean | null
@@ -104,7 +139,16 @@ export interface LibraryItem extends MediaBase {
   /** legacy (pre-v3): manga chapters counter — now stored as episode rows */
   chaptersRead?: number
   lastReadAt?: number | null
-  /** games: personal hours played (overrides provider playtime in stats) */
+  /**
+   * games: one entry per finished playthrough — the SOURCE OF TRUTH for both
+   * the time counted and `watchCount`, which is derived from it. Always written
+   * as an array (an empty one = never finished), see db.gamePlaythroughs.
+   */
+  playthroughs?: GamePlaythrough[]
+  /**
+   * @deprecated games: one manual total for the whole game. Replaced by
+   * `playthroughs` in db v8; only still read to migrate old rows and backups.
+   */
   myPlaytime?: number | null
   /** personal 0–10 rating, one decimal (null/undefined = not rated) */
   rating?: number | null

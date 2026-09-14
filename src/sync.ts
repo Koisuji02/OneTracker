@@ -20,7 +20,7 @@
 import { getDetails } from './api'
 import { buildBackup } from './backup'
 import { db, refreshItemMetadata } from './db'
-import { hasFreshToken, saveToDrive } from './drive'
+import { resumeGoogleSession, saveToDrive } from './drive'
 import { isOnline } from './net'
 import type { LibraryItem } from './types'
 
@@ -28,6 +28,8 @@ import type { LibraryItem } from './types'
 const MIN_INTERVAL = 30 * 60 * 1000
 /** Provider calls are rate-limited: refresh a handful of items, not the library. */
 const MAX_ITEMS = 20
+/** Extra slots for filling in missing game lengths (a one-off per title). */
+const MAX_GAMES = 12
 const CONCURRENCY = 3
 
 let lastRun = 0
@@ -58,6 +60,31 @@ function dueForRefresh(items: LibraryItem[]): LibraryItem[] {
         (b.lastReadAt ?? b.addedAt) - (a.lastReadAt ?? a.addedAt),
     )
     .slice(0, MAX_ITEMS)
+}
+
+/**
+ * Games whose stored snapshot is behind the app: no how-long-to-beat length,
+ * or artwork requested at the old low-res IGDB size.
+ *
+ * Neither can arrive on its own — `dueForRefresh` deliberately skips finished
+ * items, so a game completed before those landed would keep contributing
+ * nothing to the stats (and stay soft in the grid) until the user happened to
+ * reopen its page. One bounded batch per pass heals the backlog for good: both
+ * marks disappear as soon as the item is refreshed.
+ */
+const staleGame = (i: LibraryItem) =>
+  i.timeToBeat == null || !!i.poster?.includes('/t_cover_big/')
+
+function staleGames(items: LibraryItem[]): LibraryItem[] {
+  return items
+    .filter((i) => i.mediaType === 'game' && !i.archived && staleGame(i))
+    // the ones that already count towards the stats first, then by recency
+    .sort(
+      (a, b) =>
+        (a.status === 'planned' ? 1 : 0) - (b.status === 'planned' ? 1 : 0) ||
+        (b.completedAt ?? b.lastReadAt ?? b.addedAt) - (a.completedAt ?? a.lastReadAt ?? a.addedAt),
+    )
+    .slice(0, MAX_GAMES)
 }
 
 /** Refresh one item's snapshot; the SWR cache decides if a request happens. */
@@ -101,8 +128,12 @@ export async function syncLibrary(force = false): Promise<void> {
   lastRun = Date.now()
   try {
     const items = await db.items.toArray()
-    await pooled(dueForRefresh(items), refreshOne)
-    if (hasFreshToken()) {
+    const due = dueForRefresh(items)
+    const queued = new Set(due.map((i) => i.id))
+    await pooled([...due, ...staleGames(items).filter((g) => !queued.has(g.id))], refreshOne)
+    // resumes the Drive session silently when one can be resumed; it never
+    // opens a sign-in sheet, so this stays a background pass
+    if (await resumeGoogleSession()) {
       try {
         await saveToDrive(await buildBackup(), false)
       } catch {
