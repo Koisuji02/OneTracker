@@ -21,7 +21,7 @@ function subtitleOf(item: LibraryItem): string {
   const parts: string[] = []
   if (item.year) parts.push(String(item.year))
   if (item.runtime) parts.push(`${item.runtime} min`)
-  return parts.join(' • ')
+  return parts.join(' | ')
 }
 
 function SectionTitle({ text }: { text: string }) {
@@ -63,7 +63,8 @@ function MovieCard({
   const shared = {
     poster: item.poster,
     title: item.title,
-    badge: round,
+    // a film has no unit to name on the cover, so the round lives ONLY on the
+    // ✓ — a caption there could just say "x2", twice over
     checkContent: round ?? undefined,
     onClick: () => nav(`/media/${item.provider}/${item.mediaType}/${item.providerId}`),
     onCheck:
@@ -77,8 +78,8 @@ function MovieCard({
       <GridCard
         {...shared}
         // the cover already shows the artwork: the only line worth burning on
-        // it is the date you're waiting for (or the rewatch round you're in)
-        caption={stage === 'waiting' ? when : round}
+        // it is the date you're waiting for
+        caption={stage === 'waiting' ? when : null}
         subtitle={stage === 'waiting' ? null : subtitleOf(item)}
       />
     )
@@ -86,7 +87,7 @@ function MovieCard({
   return (
     <TrackCard
       {...shared}
-      topLabel={item.genres?.slice(0, 2).join(' • ') || t('nav.movies')}
+      topLabel={item.genres?.slice(0, 2).join(' | ') || t('nav.movies')}
       subtitle={subtitle}
     />
   )

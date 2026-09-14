@@ -35,6 +35,7 @@ import { ApiKeyMissingError, getDetails, getEpisodes } from '../api'
 import CheckButton from '../components/CheckButton'
 import Cover from '../components/Cover'
 import Gallery from '../components/Gallery'
+import GameTimeDialog from '../components/GameTimeDialog'
 import OfflineNotice from '../components/OfflineNotice'
 import PlatformChips from '../components/PlatformChips'
 import RatingBadge from '../components/RatingBadge'
@@ -45,18 +46,23 @@ import {
   addToLibrary,
   db,
   epKey,
+  gameBaseHours,
+  gamePlaythroughs,
   isCaughtUp,
   isEpisodic,
+  logGamePlaythrough,
+  logSingleView,
   markUpTo,
   mergeMeta,
   refreshItemMetadata,
   removeFromLibrary,
+  removeGamePlaythrough,
   rewatchSingle,
   rewatchUpTo,
   setGameStatus,
-  setMyPlaytime,
   setRangeWatched,
   setRating,
+  startGameReplay,
   setSeasonWatched,
   setSingleStatus,
   toggleArchived,
@@ -117,7 +123,7 @@ function UnitRow({
       {locked ? (
         <span
           aria-label="not aired yet"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-line text-ink4"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-line text-ink4"
         >
           <Lock size={14} />
         </span>
@@ -222,7 +228,7 @@ function SeasonBlock({
           }}
           disabled={busy}
           className={cn(
-            'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+            'rounded-lg border px-3 py-1 text-xs font-semibold transition-colors',
             allWatched
               ? 'border-accent bg-brand text-black'
               : 'border-line text-ink2 hover:border-accent hover:text-accent',
@@ -337,7 +343,7 @@ function ChapterChunk({
           }}
           disabled={busy}
           className={cn(
-            'rounded-full border px-3 py-1 text-xs font-semibold transition-colors',
+            'rounded-lg border px-3 py-1 text-xs font-semibold transition-colors',
             allRead
               ? 'border-accent bg-brand text-black'
               : 'border-line text-ink2 hover:border-accent hover:text-accent',
@@ -389,6 +395,8 @@ export default function DetailPage() {
   const [unitDialog, setUnitDialog] = useState<UnitDialog>(null)
   const [singleDialog, setSingleDialog] = useState(false)
   const [gameDialog, setGameDialog] = useState(false)
+  /** completing a game asks for that run's hours first (GameTimeDialog) */
+  const [timeDialog, setTimeDialog] = useState(false)
   const [ratingOpen, setRatingOpen] = useState(false)
   const [chapterEps, setChapterEps] = useState<EpisodeInfo[] | null>(null)
 
@@ -473,7 +481,7 @@ export default function DetailPage() {
             <p className="text-sm text-ink2">{t('search.tmdbKeyMissing')}</p>
             <Link
               to="/settings"
-              className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-black"
+              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-black"
             >
               {t('settings.title')}
             </Link>
@@ -495,6 +503,13 @@ export default function DetailPage() {
   const watchedCount = watchedMap.size
   const inLibrary = !!libItem
   const completed = libItem?.status === 'completed'
+  // games: the recorded playthroughs drive the replay label, the run list and
+  // what the completion sheet is about to add
+  const gameRuns = isGame && libItem ? gamePlaythroughs(libItem) : []
+  /** last hours the user typed for a run, prefilled into the next one */
+  const lastTypedHours = [...gameRuns].reverse().find((r) => r.hours != null)?.hours ?? null
+  /** playing a game that was already beaten at least once ("Ri-inizia xN") */
+  const inGameRound = isGame && libItem?.status === 'watching' && gameRuns.length > 0
   const chapterTotal = meta.totalEpisodes ?? null
   const chaptersDone = isManga ? watchedCount : 0
   // Chapter rows must ALWAYS be usable: fall back to the highest chapter the
@@ -523,7 +538,7 @@ export default function DetailPage() {
     meta.authors?.length ? meta.authors.join(', ') : null,
   ]
     .filter(Boolean)
-    .join(' • ')
+    .join(' | ')
 
   // manga chapter blocks of 100
   const chapterBlocks: Array<[number, number]> = []
@@ -544,7 +559,7 @@ export default function DetailPage() {
     <button
       onClick={() => nav(-1)}
       aria-label="back"
-      className="absolute left-3 top-safe z-20 grid h-10 w-10 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
+      className="absolute left-3 top-safe z-20 grid h-10 w-10 place-items-center rounded-xl bg-black/50 text-white backdrop-blur transition-colors hover:bg-black/70"
     >
       <ArrowLeft size={20} />
     </button>
@@ -577,7 +592,7 @@ export default function DetailPage() {
         {meta.genres.slice(0, 3).map((g) => (
           <span
             key={g}
-            className="rounded-full border border-line bg-card px-2.5 py-0.5 text-[11px] font-medium text-ink2"
+            className="rounded-lg border border-line bg-card px-2.5 py-0.5 text-[11px] font-medium text-ink2"
           >
             {g}
           </span>
@@ -586,7 +601,7 @@ export default function DetailPage() {
     )
 
   const lockedBtn = (
-    <div className="flex flex-1 flex-col items-center justify-center rounded-full border border-line bg-card py-2 text-ink3">
+    <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-line bg-card py-2 text-ink3">
       <span className="inline-flex items-center gap-1.5 text-sm font-bold">
         {t('detail.locked')}
         <Lock size={14} />
@@ -601,7 +616,7 @@ export default function DetailPage() {
     <button
       onClick={() => ensure()}
       disabled={!details}
-      className="flex flex-1 items-center justify-center gap-2 rounded-full bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95 disabled:opacity-50"
+      className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95 disabled:opacity-50"
     >
       <Plus size={18} strokeWidth={3} /> {t('detail.addToList')}
     </button>
@@ -618,7 +633,7 @@ export default function DetailPage() {
               else setSingleStatus(canonicalId, libItem?.status === 'watching' ? 'completed' : 'watching')
             }}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+              'flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition-transform active:scale-95',
               completed
                 ? 'border border-accent bg-brand/10 text-accent'
                 : 'bg-brand text-black',
@@ -627,7 +642,9 @@ export default function DetailPage() {
             <Check size={18} strokeWidth={3} />
             {libItem?.status === 'planned' && t('detail.start')}
             {libItem?.status === 'watching' &&
-              t(singleLabels[meta.mediaType]?.[0] ?? 'detail.markWatched')}
+              `${t(singleLabels[meta.mediaType]?.[0] ?? 'detail.markWatched')}${
+                (libItem?.watchCount ?? 1) >= 2 ? ` x${libItem?.watchCount}` : ''
+              }`}
             {completed && t(singleLabels[meta.mediaType]?.[1] ?? 'detail.watched')}
             {completed && (libItem?.watchCount ?? 1) >= 2 && ` x${libItem?.watchCount}`}
           </button>
@@ -639,14 +656,15 @@ export default function DetailPage() {
           <button
             onClick={() => setGameDialog(true)}
             className={cn(
-              'flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+              'flex flex-1 items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition-transform active:scale-95',
               libItem?.status === 'completed'
                 ? 'border border-accent bg-brand/10 text-accent'
                 : 'bg-brand text-black',
             )}
           >
             {libItem?.status === 'planned' && t('games.toPlay')}
-            {libItem?.status === 'watching' && t('games.playing')}
+            {libItem?.status === 'watching' &&
+              `${t('games.playing')}${inGameRound ? ` x${gameRuns.length + 1}` : ''}`}
             {libItem?.status === 'completed' &&
               ((libItem?.watchCount ?? 1) >= 2
                 ? `${t('games.replayed')} x${libItem?.watchCount}`
@@ -690,7 +708,7 @@ export default function DetailPage() {
     <button
       onClick={() => removeFromLibrary(canonicalId)}
       aria-label={t('detail.removeFromList')}
-      className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-500"
+      className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-500"
     >
       <Trash2 size={18} />
     </button>
@@ -701,7 +719,7 @@ export default function DetailPage() {
       onClick={() => toggleArchived(canonicalId)}
       aria-label={t('detail.archive')}
       className={cn(
-        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        'grid h-11 w-11 shrink-0 place-items-center rounded-2xl border transition-colors',
         libItem?.archived
           ? 'border-accent bg-brand text-black'
           : 'border-line text-ink3 hover:border-accent hover:text-accent',
@@ -719,7 +737,7 @@ export default function DetailPage() {
       }}
       aria-label="favorite"
       className={cn(
-        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        'grid h-11 w-11 shrink-0 place-items-center rounded-2xl border transition-colors',
         libItem?.favorite
           ? 'border-accent bg-brand text-black'
           : 'border-line text-ink3 hover:border-accent hover:text-accent',
@@ -739,7 +757,7 @@ export default function DetailPage() {
       }}
       aria-label={t('detail.owned')}
       className={cn(
-        'grid h-11 w-11 shrink-0 place-items-center rounded-full border transition-colors',
+        'grid h-11 w-11 shrink-0 place-items-center rounded-2xl border transition-colors',
         libItem?.owned
           ? 'border-accent bg-brand text-black'
           : 'border-line text-ink3 hover:border-accent hover:text-accent',
@@ -756,7 +774,7 @@ export default function DetailPage() {
       className={cn(
         'grid shrink-0 place-items-center transition-transform active:scale-90',
         libItem?.rating == null &&
-          'h-11 w-11 rounded-full border border-line text-ink3 transition-colors hover:border-accent hover:text-accent',
+          'h-11 w-11 rounded-2xl border border-line text-ink3 transition-colors hover:border-accent hover:text-accent',
       )}
     >
       {libItem?.rating != null ? (
@@ -769,7 +787,7 @@ export default function DetailPage() {
 
   // vertical rail used by the poster layout — order: rating, favorite, archive, trash
   const railBase =
-    'grid h-11 w-11 place-items-center rounded-full shadow-lg backdrop-blur transition-transform active:scale-90'
+    'grid h-11 w-11 place-items-center rounded-2xl shadow-lg backdrop-blur transition-transform active:scale-90'
   const railButtons = (
     <>
       <button
@@ -942,27 +960,6 @@ export default function DetailPage() {
         <RatingsBanners list={details.externalRatings} centered={detailLayout !== 'classic'} />
       )}
 
-      {/* game: personal playtime */}
-      {isGame && inLibrary && libItem?.status !== 'planned' && (
-        <div className="mt-4 flex items-center gap-3 px-4">
-          <label className="text-sm font-medium text-ink2">{t('games.myPlaytime')}</label>
-          <input
-            type="number"
-            min={0}
-            value={libItem?.myPlaytime ?? ''}
-            onChange={(e) =>
-              setMyPlaytime(
-                canonicalId,
-                e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
-              )
-            }
-            placeholder="0"
-            className="w-24 rounded-xl border border-line bg-card px-3 py-2 text-sm outline-none transition-colors focus:border-accent"
-          />
-          <span className="text-sm text-ink3">h</span>
-        </div>
-      )}
-
       {/* manga: chapter checklist */}
       {isManga && (
         <section className="mt-6 px-4">
@@ -971,7 +968,7 @@ export default function DetailPage() {
             {meta.ongoing && (
               <span
                 className={cn(
-                  'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold',
+                  'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-[11px] font-semibold',
                   caughtUp ? 'border-accent bg-brand/10 text-accent' : 'border-line text-ink3',
                 )}
               >
@@ -1016,7 +1013,7 @@ export default function DetailPage() {
             {meta.tags.map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-line bg-card px-3 py-1 text-xs font-medium text-ink2"
+                className="rounded-lg border border-line bg-card px-3 py-1 text-xs font-medium text-ink2"
               >
                 {tag}
               </span>
@@ -1044,7 +1041,7 @@ export default function DetailPage() {
           <div className="no-scrollbar flex gap-4 overflow-x-auto px-4">
             {details.cast.map((c, i) => (
               <div key={i} className="w-16 shrink-0 text-center">
-                <div className="h-16 w-16 overflow-hidden rounded-full border border-line bg-card2">
+                <div className="h-16 w-16 overflow-hidden rounded-2xl border border-line bg-card2">
                   {c.photo ? (
                     <img src={c.photo} alt={c.name} loading="lazy" className="h-full w-full object-cover" />
                   ) : (
@@ -1105,7 +1102,10 @@ export default function DetailPage() {
           label={meta.title}
           count={libItem?.watchCount ?? 1}
           onUnmark={() => setSingleStatus(canonicalId, 'watching')}
-          onRewatch={() => rewatchSingle(canonicalId)}
+          // one-shot media get both: back into Continue for a round you are
+          // about to do, or straight to the log for one you already did
+          onRestart={() => rewatchSingle(canonicalId)}
+          onRewatch={() => logSingleView(canonicalId)}
           onClose={() => setSingleDialog(false)}
         />
       )}
@@ -1119,6 +1119,38 @@ export default function DetailPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 truncate text-center text-base font-bold">{meta.title}</div>
+            {/* every recorded run, with the time it contributes: removing one
+                takes its time out of the totals with it */}
+            {gameRuns.length > 0 && (
+              <div className="mb-3.5 overflow-hidden rounded-2xl border border-line">
+                {gameRuns.map((run, i) => (
+                  <div
+                    key={`${run.at}-${i}`}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-2 text-xs',
+                      i > 0 && 'border-t border-line',
+                    )}
+                  >
+                    <span className="font-bold text-ink2">
+                      {t('games.run')} {i + 1}
+                    </span>
+                    <span className="ml-auto font-black tabular-nums">
+                      {run.hours ?? gameBaseHours(libItem ?? (meta as LibraryItem))} h
+                    </span>
+                    <span className="w-8 text-[10px] font-semibold uppercase text-ink4">
+                      {run.hours == null ? 'HLTB' : ''}
+                    </span>
+                    <button
+                      onClick={() => removeGamePlaythrough(canonicalId, i)}
+                      aria-label={t('common.remove')}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-400"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex flex-col gap-2.5">
               {(
                 [
@@ -1133,8 +1165,8 @@ export default function DetailPage() {
                     setGameDialog(false)
                   }}
                   className={cn(
-                    'rounded-full border py-3 text-sm font-bold transition-colors',
-                    libItem?.status === s
+                    'rounded-2xl border py-3 text-sm font-bold transition-colors',
+                    libItem?.status === s && !(s === 'watching' && inGameRound)
                       ? 'border-accent bg-brand text-black'
                       : 'border-line text-ink2 hover:border-accent hover:text-accent',
                   )}
@@ -1142,21 +1174,37 @@ export default function DetailPage() {
                   {label}
                 </button>
               ))}
+              {gameRuns.length > 0 && (
+                <button
+                  onClick={() => {
+                    startGameReplay(canonicalId)
+                    setGameDialog(false)
+                  }}
+                  className={cn(
+                    'rounded-2xl border py-3 text-sm font-bold transition-colors',
+                    inGameRound
+                      ? 'border-accent bg-brand text-black'
+                      : 'border-line text-ink2 hover:border-accent hover:text-accent',
+                  )}
+                >
+                  {t('rewatch.restart')} x{gameRuns.length + 1}
+                </button>
+              )}
               <button
                 onClick={() => {
-                  if (libItem?.status === 'completed') rewatchSingle(canonicalId)
-                  else setGameStatus(canonicalId, 'completed')
+                  // hours first, status second — see GameTimeDialog
                   setGameDialog(false)
+                  setTimeDialog(true)
                 }}
                 className={cn(
-                  'rounded-full py-3 text-sm font-bold transition-transform active:scale-95',
+                  'rounded-2xl py-3 text-sm font-bold transition-transform active:scale-95',
                   libItem?.status === 'completed'
                     ? 'bg-brand text-black'
                     : 'border border-line text-ink2 hover:border-accent hover:text-accent',
                 )}
               >
-                {libItem?.status === 'completed'
-                  ? `${t('games.replayed')} x${(libItem?.watchCount ?? 1) + 1}`
+                {gameRuns.length > 0
+                  ? `${t('games.replayed')} x${gameRuns.length + 1}`
                   : t('games.completed')}
               </button>
               <button
@@ -1168,6 +1216,20 @@ export default function DetailPage() {
             </div>
           </div>
         </div>
+      )}
+      {timeDialog && (
+        <GameTimeDialog
+          title={meta.title}
+          round={gameRuns.length + 1}
+          length={meta.timeToBeat ?? null}
+          initial={lastTypedHours}
+          onConfirm={async (hours) => {
+            setTimeDialog(false)
+            // one entry per run: `null` counts the HLTB time for THIS run
+            await logGamePlaythrough(canonicalId, hours)
+          }}
+          onClose={() => setTimeDialog(false)}
+        />
       )}
       {ratingOpen && (
         <RatingModal

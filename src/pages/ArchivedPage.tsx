@@ -75,7 +75,7 @@ export default function ArchivedPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>

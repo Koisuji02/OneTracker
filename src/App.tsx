@@ -15,7 +15,7 @@ import {
 import { buildBackup } from './backup'
 import BottomNav from './components/BottomNav'
 import { db } from './db'
-import { hasFreshToken, saveToDrive } from './drive'
+import { resumeGoogleSession, saveToDrive } from './drive'
 import { translate } from './i18n'
 import AccountPage from './pages/AccountPage'
 import AvatarPage from './pages/AvatarPage'
@@ -143,28 +143,33 @@ function AndroidBackHandler() {
 }
 
 /**
- * When a Google account is connected, the library auto-syncs to Drive on a
- * 10-minute timer and whenever the app goes to the background — but ONLY while
- * a valid access token is already in memory (from an explicit connect / manual
- * save this session). It never triggers a sign-in on its own, so the account
- * picker never pops up randomly; if the token has lapsed, auto-sync just skips
- * until the user next does something interactive.
+ * When a Google account is connected, the library auto-syncs to Drive: once at
+ * launch, then on a 10-minute timer and every time the app goes to the
+ * background.
+ *
+ * Each pass first RESUMES the session silently (see drive.resumeGoogleSession):
+ * the access token lives in memory only, so without that the backup used to
+ * skip on every fresh launch and the library reached Drive only when the user
+ * tapped "Backup su Drive" by hand. A sign-in sheet is still never opened on
+ * its own — a lapsed session just means this pass does nothing, and Settings
+ * shows when the last backup actually landed.
  */
 function DriveAutoSync() {
   const { googleEmail } = useSettings()
   useEffect(() => {
     if (!googleEmail) return
     const sync = async () => {
-      if (!hasFreshToken()) return
+      if (!(await resumeGoogleSession())) return
       try {
         await saveToDrive(await buildBackup(), false)
       } catch {
-        // silent best-effort
+        // silent best-effort; the failure is stamped in settings
       }
     }
+    void sync()
     const interval = setInterval(sync, 10 * 60 * 1000)
     const onHide = () => {
-      if (document.visibilityState === 'hidden') sync()
+      if (document.visibilityState === 'hidden') void sync()
     }
     document.addEventListener('visibilitychange', onHide)
     return () => {

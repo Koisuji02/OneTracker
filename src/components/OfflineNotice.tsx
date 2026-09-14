@@ -13,7 +13,7 @@ export default function OfflineNotice({ hint }: { hint?: string }) {
   const t = useT()
   return (
     <div className="mx-4 flex flex-col items-center gap-3 rounded-2xl border border-dashed border-line px-6 py-12 text-center">
-      <span className="grid h-16 w-16 place-items-center rounded-full bg-card2 text-ink3">
+      <span className="grid h-16 w-16 place-items-center rounded-2xl bg-card2 text-ink3">
         <WifiOff size={30} />
       </span>
       <p className="text-base font-bold text-ink">{t('offline.title')}</p>
@@ -26,7 +26,7 @@ export default function OfflineNotice({ hint }: { hint?: string }) {
 export function OfflineChip({ text }: { text?: string }) {
   const t = useT()
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-card2 px-3 py-1.5 text-xs font-semibold text-ink3">
+    <span className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-card2 px-3 py-1.5 text-xs font-semibold text-ink3">
       <WifiOff size={13} />
       {text ?? t('offline.title')}
     </span>

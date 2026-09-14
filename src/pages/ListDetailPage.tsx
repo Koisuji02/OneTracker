@@ -40,7 +40,7 @@ export default function ListDetailPage() {
         <button
           onClick={() => nav(-1)}
           aria-label="back"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent"
         >
           <ArrowLeft size={18} />
         </button>
@@ -55,14 +55,14 @@ export default function ListDetailPage() {
             }
           }}
           aria-label="delete list"
-          className="grid h-10 w-10 place-items-center rounded-full border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-400"
+          className="grid h-10 w-10 place-items-center rounded-xl border border-line text-ink3 transition-colors hover:border-red-500 hover:text-red-400"
         >
           <Trash2 size={16} />
         </button>
         <button
           onClick={() => setPicking(true)}
           aria-label={t('lists.add')}
-          className="grid h-10 w-10 place-items-center rounded-full text-black transition-transform active:scale-90"
+          className="grid h-10 w-10 place-items-center rounded-xl text-black transition-transform active:scale-90"
           style={{ background: list.color }}
         >
           <Plus size={18} strokeWidth={3} />
@@ -94,7 +94,7 @@ export default function ListDetailPage() {
                   <button
                     aria-label="remove from list"
                     onClick={() => toggleListItem(id, i.id)}
-                    className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white backdrop-blur transition-colors hover:bg-red-600"
+                    className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-lg bg-black/70 text-white backdrop-blur transition-colors hover:bg-red-600"
                   >
                     <X size={13} strokeWidth={3} />
                   </button>
@@ -120,7 +120,7 @@ export default function ListDetailPage() {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                   placeholder={t('lists.pickerFilter')}
-                  className="w-full rounded-full border border-line bg-surface py-2.5 pl-10 pr-4 text-sm outline-none focus:border-accent"
+                  className="w-full rounded-xl border border-line bg-surface py-2.5 pl-10 pr-4 text-sm outline-none focus:border-accent"
                 />
               </div>
             </div>
@@ -140,7 +140,7 @@ export default function ListDetailPage() {
                     </div>
                     <span className="min-w-0 flex-1 truncate text-sm font-medium">{i.title}</span>
                     <span
-                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full border-2"
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border-2"
                       style={
                         included
                           ? { background: list.color, borderColor: list.color, color: '#000' }

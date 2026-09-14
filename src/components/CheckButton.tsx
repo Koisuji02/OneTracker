@@ -23,7 +23,7 @@ export default function CheckButton({
         onClick()
       }}
       className={cn(
-        'grid shrink-0 place-items-center rounded-full border-2 transition-all active:scale-90',
+        'grid shrink-0 place-items-center rounded-xl border-2 transition-all active:scale-90',
         size === 'md' ? 'h-11 w-11' : 'h-8 w-8',
         checked
           ? 'border-accent bg-brand text-black'

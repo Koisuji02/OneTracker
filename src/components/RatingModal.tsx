@@ -54,14 +54,14 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
             <button
               aria-label="+0.1"
               onClick={() => bump(0.1)}
-              className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
+              className="grid h-8 w-8 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
             >
               <Plus size={14} strokeWidth={3} />
             </button>
             <button
               aria-label="-0.1"
               onClick={() => bump(-0.1)}
-              className="grid h-8 w-8 place-items-center rounded-full border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
+              className="grid h-8 w-8 place-items-center rounded-xl border border-line text-ink2 transition-colors hover:border-accent hover:text-accent active:scale-90"
             >
               <Minus size={14} strokeWidth={3} />
             </button>
@@ -87,7 +87,7 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
               onSave(Math.round(value * 10) / 10)
               onClose()
             }}
-            className="rounded-full bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95"
+            className="rounded-2xl bg-brand py-3 text-sm font-bold text-black transition-transform active:scale-95"
           >
             {t('common.save')}
           </button>
@@ -97,7 +97,7 @@ export default function RatingModal({ title, initial, onSave, onRemove, onClose 
                 onRemove()
                 onClose()
               }}
-              className="rounded-full border border-line py-3 text-sm font-bold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
+              className="rounded-2xl border border-line py-3 text-sm font-bold text-ink2 transition-colors hover:border-red-500 hover:text-red-400"
             >
               {t('rating.remove')}
             </button>

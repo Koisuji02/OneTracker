@@ -9,9 +9,25 @@
  *   is a dead end on device; the native flow is the only supported option. It
  *   returns an access token carrying the Drive scope, usable directly against
  *   the Drive REST API, and re-issues one silently once the account is granted.
+ *
+ * SESSIONS. The access token lives in memory only (it expires in an hour, so
+ * storing it buys nothing) and `resumeGoogleSession` re-mints it WITHOUT any
+ * UI before every background save — otherwise nothing could reach Drive after
+ * an app restart until the user tapped "Backup su Drive" by hand.
+ *
+ * How far that reaches depends on the gateway:
+ * - WITH the Google client secret configured on it, sign-in runs in the
+ *   plugin's `offline` mode: it returns an authorization code, the gateway
+ *   exchanges it for a REFRESH token (the secret must never ship in an APK),
+ *   and from then on a new access token can be minted silently forever.
+ * - WITHOUT it, `online` mode is used and the silent path is limited to the
+ *   ~1h the plugin's own persisted token lasts; after that only an interactive
+ *   sign-in helps. Both modes work, the second one just needs a tap now and
+ *   then, and Settings shows when the last backup actually landed.
  */
 import { SocialLogin } from '@capgo/capacitor-social-login'
 import { Capacitor } from '@capacitor/core'
+import { gatewayEnabled, gatewayHeaders, gatewayUrl } from './api/gateway'
 import { getSettings, updateSettings } from './settings'
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
@@ -30,47 +46,194 @@ declare global {
 const isNative = () => Capacitor.isNativePlatform()
 let token: { value: string; exp: number } | null = null
 
-/** Only a live in-memory access token counts as "fresh" — auto-sync uses this
- *  and NEVER falls back to an interactive sign-in, so no picker pops on its own. */
-export function hasFreshToken(): boolean {
+/** Keep an access token in memory (Google's last about an hour). */
+function setToken(value: string, expiresIn = 3600): string {
+  token = { value, exp: Date.now() + expiresIn * 1000 }
+  return value
+}
+
+/** Google profile for an access token — an offline sign-in returns none. */
+async function fetchProfile(at: string): Promise<any> {
+  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+    headers: { Authorization: `Bearer ${at}` },
+  })
+  if (!res.ok) return null
+  return res.json()
+}
+
+// -------------------------------------------- gateway token exchange (Google)
+
+interface GoogleTokens {
+  access_token?: string
+  expires_in?: number
+  refresh_token?: string
+  error?: string
+}
+
+/**
+ * Run one Google token operation through the gateway, which is the only place
+ * that holds the web client's secret (see worker/README.md).
+ */
+async function gatewayToken(payload: Record<string, string>): Promise<GoogleTokens> {
+  const base = gatewayUrl()
+  if (!base) throw new Error('gateway-required')
+  const res = await fetch(`${base}/google/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...gatewayHeaders() },
+    body: JSON.stringify(payload),
+  })
+  const data = (await res.json().catch(() => ({}))) as GoogleTokens
+  if (!res.ok || !data.access_token) throw new Error(data.error ?? `google-token-${res.status}`)
+  return data
+}
+
+/** Hand a refresh token back to Google (best-effort, on disconnect). */
+async function gatewayRevoke(refreshToken: string): Promise<void> {
+  const base = gatewayUrl()
+  if (!base) return
+  await fetch(`${base}/google/token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...gatewayHeaders() },
+    body: JSON.stringify({ revoke: refreshToken }),
+  })
+}
+
+/**
+ * Whether the gateway can exchange codes for refresh tokens (its /health says
+ * `google`). Decided once per session: it picks the sign-in mode, so it must
+ * not flip halfway through a login.
+ */
+let refreshCapable: boolean | null = null
+async function gatewayCanRefresh(): Promise<boolean> {
+  if (!gatewayEnabled()) return false
+  if (refreshCapable !== null) return refreshCapable
+  try {
+    const res = await fetch(`${gatewayUrl()}/health`, { headers: gatewayHeaders() })
+    refreshCapable = !!(await res.json())?.configured?.google
+  } catch {
+    refreshCapable = false // offline or gateway down: online mode still works
+  }
+  return refreshCapable
+}
+
+/** A live in-memory access token. Callers go through resumeGoogleSession. */
+function hasFreshToken(): boolean {
   return !!token && Date.now() < token.exp - 60_000
 }
 
 // ------------------------------------------------------------ native (capgo)
 
-let socialInited = false
-async function ensureSocialInit(): Promise<void> {
-  if (socialInited) return
-  // On Android the plugin takes the WEB client id; the Android OAuth client is
-  // matched implicitly by package name + SHA-1 registered in Google Cloud.
-  const webClientId = getSettings().googleClientId.trim() || getSettings().googleClientIdAndroid.trim()
+type GoogleMode = 'online' | 'offline'
+
+let socialMode: GoogleMode | null = null
+
+/**
+ * Initialize the plugin for the mode we can actually use. `offline` yields an
+ * authorization code the gateway turns into a refresh token; `online` yields a
+ * short-lived access token directly. It needs the WEB client id either way —
+ * the Android OAuth client is matched implicitly by package name + SHA-1
+ * registered in Google Cloud.
+ */
+async function ensureSocialInit(): Promise<GoogleMode> {
+  const settings = getSettings()
+  const webClientId = settings.googleClientId.trim() || settings.googleClientIdAndroid.trim()
   if (!webClientId) throw new Error('missing-client-id')
-  await SocialLogin.initialize({ google: { webClientId, mode: 'online' } })
-  socialInited = true
+  const mode: GoogleMode = (await gatewayCanRefresh()) ? 'offline' : 'online'
+  if (socialMode !== mode) {
+    await SocialLogin.initialize({ google: { webClientId, mode } })
+    socialMode = mode
+  }
+  return mode
 }
 
-async function nativeLogin(): Promise<{ accessToken: string; profile: any }> {
-  await ensureSocialInit()
+async function nativeLogin(): Promise<{ accessToken: string; expiresIn: number; profile: any }> {
+  const mode = await ensureSocialInit()
   const res: any = await SocialLogin.login({
     provider: 'google',
-    options: { scopes: SCOPE_ARRAY },
+    // offline mode must ask for the refresh token explicitly, or Google only
+    // re-issues one the very first time the account is granted
+    options: { scopes: SCOPE_ARRAY, forceRefreshToken: mode === 'offline' },
   })
   const r = res?.result ?? res
+
+  if (mode === 'offline') {
+    const code = r?.serverAuthCode as string | undefined
+    if (!code) throw new Error('no-server-auth-code')
+    try {
+      const t = await gatewayToken({ code })
+      // the refresh token comes back on the FIRST grant only — never drop one
+      if (t.refresh_token) updateSettings({ googleRefreshToken: t.refresh_token })
+      return { accessToken: t.access_token as string, expiresIn: t.expires_in ?? 3600, profile: null }
+    } catch {
+      // the gateway turned out not to be able to exchange it (secret rotated,
+      // gateway rolled back): drop to online mode so signing in still works
+      refreshCapable = false
+      socialMode = null
+      return nativeLogin()
+    }
+  }
+
   const accessToken = r?.accessToken?.token as string | undefined
   if (!accessToken) throw new Error('no-access-token')
-  return { accessToken, profile: r?.profile ?? null }
+  return { accessToken, expiresIn: 3600, profile: r?.profile ?? null }
+}
+
+/**
+ * New access token from the stored refresh token, or null when there isn't one
+ * (or it no longer works). Platform-independent: the exchange is the gateway's
+ * job, so this is the silent path on device AND in the browser.
+ */
+async function refreshedToken(): Promise<string | null> {
+  const stored = getSettings().googleRefreshToken
+  if (!stored) return null
+  try {
+    const t = await gatewayToken({ refresh_token: stored })
+    return setToken(t.access_token as string, t.expires_in ?? 3600)
+  } catch (err) {
+    // invalid_grant = revoked by the user (or unused for six months): forget
+    // it, so Settings offers a reconnect instead of retrying forever
+    if (String((err as Error)?.message).includes('invalid_grant')) {
+      updateSettings({ googleRefreshToken: null })
+    }
+    return null
+  }
+}
+
+/**
+ * A Drive token with NO user interface, for an account already connected.
+ *
+ * 1. A stored REFRESH token is the real answer: the gateway trades it for a new
+ *    access token, at any distance in time, with nothing on screen.
+ * 2. Otherwise (online mode) the plugin persisted its own tokens in
+ *    SharedPreferences and reloads them on `initialize`, so
+ *    `getAuthorizationCode` returns one — validated against Google — until it
+ *    expires after about an hour, at which point the plugin clears its state.
+ *    (`SocialLogin.refresh` is not implemented on Android, so that is the end
+ *    of the silent road.)
+ */
+async function silentTokenNative(): Promise<string | null> {
+  const viaRefresh = await refreshedToken()
+  if (viaRefresh) return viaRefresh
+  try {
+    await ensureSocialInit()
+    const at = (await SocialLogin.getAuthorizationCode({ provider: 'google' }))?.accessToken
+    return at ? setToken(at) : null
+  } catch {
+    return null
+  }
 }
 
 async function getAccessTokenNative(interactive: boolean): Promise<string> {
   if (token && Date.now() < token.exp - 60_000) return token.value
-  // background/auto sync must NEVER open the account picker: only an explicit
-  // user action (connect / manual save / restore) may sign in. When the cached
-  // token is gone (app restarted, or >1h old) auto-sync simply skips until the
-  // user next does something interactive.
+  // silent first, ALWAYS: the account is already granted, so a restarted app
+  // (or a token older than an hour) gets a new one with no sheet at all
+  const silent = await silentTokenNative()
+  if (silent) return silent
+  // only an explicit user action (connect / manual save / restore) may open the
+  // account picker — background work must never surprise the user with one
   if (!interactive) throw new Error('needs-auth')
-  const { accessToken } = await nativeLogin()
-  token = { value: accessToken, exp: Date.now() + 3600_000 }
-  return accessToken
+  const { accessToken, expiresIn } = await nativeLogin()
+  return setToken(accessToken, expiresIn)
 }
 
 // -------------------------------------------------------------- web (GIS)
@@ -89,8 +252,15 @@ function loadGis(): Promise<void> {
   return gisPromise
 }
 
+/**
+ * GIS token client. With `silent` the browser is asked for a token without any
+ * consent screen (`prompt: ''`), which succeeds when the Google session is
+ * still alive and the scopes were granted before — and simply fails otherwise,
+ * which is exactly what a background save wants.
+ */
 async function getAccessTokenWeb(interactive: boolean): Promise<string> {
-  if (!interactive) throw new Error('needs-auth')
+  const viaRefresh = await refreshedToken()
+  if (viaRefresh) return viaRefresh
   const clientId = getSettings().googleClientId.trim()
   if (!clientId) throw new Error('missing-client-id')
   await loadGis()
@@ -98,6 +268,7 @@ async function getAccessTokenWeb(interactive: boolean): Promise<string> {
     const client = window.google.accounts.oauth2.initTokenClient({
       client_id: clientId,
       scope: SCOPES,
+      ...(interactive ? {} : { prompt: '' }),
       callback: (resp: any) => {
         if (resp.error) {
           reject(new Error(resp.error))
@@ -124,24 +295,46 @@ export async function getAccessToken(interactive = true): Promise<string> {
   return isNative() ? getAccessTokenNative(interactive) : getAccessTokenWeb(interactive)
 }
 
+/**
+ * Bring the Drive session back with NO user interface. Call it at app start
+ * (and before any background save): with an account connected the token is
+ * re-minted from the grant Play Services / the browser already holds, so
+ * auto-backup works from the first minute after launch instead of waiting for
+ * the user to tap something in Settings.
+ *
+ * Returns whether Drive is reachable now. Never throws, never shows UI.
+ */
+export async function resumeGoogleSession(): Promise<boolean> {
+  const { googleEmail, googleRefreshToken } = getSettings()
+  if (!googleEmail && !googleRefreshToken) return false // nothing to resume
+  if (hasFreshToken()) return true
+  try {
+    if (isNative()) return (await silentTokenNative()) != null
+    await getAccessTokenWeb(false)
+    return true
+  } catch {
+    return false // session gone (revoked, signed out, offline) — Settings can reconnect
+  }
+}
+
 /** Sign in with Google and store the profile in settings. */
 export async function connectGoogle(): Promise<void> {
   if (isNative()) {
-    const { accessToken, profile } = await nativeLogin()
-    token = { value: accessToken, exp: Date.now() + 3600_000 }
+    const { accessToken, expiresIn, profile } = await nativeLogin()
+    setToken(accessToken, expiresIn)
+    // an offline sign-in returns the code and nothing else, so the account
+    // details come from Google with the token we just got
+    const p = profile ?? (await fetchProfile(accessToken))
     updateSettings({
-      googleEmail: profile?.email ?? null,
-      googleName: profile?.name ?? null,
-      googlePicture: profile?.imageUrl ?? null,
+      googleEmail: p?.email ?? null,
+      googleName: p?.name ?? null,
+      googlePicture: p?.imageUrl ?? p?.picture ?? null,
     })
     return
   }
   const at = await getAccessTokenWeb(true)
-  const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: `Bearer ${at}` },
-  })
-  if (!res.ok) throw new Error('Failed to fetch Google profile')
-  const u = await res.json()
+  const u = await fetchProfile(at)
+  if (!u) throw new Error('Failed to fetch Google profile')
   updateSettings({
     googleEmail: u.email ?? null,
     googleName: u.name ?? null,
@@ -150,13 +343,25 @@ export async function connectGoogle(): Promise<void> {
 }
 
 export function disconnectGoogle(): void {
+  const stored = getSettings().googleRefreshToken
+  // a refresh token outlives the app, so hand it back rather than orphan it
+  if (stored) gatewayRevoke(stored).catch(() => {})
   if (isNative()) {
+    // rejects in offline mode (the plugin says so) — nothing to clean up there
     SocialLogin.logout({ provider: 'google' }).catch(() => {})
   } else if (token && window.google?.accounts?.oauth2) {
     window.google.accounts.oauth2.revoke(token.value, () => {})
   }
   token = null
-  updateSettings({ googleEmail: null, googleName: null, googlePicture: null })
+  socialMode = null // the next connect re-initializes, mode included
+  updateSettings({
+    googleEmail: null,
+    googleName: null,
+    googlePicture: null,
+    googleRefreshToken: null,
+    lastBackupAt: null,
+    lastBackupError: null,
+  })
 }
 
 async function findBackupFileId(at: string): Promise<string | null> {
@@ -170,8 +375,24 @@ async function findBackupFileId(at: string): Promise<string | null> {
   return data.files?.[0]?.id ?? null
 }
 
-/** Upload the backup JSON to the app's hidden Drive folder (create or update). */
+/**
+ * Upload the backup JSON to the app's hidden Drive folder (create or update).
+ *
+ * Every attempt stamps `lastBackupAt` / `lastBackupError` in settings: auto-
+ * backup is silent, and without a stamp there is no way to tell a working sync
+ * from one that has been failing for a week.
+ */
 export async function saveToDrive(json: string, interactive = true): Promise<void> {
+  try {
+    await uploadBackup(json, interactive)
+    updateSettings({ lastBackupAt: Date.now(), lastBackupError: null })
+  } catch (err) {
+    updateSettings({ lastBackupError: (err as Error)?.message ?? 'error' })
+    throw err
+  }
+}
+
+async function uploadBackup(json: string, interactive: boolean): Promise<void> {
   const at = await getAccessToken(interactive)
   const existing = await findBackupFileId(at)
   let res: Response
