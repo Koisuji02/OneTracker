@@ -6,7 +6,7 @@ import {
   CloudDownload,
   CloudUpload,
   Download,
-  KeyRound,
+  Info,
   Languages,
   Loader2,
   LogOut,
@@ -171,8 +171,9 @@ function ActionRow({
   )
 }
 
-/** Web fallback; on device the real installed versionName wins (see below). */
-const BUILD_VERSION = '1.0.35'
+/** Web fallback, read from android/app/build.gradle at build time (vite.config)
+ *  so it can't drift; on device the real installed versionName wins below. */
+const BUILD_VERSION = __APP_VERSION__
 
 export default function SettingsPage() {
   const t = useT()
@@ -635,20 +636,17 @@ export default function SettingsPage() {
         />
       </Section>
 
-      {/* attribution required by the providers' free/non-commercial terms */}
-      <div className="mt-8 flex flex-col items-center gap-1 px-6 text-center text-xs text-ink4">
-        <div className="flex items-center gap-1.5">
-          <KeyRound size={12} />
-          {t('settings.creditsIntro')}
-        </div>
-        <div className="leading-relaxed">
-          TMDB · IGDB · AniList · MangaDex · MyAnimeList (Jikan) · Open Library · Comic Vine · OMDb
-        </div>
-        <div className="mt-1 text-[11px] leading-relaxed text-ink4/80">
-          This product uses the TMDB API but is not endorsed or certified by TMDB.
-        </div>
-        <div className="mt-1 font-mono">v{version}</div>
-      </div>
+      {/* the providers' attribution now lives in full on the About screen,
+          which is where TMDB's terms ask for it (an About/Credits section) */}
+      <Section title={t('about.title')}>
+        <ActionRow
+          label={t('settings.about')}
+          icon={<Info size={18} />}
+          onClick={() => nav('/about')}
+        />
+      </Section>
+
+      <div className="mt-6 text-center font-mono text-xs text-ink4">v{version}</div>
 
       {toast && (
         <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-black shadow-2xl md:bottom-10">

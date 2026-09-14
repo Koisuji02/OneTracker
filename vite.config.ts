@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -53,7 +54,21 @@ function cspMeta(): Plugin {
   }
 }
 
+/**
+ * The version the About screen shows, read from the Android build file so
+ * there is ONE source of truth: what the store lists is what the app says.
+ */
+function appVersion(): string {
+  try {
+    const gradle = readFileSync('android/app/build.gradle', 'utf8')
+    return gradle.match(/versionName\s+"([^"]+)"/)?.[1] ?? '0.0.0'
+  } catch {
+    return '0.0.0' // building without the android folder (web-only deploy)
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), cloudflare(), cspMeta()],
+  define: { __APP_VERSION__: JSON.stringify(appVersion()) },
 })
