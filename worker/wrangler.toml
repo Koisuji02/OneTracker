@@ -11,3 +11,29 @@ preview_urls = false
 
 [observability]
 enabled = true
+
+# Abuse protection. APP_TOKEN ships inside the APK, so anyone who unzips it can
+# point traffic here; these keep one source from eating the daily quota that
+# everyone else shares. Limits are per client IP and deliberately far above what
+# the app does in normal use (an app launch peaks around 30-60 requests/min).
+[[ratelimits]]
+name = "RL_API"
+namespace_id = "1001"
+
+  [ratelimits.simple]
+  limit = 120
+  period = 60
+
+# HowLongToBeat gets its own, tighter budget: two upstream calls per miss, on
+# an unofficial endpoint we must not hammer. It is a SEPARATE bucket so a game
+# backfill (the sync pass fills up to 12 lengths in one burst) can never eat
+# the allowance a Drive token refresh needs.
+# Note: the limiter is approximate and per-colo — it lets a few through past
+# the threshold before it bites, so these are shields, not precise quotas.
+[[ratelimits]]
+name = "RL_HEAVY"
+namespace_id = "1002"
+
+  [ratelimits.simple]
+  limit = 40
+  period = 60

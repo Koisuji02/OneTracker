@@ -77,6 +77,13 @@ const IMAGE_PROVIDERS = {
  */
 const TTL_SEARCH = 60 * 60 // 1 h
 const TTL_DETAIL = 24 * 60 * 60 // 24 h
+/**
+ * For answers that do not change and whose upstream we most want to spare:
+ * a game's how-long-to-beat time is a years-old crowd average (and HLTB is an
+ * unofficial endpoint), and OMDb's critic scores move glacially while its free
+ * key allows only ~1,000 calls a DAY across every user of this gateway.
+ */
+const TTL_STATIC = 7 * 24 * 60 * 60 // 7 days
 
 const isSearch = (pathname, body = '') =>
   /\/search|\/games\?|q=|query=|title=/i.test(pathname) || /^\s*search\s+"/i.test(body)
@@ -362,6 +369,23 @@ async function handleHltb(query) {
   })
 }
 
+/**
+ * Per-IP rate limit. Returns true when the request may proceed.
+ *
+ * The binding is optional on purpose: a deployment without it (or a plan that
+ * doesn't offer it) must keep working rather than fail closed — this is a
+ * shield against abuse, not an auth check.
+ */
+async function withinLimit(limiter, ip) {
+  if (!limiter || !ip) return true
+  try {
+    const { success } = await limiter.limit({ key: ip })
+    return success
+  } catch {
+    return true // never let the shield take the gateway down
+  }
+}
+
 // ------------------------------------------------------------- entrypoint
 
 export default {
@@ -370,6 +394,14 @@ export default {
 
     const url = new URL(request.url)
     const [, section, provider, ...rest] = url.pathname.split('/')
+
+    // health stays reachable so the app can always diagnose itself
+    if (section !== 'health' && url.pathname !== '/health') {
+      const ip = request.headers.get('CF-Connecting-IP')
+      const heavy = section === 'hltb'
+      const ok = await withinLimit(heavy ? env.RL_HEAVY : env.RL_API, ip)
+      if (!ok) return json({ error: 'rate-limited' }, 429)
+    }
 
     // optional shared token: keeps casual strangers from using this as an open
     // proxy. It ships in the app, so treat it as friction, not as security —
@@ -393,6 +425,9 @@ export default {
             // up to Drive in the background indefinitely
             google: !!(env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CLIENT_ID),
             appToken: !!env.APP_TOKEN,
+            // abuse shield: both must be true for it to do anything
+            rateLimit: !!(env.RL_API && env.RL_HEAVY),
+            clientIp: !!request.headers.get('CF-Connecting-IP'),
           },
           // Deliberately only booleans. This used to also report the LENGTH of
           // every string binding, which is a free hint about the shape of each
@@ -418,7 +453,7 @@ export default {
         }
         // game lengths barely move; cache them for the full detail TTL
         const key = await cacheKeyFor(request, url, `hltb:${query}`)
-        return await cached(ctx, key, TTL_DETAIL, () => handleHltb(query))
+        return await cached(ctx, key, TTL_STATIC, () => handleHltb(query))
       }
 
       if (section === 'igdb') {
@@ -456,7 +491,10 @@ export default {
         cfg.auth?.(target, env, headers)
 
         const key = await cacheKeyFor(request, url, body)
-        return await cached(ctx, key, isSearch(url.pathname + url.search, body) ? TTL_SEARCH : TTL_DETAIL, async () =>
+        // OMDb is the tightest budget of the lot (~1,000 calls a DAY for every
+        // user of this gateway put together) and a critic score barely moves
+        const detailTtl = provider === 'omdb' ? TTL_STATIC : TTL_DETAIL
+        return await cached(ctx, key, isSearch(url.pathname + url.search, body) ? TTL_SEARCH : detailTtl, async () =>
           passThrough(
             await fetch(target.toString(), {
               method: request.method,

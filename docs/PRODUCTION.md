@@ -60,10 +60,10 @@ in the order things break:
 
 ### What to do about it
 
-1. **Cache harder at the edge.** Today: 1 h searches, 24 h details. A finished
-   film's metadata does not change — 7 days for details and 30 days for
-   ratings would cut upstream calls by an order of magnitude. This is the
-   single highest-value change and it is ~3 lines in `worker/src/index.js`.
+1. **Cache at the edge** — done for the two that matter: HLTB and OMDb answers
+   are kept 7 days (`TTL_STATIC`), searches 1 h, everything else 24 h. Episode
+   and chapter lists deliberately stay at 24 h: a new episode has to show up
+   the day it airs, which is the whole point of the Continue list.
 2. **Let the tight providers degrade.** Ratings (OMDb) and comics (Comic Vine)
    already fail silently. Keep it that way — a missing IMDb banner is not an
    outage.
@@ -87,33 +87,55 @@ restricts in-app donation links for non-charities).
 
 ## 5. Blockers before a public release
 
-These are hard requirements, not nice-to-haves.
+### Done
 
-- [ ] **TMDB attribution.** The notice *"This product uses the TMDB API but is
-      not endorsed or certified by TMDB"* plus their logo must appear in an
-      About/Credits section. **The app has no About screen yet — one is
-      needed.** Add RAWG/IGDB/MangaDex/HLTB credits in the same place.
-- [ ] **Privacy policy URL**, hosted (GitHub Pages is fine). Required by the
-      Play Data safety form and by the Google OAuth consent screen. It must say
-      what the app stores locally, that the backup goes to the user's own
-      Drive, and that no data reaches the developer.
-- [ ] **Release keystore** + Play App Signing. The app is debug-signed today.
-- [ ] **Add the RELEASE SHA-1 to the Google OAuth Android client**, alongside
-      the debug one. Miss this and Google sign-in fails in production with
-      `DEVELOPER_ERROR` — the exact failure already hit once after a machine
-      change.
-- [ ] **Publish the OAuth consent screen to Production.** While it is in
-      *Testing*, refresh tokens expire after 7 days, which would quietly kill
-      the background Drive backup built on them.
-- [ ] **Play: 12 testers for 14 consecutive days** before production access
-      (personal accounts created after 13 Nov 2023 — organisation accounts are
-      exempt). Plan two weeks for this, it is the long pole.
-- [ ] **Target API level** ⚠ — check Play's current requirement before
-      submitting (API 36 is the 2026 deadline; the project targets 35).
-- [ ] **Rate-limit the gateway.** `APP_TOKEN` ships inside the APK, so anyone
-      who unzips it can use the Worker as a free proxy. A per-IP counter in the
-      Worker (or a Cloudflare rate-limiting rule) keeps one abuser from eating
-      the daily quota for everyone.
+- [x] **TMDB attribution.** `src/pages/AboutPage.tsx` (Settings → About) carries
+      the mandatory notice verbatim and credits every provider. The wording is
+      fixed by TMDB's terms — there is a comment in the file saying so.
+- [x] **Privacy policy** — `docs/PRIVACY.md`, linked from the About screen.
+      Publish it at a stable URL (the GitHub blob link works; GitHub Pages is
+      prettier) and paste that URL into both Play and the OAuth consent screen.
+- [x] **Target API 36.** Play has required it for every publish since
+      **31 Aug 2026** — the project was on 35, which would have been rejected
+      outright. Now compileSdk/targetSdk 36 with AGP 8.9.1; the
+      `androidx.browser:1.8.0` pin that existed only to stay on 35 is gone.
+- [x] **Release signing.** `android/app/build.gradle` reads
+      `android/keystore.properties` (gitignored, see the `.example`) and signs
+      `bundleRelease`. Without that file the release build comes out unsigned
+      rather than failing, so a fresh clone still works.
+- [x] **Gateway rate limiting.** Two Cloudflare rate-limit bindings, per client
+      IP: `RL_API` 120/60s on everything, `RL_HEAVY` 40/60s for HowLongToBeat
+      alone — a separate bucket so a game backfill can't eat the allowance a
+      Drive token refresh needs. `/health` stays exempt so the app can always
+      diagnose itself, and a missing binding fails OPEN (a shield must not be a
+      single point of failure). Note the limiter is approximate and per-colo: it
+      lets a few through past the threshold before biting.
+- [x] **Longer cache for the tightest upstreams.** HLTB and OMDb answers are
+      kept 7 days at the edge instead of 24 h — those two are exactly the
+      fragile one and the 1,000-a-day one.
+
+### Left, and only you can do them
+
+- [ ] **Add the release SHA-1 to the Google OAuth *Android* client**
+      (`com.onetracker.app`), keeping the debug one for local builds:
+      `C0:8B:C0:C5:92:80:C9:38:A6:FD:C5:37:1C:C9:79:69:B6:0C:A6:89`.
+      Miss this and Google sign-in fails in the release build with
+      `DEVELOPER_ERROR`.
+      Once Play App Signing is on, Google re-signs the app with ITS key, so the
+      **Play app-signing SHA-1 from the console must be added too** — otherwise
+      sign-in works in your test APK and breaks for everyone who installs from
+      the store. This is the single easiest way to ship a broken login.
+- [ ] **Publish the OAuth consent screen to Production.** In *Testing*, refresh
+      tokens expire after 7 days and the background backup dies silently.
+- [ ] **Play: 12 testers for 14 consecutive days** (personal accounts created
+      after 13 Nov 2023). The long pole — start it the day the account exists.
+- [ ] **Store listing**: icon, feature graphic, screenshots, description, and
+      the Data safety form (answer it from `docs/PRIVACY.md`: no data
+      collected, no data shared).
+- [ ] **Back up the upload key.** `android/keystore/onetracker-upload.jks` plus
+      its password, somewhere that is not this machine. With Play App Signing a
+      lost upload key can be reset by Google, but only while you can still get
+      into the Play Console.
 
 ### Good news on Google verification
 

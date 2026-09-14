@@ -1,5 +1,17 @@
 apply plugin: 'com.android.application'
 
+/**
+ * Release signing. The key and its passwords live in android/keystore.properties,
+ * which is gitignored (see keystore.properties.example for the shape) — nothing
+ * secret is ever in the repo. When the file is absent the release build simply
+ * comes out unsigned instead of failing, so a fresh clone and CI still work.
+ */
+def keystorePropsFile = rootProject.file('keystore.properties')
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace "com.onetracker.app"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,8 +28,23 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropsFile.exists()) {
+                storeFile rootProject.file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystorePropsFile.exists()) {
+                signingConfig signingConfigs.release
+            }
+            // The app is a WebView shell: there is almost no Java to shrink, and
+            // R8 has repeatedly broken Capacitor plugin reflection. Not worth it.
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -27,15 +54,6 @@ android {
 repositories {
     flatDir{
         dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
-    }
-}
-
-// A transitive dep of @capgo/capacitor-social-login pulls androidx.browser:1.9.0,
-// which demands compileSdk 36 + AGP 8.9.1. Pin it to 1.8.0 (identical CustomTabs
-// API we need) so we stay on compileSdk 35 / AGP 8.7.2 (Capacitor 7 / Node 20).
-configurations.all {
-    resolutionStrategy {
-        force 'androidx.browser:browser:1.8.0'
     }
 }
 
