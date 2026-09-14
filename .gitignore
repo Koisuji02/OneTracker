@@ -42,3 +42,8 @@ worker/.dev.vars
 # local-only files that must never be committed
 .env.backup*
 .claude/settings.local.json
+
+# Release signing — the upload key and its passwords never go in the repo.
+# keystore.properties.example documents the shape; the real one stays local.
+android/keystore/
+android/keystore.properties
