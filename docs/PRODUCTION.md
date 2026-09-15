@@ -114,9 +114,15 @@ restricts in-app donation links for non-charities).
 - [x] **TMDB attribution.** `src/pages/AboutPage.tsx` (Settings → About) carries
       the mandatory notice verbatim and credits every provider. The wording is
       fixed by TMDB's terms — there is a comment in the file saying so.
-- [x] **Privacy policy** — `docs/PRIVACY.md`, linked from the About screen.
-      Publish it at a stable URL (the GitHub blob link works; GitHub Pages is
-      prettier) and paste that URL into both Play and the OAuth consent screen.
+- [x] **Home page + privacy policy, on one domain.** The web build is deployed
+      (`npm run deploy`, root `wrangler.jsonc`) at
+      **https://onetracker.onetracker.workers.dev** — that is the home page
+      Google asks for, and it is the product itself rather than a brochure.
+      `public/privacy.html` ships with it and is served at **/privacy**
+      (Workers Assets 307s `/privacy.html` to the extensionless path — give
+      Google the one that answers 200). The app's About screen links to the
+      same URL, so app, browser version and store never disagree.
+      `docs/PRIVACY.md` keeps the text readable in the repo.
 - [x] **Target API 36.** Play has required it for every publish since
       **31 Aug 2026** — the project was on 35, which would have been rejected
       outright. Now compileSdk/targetSdk 36 with AGP 8.9.1; the
