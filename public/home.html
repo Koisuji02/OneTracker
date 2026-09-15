@@ -1,0 +1,113 @@
+<!doctype html>
+<!--
+  The page Google's OAuth consent screen points at as "home page".
+
+  It exists because the root of this domain is the app itself, and the app opens
+  on its first-run wizard — which Google's reviewer reads as "the home page is
+  behind a login" and refuses. This page shows what OneTracker is, with no
+  account and nothing to dismiss, and links to the app and the policy.
+
+  Plain static HTML with inline styles: it ships in public/, so it is copied
+  verbatim into the build and served at /home. No build step, nothing to break
+  between releases.
+-->
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OneTracker — un solo tracker per serie, film, libri e giochi</title>
+    <meta
+      name="description"
+      content="OneTracker segue serie TV, anime, film, libri, fumetti, manga e videogiochi in un'unica app. I dati restano sul tuo dispositivo."
+    />
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      :root {
+        --bg: #0b0b0e; --card: #17171c; --line: #2a2a33;
+        --ink: #f4f4f5; --ink2: #a1a1aa; --ink3: #71717a; --brand: #ffea00;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink);
+        font: 16px/1.6 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 760px; margin: 0 auto; padding: 56px 20px 80px; }
+      header { display: flex; align-items: center; gap: 16px; }
+      header svg { flex: 0 0 auto; }
+      h1 { font-size: 34px; letter-spacing: -0.02em; margin: 0; }
+      .tag { color: var(--ink2); margin: 6px 0 0; }
+      h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink3); margin: 44px 0 12px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 18px 20px; }
+      ul { margin: 0; padding-left: 20px; }
+      li { margin: 8px 0; color: var(--ink2); }
+      li b { color: var(--ink); }
+      p { color: var(--ink2); }
+      a { color: var(--brand); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+      .links a {
+        display: inline-block; padding: 11px 18px; border-radius: 9px;
+        border: 1px solid var(--line); color: var(--ink); font-weight: 600; font-size: 14px;
+      }
+      .links a.primary { background: var(--brand); border-color: var(--brand); color: #000; }
+      footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--ink3); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <svg width="64" height="64" viewBox="0 0 3544 3544" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius: 11px">
+          <rect width="3544" height="3544" fill="black" />
+          <path d="M643 1536.19L1360 1151V2936" stroke="#FFEA00" stroke-width="500" />
+          <path d="M2922 935H2072V2936" stroke="#FFEA00" stroke-width="500" />
+        </svg>
+        <div>
+          <h1>OneTracker</h1>
+          <p class="tag">Un solo posto per tutto quello che guardi, leggi e giochi.</p>
+        </div>
+      </header>
+
+      <h2>Cos'è</h2>
+      <div class="card">
+        <p style="margin-top: 0">
+          Un tracker personale per <b>serie TV, anime, film, libri, fumetti, manga e
+          videogiochi</b>. Segni un episodio, un capitolo o una partita finita, e l'app
+          tiene il conto di dove sei arrivato e di quanto tempo ci hai passato.
+        </p>
+        <ul>
+          <li><b>Funziona offline.</b> La libreria vive sul tuo dispositivo, non su un server.</li>
+          <li><b>Il backup è tuo.</b> Se vuoi, una copia va sul <i>tuo</i> Google Drive, in una
+            cartella privata che solo questa app può leggere — e ti ritrovi la stessa
+            libreria sul telefono e nel browser.</li>
+          <li><b>Tempo reale.</b> Quanto hai guardato e giocato davvero, con le durate dei
+            giochi prese da HowLongToBeat.</li>
+          <li><b>Widget sulla home</b> per spuntare il prossimo episodio senza aprire l'app.</li>
+          <li><b>Niente account obbligatori, niente pubblicità, niente tracciamento.</b></li>
+        </ul>
+        <div class="links">
+          <a class="primary" href="/">Apri OneTracker nel browser</a>
+          <a href="/privacy">Norme sulla privacy</a>
+          <a href="https://github.com/Koisuji02/OneTracker">Codice sorgente</a>
+        </div>
+      </div>
+
+      <h2>Privacy, in breve</h2>
+      <div class="card">
+        <p style="margin: 0">
+          OneTracker non raccoglie nulla. Non esiste un account del servizio, non c'è un
+          server che contenga la tua libreria e lo sviluppatore non riceve i tuoi dati.
+          Se colleghi Google, il backup finisce nel <b>tuo</b> Drive e resta tuo.
+          <a href="/privacy">Leggi le norme complete</a>.
+        </p>
+      </div>
+
+      <footer>
+        Dati forniti da TMDB, IGDB, HowLongToBeat, RAWG, AniList, MangaDex, MyAnimeList,
+        Open Library, Comic Vine e OMDb.<br />
+        This product uses the TMDB API but is not endorsed or certified by TMDB.
+      </footer>
+    </div>
+  </body>
+</html>

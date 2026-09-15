@@ -18,9 +18,8 @@
  * feature the user waits on.
  */
 import { getDetails } from './api'
-import { buildBackup } from './backup'
 import { db, refreshItemMetadata } from './db'
-import { resumeGoogleSession, saveToDrive } from './drive'
+import { syncDrive } from './drive'
 import { isOnline } from './net'
 import type { LibraryItem } from './types'
 
@@ -131,15 +130,9 @@ export async function syncLibrary(force = false): Promise<void> {
     const due = dueForRefresh(items)
     const queued = new Set(due.map((i) => i.id))
     await pooled([...due, ...staleGames(items).filter((g) => !queued.has(g.id))], refreshOne)
-    // resumes the Drive session silently when one can be resumed; it never
+    // pull anything the other device wrote, merge, push back. Silent: it never
     // opens a sign-in sheet, so this stays a background pass
-    if (await resumeGoogleSession()) {
-      try {
-        await saveToDrive(await buildBackup(), false)
-      } catch {
-        // silent best-effort, exactly like the periodic auto-sync
-      }
-    }
+    await syncDrive(false)
   } catch {
     // nothing here is worth bothering the user with
   } finally {

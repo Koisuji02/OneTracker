@@ -28,6 +28,7 @@
 import { SocialLogin } from '@capgo/capacitor-social-login'
 import { Capacitor } from '@capacitor/core'
 import { gatewayEnabled, gatewayHeaders, gatewayUrl } from './api/gateway'
+import { buildBackup, mergeBackup } from './backup'
 import { getSettings, updateSettings } from './settings'
 
 const GIS_SRC = 'https://accounts.google.com/gsi/client'
@@ -364,15 +365,25 @@ export function disconnectGoogle(): void {
   })
 }
 
-async function findBackupFileId(at: string): Promise<string | null> {
+interface BackupFile {
+  id: string
+  /** RFC-3339 stamp Drive bumps on every write — our revision marker */
+  modifiedTime: string
+}
+
+async function findBackupFile(at: string): Promise<BackupFile | null> {
   const url = new URL('https://www.googleapis.com/drive/v3/files')
   url.searchParams.set('spaces', 'appDataFolder')
   url.searchParams.set('q', `name = '${FILE_NAME}'`)
   url.searchParams.set('fields', 'files(id, modifiedTime)')
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${at}` } })
   if (!res.ok) throw new Error(`Drive list failed (${res.status})`)
-  const data = await res.json()
-  return data.files?.[0]?.id ?? null
+  const file = (await res.json()).files?.[0]
+  return file?.id ? { id: file.id, modifiedTime: file.modifiedTime ?? '' } : null
+}
+
+async function findBackupFileId(at: string): Promise<string | null> {
+  return (await findBackupFile(at))?.id ?? null
 }
 
 /**
@@ -398,7 +409,7 @@ async function uploadBackup(json: string, interactive: boolean): Promise<void> {
   let res: Response
   if (existing) {
     res = await fetch(
-      `https://www.googleapis.com/upload/drive/v3/files/${existing}?uploadType=media`,
+      `https://www.googleapis.com/upload/drive/v3/files/${existing}?uploadType=media&fields=modifiedTime`,
       {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${at}`, 'Content-Type': 'application/json' },
@@ -411,16 +422,60 @@ async function uploadBackup(json: string, interactive: boolean): Promise<void> {
     const body =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
       `--${boundary}\r\nContent-Type: application/json\r\n\r\n${json}\r\n--${boundary}--`
-    res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=modifiedTime',
+      {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${at}`,
         'Content-Type': `multipart/related; boundary=${boundary}`,
       },
-      body,
-    })
+        body,
+      },
+    )
   }
   if (!res.ok) throw new Error(`Drive upload failed (${res.status})`)
+  // remember the revision we just created: anything different up there later
+  // is the other device's work, and must be merged before we overwrite it
+  const written = await res.json().catch(() => null)
+  if (written?.modifiedTime) updateSettings({ driveSeenTime: written.modifiedTime })
+}
+
+/**
+ * Reconcile this device with Drive: pull whatever the OTHER device wrote since
+ * we last looked, merge it into the library, then push the result.
+ *
+ * This is what makes one account usable from the phone AND the browser. Without
+ * the pull, each device would happily overwrite the shared file with its own
+ * (possibly older) state and silently lose the other's progress — a device only
+ * ever downloaded on first connect.
+ *
+ * The merge keeps the higher progress on both sides (see backup.mergeBackup),
+ * so it is safe to run on both devices in any order: they converge.
+ */
+export async function syncDrive(interactive = false): Promise<boolean> {
+  if (!(await resumeGoogleSession()) && !interactive) return false
+  try {
+    const at = await getAccessToken(interactive)
+    const file = await findBackupFile(at)
+    if (file && file.modifiedTime !== getSettings().driveSeenTime) {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`,
+        { headers: { Authorization: `Bearer ${at}` } },
+      )
+      if (res.ok) {
+        const remote = await res.text()
+        // merge FIRST, so what we upload below already contains both sides
+        await mergeBackup(remote)
+        updateSettings({ driveSeenTime: file.modifiedTime })
+      }
+    }
+    await saveToDrive(await buildBackup(), interactive)
+    return true
+  } catch (err) {
+    updateSettings({ lastBackupError: (err as Error)?.message ?? 'error' })
+    return false
+  }
 }
 
 /** Download the newest backup from Drive, or null when none exists. */
