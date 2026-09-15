@@ -26,7 +26,7 @@ import { applyBackup, buildBackup, downloadBackup } from '../backup'
 import { OfflineChip } from '../components/OfflineNotice'
 import { db } from '../db'
 import { clearImageCache } from '../imageCache'
-import { connectGoogle, disconnectGoogle, restoreFromDrive, saveToDrive } from '../drive'
+import { connectGoogle, disconnectGoogle, restoreFromDrive, syncDrive } from '../drive'
 import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
 import { useOnline } from '../net'
@@ -491,7 +491,8 @@ export default function SettingsPage() {
               busy={busy === 'save'}
               onClick={() =>
                 run('save', async () => {
-                  await saveToDrive(await buildBackup())
+                  // pulls the other device's changes in before pushing
+                  await syncDrive(true)
                   return t('settings.driveSaved')
                 })
               }

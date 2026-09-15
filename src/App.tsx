@@ -12,10 +12,9 @@ import {
   useNavigate,
   useNavigationType,
 } from 'react-router-dom'
-import { buildBackup } from './backup'
 import BottomNav from './components/BottomNav'
 import { db } from './db'
-import { resumeGoogleSession, saveToDrive } from './drive'
+import { syncDrive } from './drive'
 import { translate } from './i18n'
 import AboutPage from './pages/AboutPage'
 import AccountPage from './pages/AccountPage'
@@ -159,18 +158,13 @@ function DriveAutoSync() {
   const { googleEmail } = useSettings()
   useEffect(() => {
     if (!googleEmail) return
-    const sync = async () => {
-      if (!(await resumeGoogleSession())) return
-      try {
-        await saveToDrive(await buildBackup(), false)
-      } catch {
-        // silent best-effort; the failure is stamped in settings
-      }
-    }
-    void sync()
+    // reconcile, don't just push: the other device may have written since we
+    // last looked, and overwriting it would lose that progress (see syncDrive)
+    const sync = () => void syncDrive(false)
+    sync()
     const interval = setInterval(sync, 10 * 60 * 1000)
     const onHide = () => {
-      if (document.visibilityState === 'hidden') void sync()
+      if (document.visibilityState === 'hidden') sync()
     }
     document.addEventListener('visibilitychange', onHide)
     return () => {

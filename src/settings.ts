@@ -65,6 +65,12 @@ export interface Settings {
    */
   lastBackupAt: number | null
   lastBackupError: string | null
+  /**
+   * `modifiedTime` of the Drive backup this device has already merged. If the
+   * file up there carries a different one, the OTHER device wrote something we
+   * don't have yet and must be pulled in before we overwrite it.
+   */
+  driveSeenTime: string | null
 }
 
 const STORAGE_KEY = 'onetracker.settings'
@@ -100,6 +106,7 @@ const defaults: Settings = {
   googleRefreshToken: null,
   lastBackupAt: null,
   lastBackupError: null,
+  driveSeenTime: null,
 }
 
 /** API-key fields where a baked-in .env value acts as fallback default. */

@@ -114,15 +114,27 @@ restricts in-app donation links for non-charities).
 - [x] **TMDB attribution.** `src/pages/AboutPage.tsx` (Settings → About) carries
       the mandatory notice verbatim and credits every provider. The wording is
       fixed by TMDB's terms — there is a comment in the file saying so.
-- [x] **Home page + privacy policy, on one domain.** The web build is deployed
-      (`npm run deploy`, root `wrangler.jsonc`) at
-      **https://onetracker.onetracker.workers.dev** — that is the home page
-      Google asks for, and it is the product itself rather than a brochure.
-      `public/privacy.html` ships with it and is served at **/privacy**
-      (Workers Assets 307s `/privacy.html` to the extensionless path — give
-      Google the one that answers 200). The app's About screen links to the
-      same URL, so app, browser version and store never disagree.
-      `docs/PRIVACY.md` keeps the text readable in the repo.
+- [x] **Web app, home page and privacy policy, all on one domain.** The web
+      build is deployed (`npm run deploy`, root `wrangler.jsonc`) at
+      **https://onetracker.onetracker.workers.dev** — it had never been
+      deployed before, and it doubles as the browser version users can pick
+      instead of the APK.
+      - `/` the app · `/home` the page for Google · `/privacy` the policy
+      - Google rejected the ROOT as a home page ("protetta da una pagina di
+        accesso"): the app opens on its first-run wizard, which reads as a
+        login gate. `/home` (public/home.html) explains the app with nothing to
+        dismiss, so give Google **that** URL.
+      - Workers Assets 307s `/privacy.html` → `/privacy`; always hand out the
+        extensionless one, which answers 200.
+      - The app's About screen links to the same policy, so app, browser
+        version and store never disagree. `docs/PRIVACY.md` keeps the text
+        readable in the repo.
+- [ ] **Verify the domain** (Google: "non è registrato a tuo nome"). Search
+      Console → add a URL-prefix property for
+      `https://onetracker.onetracker.workers.dev/`, pick the **HTML file**
+      method, and drop the `google….html` file it gives you into `public/` —
+      it ships at the root on the next deploy. Then add
+      `onetracker.workers.dev` to the consent screen's authorised domains.
 - [x] **Target API 36.** Play has required it for every publish since
       **31 Aug 2026** — the project was on 35, which would have been rejected
       outright. Now compileSdk/targetSdk 36 with AGP 8.9.1; the
@@ -153,6 +165,9 @@ restricts in-app donation links for non-charities).
       **Play app-signing SHA-1 from the console must be added too** — otherwise
       sign-in works in your test APK and breaks for everyone who installs from
       the store. This is the single easiest way to ship a broken login.
+- [ ] **Authorised JavaScript origin** for the browser version: the WEB OAuth
+      client needs `https://onetracker.onetracker.workers.dev`, or Google
+      sign-in fails in the browser (the Android flow is unaffected).
 - [ ] **Publish the OAuth consent screen to Production.** In *Testing*, refresh
       tokens expire after 7 days and the background backup dies silently.
 - [ ] **Play: 12 testers for 14 consecutive days** (personal accounts created
