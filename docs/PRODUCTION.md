@@ -163,20 +163,40 @@ restricts in-app donation links for non-charities).
 
 ### Left, and only you can do them
 
-- [ ] **Add the release SHA-1 to the Google OAuth *Android* client**
-      (`com.onetracker.app`), keeping the debug one for local builds:
-      `C0:8B:C0:C5:92:80:C9:38:A6:FD:C5:37:1C:C9:79:69:B6:0C:A6:89`.
-      Miss this and Google sign-in fails in the release build with
-      `DEVELOPER_ERROR`.
-      Once Play App Signing is on, Google re-signs the app with ITS key, so the
-      **Play app-signing SHA-1 from the console must be added too** — otherwise
-      sign-in works in your test APK and breaks for everyone who installs from
-      the store. This is the single easiest way to ship a broken login.
+- [ ] **One Android OAuth client per signing certificate.** A Google Cloud
+      Android client holds package name + exactly ONE SHA-1 (unlike Firebase,
+      where you pile fingerprints onto one app), so `com.onetracker.app` needs
+      one client per key. The app never names an Android client id — it always
+      passes the WEB one and Google matches the Android client implicitly by
+      package + SHA-1 — so adding clients needs no app change.
+      - debug (local builds): `82:C9:0E:82:FE:4D:54:A7:62:69:58:12:C8:8A:86:4C:B4:55:FE:10`
+      - release/upload key: `C0:8B:C0:C5:92:80:C9:38:A6:FD:C5:37:1C:C9:79:69:B6:0C:A6:89`
+      - **Play App Signing**: Google re-signs the app with ITS OWN key, so the
+        SHA-1 the Play Console shows under *App integrity* needs its own client
+        too. Skip it and sign-in works in your APK and is broken for everyone
+        who installs from the store — the easiest way to ship a dead login.
+      Miss any of these and that build fails with `DEVELOPER_ERROR`.
 - [ ] **Authorised JavaScript origin** for the browser version: the WEB OAuth
-      client needs `https://onetracker.onetracker.workers.dev`, or Google
-      sign-in fails in the browser (the Android flow is unaffected).
-- [ ] **Publish the OAuth consent screen to Production.** In *Testing*, refresh
-      tokens expire after 7 days and the background backup dies silently.
+      client (`…-glc1k40k7a56dhb6tqru7jojic33uu9e`) needs
+      `https://onetracker.onetracker.workers.dev` (add `http://localhost:5173`
+      for local dev). No redirect URI: the browser uses the GIS *token* client,
+      which is origin-checked only. Without it, sign-in fails in the browser
+      with `idpiframe_initialization_failed` / `popup_closed`; the Android flow
+      is unaffected.
+      Both clients live in the SAME Cloud project, which is what lets the
+      browser and the app share one `appDataFolder` — the Drive backup folder
+      belongs to the project, not to the client id. That is the whole reason a
+      user can start on the phone and carry on in the browser.
+- [ ] **Publish the OAuth consent screen to Production.** In *Testing*, only
+      the listed test users can sign in (100 max) and refresh tokens expire
+      after 7 days, so the background backup dies silently. Every scope here is
+      non-sensitive (`drive.appdata`, `userinfo.email`, `userinfo.profile`), so
+      publishing is immediate — no review, no user cap, and the test-user list
+      stops mattering: a new tester just signs in. Keep it that way; a broader
+      Drive scope would drag in verification and an annual audit.
+      Not to be confused with Play's *closed testing* tester list (12 people,
+      14 days) — that one only gates installs coming from the Play Store, not
+      an APK you hand over.
 - [ ] **Play: 12 testers for 14 consecutive days** (personal accounts created
       after 13 Nov 2023). The long pole — start it the day the account exists.
 - [ ] **Store listing**: icon, feature graphic, screenshots, description, and
