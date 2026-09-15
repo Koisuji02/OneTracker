@@ -31,16 +31,38 @@ completely.
 The Worker is pure I/O (fetch → fetch), so the 10 ms CPU limit is not a
 concern; only the request count is.
 
-**How many users fit in 100k requests/day?** Images are NOT proxied (only
-MangaDex covers), and the app caches details locally for 6 h and episode lists
-for 7 days, so the gateway only sees first-opens and background refreshes.
-A realistic active user costs roughly 50–150 gateway requests/day → **around
-700–2,000 daily active users on the free tier**. The edge cache in the Worker
-(1 h for searches, 24 h for details) makes this better than linear: the 200th
-person to open *Dune* costs zero upstream requests.
+### Two different ceilings, and they scale differently
 
-So: free up to ~1,000 daily actives, then $5/month up to a size this app will
-almost certainly never reach.
+This is the part worth understanding properly, because the two limits behave in
+opposite ways:
+
+- **Cloudflare's 100k requests/day counts EVERY request that reaches the
+  Worker**, cache hit or not. Caching does not buy a single request here. This
+  ceiling scales with *how many people use the app*.
+- **Provider quotas are only spent on cache MISSES.** This ceiling scales with
+  *how many distinct titles the whole user base opens*, which grows far more
+  slowly: the 200th person to open *Dune* costs nothing upstream.
+
+**Per user**: images never touch the gateway (except MangaDex covers), the app
+keeps details for 6 h and episode lists for 7 days locally, and marking
+episodes is entirely local. What is left is the catch-up pass at launch (up to
+20 stale items, 3 at a time) plus ~2 requests per title opened. A realistic
+active day is **20–60 gateway requests per user**.
+
+100,000 ÷ ~40 → **roughly 2,000–2,500 daily active users on the free plan**,
+and $5/month raises that ceiling about 8× (10M/month ≈ 333k/day). There is no
+middle step where it gets expensive.
+
+**Measured, not assumed** (15 Sep 2026, against the live gateway): a repeat
+request to every provider path returns `X-OT-Cache: HIT` — TMDB details and
+season lists, RAWG, MangaDex, Comic Vine, IGDB (POST bodies are hashed into the
+key) and HLTB.
+
+OMDb did NOT, and that was a real bug: it answers with `Vary: *`, which makes a
+response permanently uncacheable, so every ratings lookup went upstream — on the
+provider with the tightest quota of the lot. The Worker now strips `Vary`
+(along with `Expires`/`Age`) before storing, since it builds the cache key
+itself. That one line is worth more capacity than everything else on this page.
 
 ## 3. The real ceiling is the provider quotas, not Cloudflare
 
@@ -49,7 +71,7 @@ in the order things break:
 
 | Provider | Free limit | Used for | Risk |
 |---|---|---|---|
-| **OMDb** ⚠ | ~1,000 requests/**day** per key | IMDb/RT/Metacritic banners | **Breaks first.** Every detail page hits it |
+| **OMDb** ⚠ | ~1,000 requests/**day** per key | IMDb/RT/Metacritic banners | Tightest of all. Now cached 7 days, so it is 1,000 *distinct titles* a day, not 1,000 page opens |
 | **Comic Vine** ⚠ | ~200 requests/**hour** | western comics only | Narrow feature, tight limit |
 | **RAWG** | 20,000 requests/**month**, free for commercial use under 100k MAU | game fallback + Steam box art | Secondary since IGDB became primary |
 | **IGDB** | 4 requests/**second**, free for **non-commercial** use | games (primary) | Fine with caching; commercial needs a Twitch agreement |

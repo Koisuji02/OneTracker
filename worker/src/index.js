@@ -128,6 +128,15 @@ async function cached(ctx, key, ttl, produce) {
   if (res.ok && ttl > 0) {
     const store = new Response(res.clone().body, res)
     store.headers.set('Cache-Control', `public, max-age=${ttl}`)
+    // Upstream caching headers must not survive: OMDb answers with `Vary: *`,
+    // which makes a response permanently UNCACHEABLE — every rating lookup was
+    // going upstream, on the provider with the tightest quota of the lot
+    // (~1,000 calls a day shared by everyone). The cache key here is one we
+    // build ourselves, so Vary is meaningless to us either way.
+    store.headers.delete('Vary')
+    store.headers.delete('Expires')
+    store.headers.delete('Age')
+    store.headers.delete('Pragma')
     ctx.waitUntil(cache.put(key, store))
   }
   const headers = new Headers(res.headers)
