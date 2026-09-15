@@ -20,7 +20,12 @@ import { useNavigate } from 'react-router-dom'
 import { useT } from '../i18n'
 
 const REPO = 'https://github.com/Koisuji02/OneTracker'
-const PRIVACY = `${REPO}/blob/main/docs/PRIVACY.md`
+/** The web app, which is also OneTracker's home page and hosts the published
+ *  privacy policy — the same URLs given to Google's consent screen and to Play,
+ *  so the app, the browser version and the store all say the same thing.
+ *  Note `/privacy`, not `/privacy.html`: Workers Assets redirects the latter. */
+const SITE = 'https://onetracker.onetracker.workers.dev'
+const PRIVACY = `${SITE}/privacy`
 
 /** Open outside the app — a custom tab on device, a new tab on the web. */
 async function openExternal(url: string): Promise<void> {

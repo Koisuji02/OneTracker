@@ -1,5 +1,10 @@
 # OneTracker — Privacy Policy
 
+**Published version: <https://onetracker.onetracker.workers.dev/privacy>** —
+the URL given to Google and to Play, served from `public/privacy.html` by the
+same Worker that serves the web app. This file is the same text kept readable
+in the repo; change one and change the other.
+
 _Last updated: 14 September 2026_
 
 OneTracker is a personal media tracker for series, films, books, comics and

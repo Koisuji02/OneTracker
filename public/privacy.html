@@ -1,0 +1,144 @@
+<!doctype html>
+<!--
+  The PUBLISHED privacy policy. It sits in public/, so it is copied verbatim
+  into the build and served as a real file at /privacy.html by the same Worker
+  that serves the web app — one domain for the app, the policy and Google.
+
+  This is the URL given to the OAuth consent screen, to Play, and to the app's
+  About screen. Its text mirrors docs/PRIVACY.md, which stays in the repo for
+  people reading the source: change one, change the other.
+-->
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OneTracker — Norme sulla privacy</title>
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      :root {
+        --bg: #0b0b0e; --card: #17171c; --line: #2a2a33;
+        --ink: #f4f4f5; --ink2: #a1a1aa; --ink3: #71717a; --brand: #ffea00;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--ink2);
+        font: 16px/1.7 "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 720px; margin: 0 auto; padding: 48px 20px 80px; }
+      h1 { color: var(--ink); font-size: 30px; letter-spacing: -0.02em; margin: 0 0 4px; }
+      h2 { color: var(--ink); font-size: 19px; margin: 40px 0 10px; }
+      .date { color: var(--ink3); font-size: 14px; margin: 0 0 8px; }
+      a { color: var(--brand); }
+      b, strong { color: var(--ink); }
+      ul { padding-left: 20px; }
+      li { margin: 8px 0; }
+      .back { display: inline-block; margin-bottom: 28px; color: var(--ink3); text-decoration: none; font-size: 14px; }
+      .back:hover { color: var(--ink); }
+      footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--ink3); font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="back" href="/">← OneTracker</a>
+      <h1>Norme sulla privacy</h1>
+      <p class="date">Ultimo aggiornamento: 15 settembre 2026</p>
+
+      <p>
+        OneTracker è un tracker personale per serie, film, libri, fumetti e videogiochi.
+        È sviluppato da una persona singola, è gratuito, non contiene pubblicità né
+        strumenti di analisi, e <b>non raccoglie nulla su di te</b>.
+      </p>
+      <p>Questo documento è volutamente corto, perché c'è davvero poco da dire.</p>
+
+      <h2>Cosa salva OneTracker, e dove</h2>
+      <p>
+        Tutto quello che segui — libreria, avanzamento, voti, preferiti, liste e partite
+        giocate — è salvato <b>solo sul tuo dispositivo</b>, nel database locale
+        dell'app. Non viene caricato da nessuna parte, e lo sviluppatore non vi ha
+        accesso né ha modo di ottenerlo. Disinstallando l'app quei dati spariscono.
+      </p>
+
+      <h2>Il backup su Google Drive (facoltativo)</h2>
+      <p>
+        Solo se colleghi un account Google dalle impostazioni, OneTracker può copiare la
+        tua libreria sul <b>tuo</b> Google Drive.
+      </p>
+      <ul>
+        <li>
+          Usa l'ambito <code>drive.appdata</code>, che vede soltanto una cartella privata
+          dell'applicazione dentro il tuo Drive. <b>OneTracker non può leggere, elencare
+          o toccare nessun altro file</b>, compresi quelli creati da altre app.
+        </li>
+        <li>
+          Il file di backup contiene la tua libreria e le preferenze dell'app. Non
+          contiene password né dati di pagamento.
+        </li>
+        <li>
+          Il file è tuo e sta nel tuo Drive. Lo sviluppatore non lo riceve, non può
+          leggerlo e non ha alcun server che ne conservi una copia.
+        </li>
+        <li>
+          Nome, email e immagine del profilo vengono letti una volta per mostrarti quale
+          account è collegato, e restano <b>solo sul dispositivo</b>.
+        </li>
+        <li>
+          Scollegando l'account dalle impostazioni quei dati vengono cancellati dal
+          dispositivo e l'autorizzazione viene revocata presso Google. Puoi revocarla
+          anche dalle
+          <a href="https://myaccount.google.com/permissions">autorizzazioni del tuo
+          account Google</a>, ed eliminare il file di backup dal Drive quando vuoi.
+        </li>
+      </ul>
+
+      <h2>Informazioni inviate a terzi</h2>
+      <p>
+        Per mostrare titoli, copertine, elenchi di episodi e voti, l'app richiede dati di
+        catalogo pubblici a questi servizi: The Movie Database (TMDB), IGDB, RAWG,
+        HowLongToBeat, AniList, MangaDex, MyAnimeList (tramite Jikan), Open Library,
+        Comic Vine, OMDb, Steam e Wikipedia.
+      </p>
+      <p>
+        Quelle richieste contengono <b>ciò che hai cercato o aperto</b> (per esempio il
+        nome o l'identificativo di un titolo). Non contengono la tua identità, la tua
+        libreria o informazioni sul tuo account. La maggior parte passa da un server
+        intermedio (un Cloudflare Worker) gestito dallo sviluppatore, il cui unico scopo
+        è tenere le chiavi API fuori dall'app installata e raggiungere servizi che il
+        browser non può chiamare direttamente. <b>Quel server non memorizza nulla</b>:
+        inoltra la richiesta, restituisce la risposta e conserva solo una cache
+        temporanea delle risposte di catalogo pubbliche — mai qualcosa che ti identifichi.
+      </p>
+      <p>Ciascuno di quei servizi ha le proprie norme sulla privacy, che si applicano alla richiesta che riceve.</p>
+
+      <h2>Minori</h2>
+      <p>
+        OneTracker non si rivolge ai minori e non raccoglie dati personali da nessuno, di
+        qualsiasi età.
+      </p>
+
+      <h2>I tuoi diritti</h2>
+      <p>
+        Poiché nessun dato personale raggiunge lo sviluppatore, non esiste nulla che ti
+        riguardi a cui accedere, da correggere, esportare o cancellare. I dati sul tuo
+        dispositivo li esporti (Impostazioni → esporta un file di backup) e li cancelli
+        (Impostazioni → svuota la libreria, oppure disinstalla) da solo, senza chiedere
+        niente a nessuno.
+      </p>
+
+      <h2>Modifiche</h2>
+      <p>
+        Se queste norme cambieranno, la versione aggiornata sarà pubblicata a questo
+        stesso indirizzo, con una nuova data in cima.
+      </p>
+
+      <h2>Contatti</h2>
+      <p>
+        Domande su queste norme o sull'app: apri una segnalazione su
+        <a href="https://github.com/Koisuji02/OneTracker/issues">GitHub</a>.
+      </p>
+
+      <footer>OneTracker — <a href="/">apri l'app</a> · <a href="https://github.com/Koisuji02/OneTracker">codice sorgente</a></footer>
+    </div>
+  </body>
+</html>
