@@ -5,8 +5,14 @@
   "observability": {
     "enabled": true
   },
+  // Static assets, plus a one-path Worker in front of them: see site/worker.js
+  // (Google's verification file must answer 200, not the 307 the asset store
+  // gives every .html URL).
+  "main": "site/worker.js",
   "assets": {
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/google5e4c3f5a0fcf9a7f.html"]
   },
   "compatibility_flags": [
     "nodejs_compat"

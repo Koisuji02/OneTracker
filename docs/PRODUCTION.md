@@ -129,12 +129,19 @@ restricts in-app donation links for non-charities).
       - The app's About screen links to the same policy, so app, browser
         version and store never disagree. `docs/PRIVACY.md` keeps the text
         readable in the repo.
-- [ ] **Verify the domain** (Google: "non è registrato a tuo nome"). Search
-      Console → add a URL-prefix property for
-      `https://onetracker.onetracker.workers.dev/`, pick the **HTML file**
-      method, and drop the `google….html` file it gives you into `public/` —
-      it ships at the root on the next deploy. Then add
-      `onetracker.workers.dev` to the consent screen's authorised domains.
+- [x] **Domain verification file online** (Google: "non è registrato a tuo
+      nome"). Search Console's HTML-file method:
+      `public/google5e4c3f5a0fcf9a7f.html` ships at the root and answers
+      **200** at
+      `https://onetracker.onetracker.workers.dev/google5e4c3f5a0fcf9a7f.html`.
+      It needed a trick: Workers Assets serves every `.html` file at its
+      extensionless path and **307s the `.html` URL there** — the same rule
+      that makes `/privacy` work made the verification URL a redirect, which
+      Search Console rejects. `site/worker.js` sits in front of the assets for
+      that ONE path (`assets.run_worker_first`) and returns a flat 200; every
+      other request never reaches it. Pressing *Verifica* in Search Console and
+      adding `onetracker.workers.dev` to the consent screen's authorised
+      domains are yours to do.
 - [x] **Target API 36.** Play has required it for every publish since
       **31 Aug 2026** — the project was on 35, which would have been rejected
       outright. Now compileSdk/targetSdk 36 with AGP 8.9.1; the
