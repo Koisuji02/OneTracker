@@ -1,9 +1,9 @@
 /**
  * Personal-rating badge — a rounded square, tiered by value:
- * - 0–8.4   → white tile, black centered number
- * - 8.5–8.9 → metallic bronze tile, plain white number (no outline)
- * - 9–9.4   → metallic silver tile, white number
- * - 9.5–9.9 → metallic gold tile, white number
+ * - 0–7.9   → white tile, black centered number
+ * - 8–8.4   → metallic bronze tile, plain white number (no outline)
+ * - 8.5–8.9 → metallic silver tile, white number
+ * - 9–9.9   → metallic gold tile, white number
  * - 10      → reflective "diamond" tile with a rare shine sweep, white number
  */
 import { cn } from '../util'
@@ -12,9 +12,9 @@ type Tier = 'plain' | 'bronze' | 'silver' | 'gold' | 'diamond'
 
 function tierOf(value: number): Tier {
   if (value >= 10) return 'diamond'
-  if (value >= 9.5) return 'gold'
-  if (value >= 9) return 'silver'
-  if (value >= 8.5) return 'bronze'
+  if (value >= 9) return 'gold'
+  if (value >= 8.5) return 'silver'
+  if (value >= 8) return 'bronze'
   return 'plain'
 }
 
