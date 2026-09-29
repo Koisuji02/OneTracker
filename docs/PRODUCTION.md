@@ -330,18 +330,19 @@ channel.
    note the **Key ID** and the **Issuer ID**.
 4. **App Store Connect → My Apps → +** create the app record for
    `com.onetracker.app` (name, primary language, SKU). Uploads land there.
-5. **Google Cloud → Credentials → Create OAuth client → iOS**, bundle id
-   `com.onetracker.app`. Copy the client id and its reversed form (the page
-   shows both).
+5. ~~Google Cloud → Credentials → Create OAuth client → iOS~~ **done
+   29 Sep 2026**: client `…-siek7h1522n39138qotpa5m20hthl08p`, stored as the
+   `VITE_GOOGLE_CLIENT_ID_IOS` secret and the `GOOGLE_IOS_URL_SCHEME`
+   variable; every `.ipa` since carries the URL scheme, so Google sign-in
+   works in sideloaded builds too.
 6. Feed it all to the repo (`gh` is logged in on your machine):
    ```bash
    base64 -w0 apple-dist.p12 | gh secret set APPLE_CERTIFICATE_P12 --repo Koisuji02/OneTracker
    ```
    and likewise `APPLE_CERTIFICATE_PASSWORD`, `APPLE_PROVISIONING_PROFILE`
    (base64 of the `.mobileprovision`), `APPLE_TEAM_ID`, `ASC_KEY_ID`,
-   `ASC_ISSUER_ID`, `ASC_API_KEY_P8` (base64 of the `.p8`),
-   `VITE_GOOGLE_CLIENT_ID_IOS`; and the variable
-   `gh variable set GOOGLE_IOS_URL_SCHEME --body com.googleusercontent.apps.…`.
+   `ASC_ISSUER_ID`, `ASC_API_KEY_P8` (base64 of the `.p8`). The Google
+   ones (`VITE_GOOGLE_CLIENT_ID_IOS`, `GOOGLE_IOS_URL_SCHEME`) are already set.
 7. Actions → **iOS TestFlight** → *Run workflow*. First run of a new app also
    needs the App Privacy questionnaire and the listing filled in App Store
    Connect before it can go to review; the answers are the same as Play's
