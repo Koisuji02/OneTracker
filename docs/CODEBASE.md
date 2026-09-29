@@ -77,7 +77,7 @@ every 10 minutes, and when the app goes to the background.
 |---|---|
 | `package.json` | Scripts. `android:sync` = build + copy into the Android project; `android:apk` is broken on Windows (see PRODUCTION.md), use `./gradlew.bat` |
 | `vite.config.ts` | Build config, the CSP injected into the shipped HTML, and `__APP_VERSION__` read from `build.gradle` so the About screen can't show a stale version |
-| `capacitor.config.ts` | App id `com.onetracker.app` and the WebView settings |
+| `capacitor.config.ts` | App id `com.onetracker.app` and `webDir: 'dist/client'` — NOT `dist`: since `wrangler.jsonc` has a `main`, the Cloudflare Vite plugin writes the web app to `dist/client` (and the worker to `dist/onetracker`), and plain `dist` made the APK ship a stale `index.html` left there by an older build |
 | `wrangler.jsonc` | Deploys the **web app** as a Worker. Not the gateway — that one is `worker/wrangler.toml`, and confusing the two sends secrets to the wrong place |
 | `tsconfig*.json` | Strict TypeScript, `noUnusedLocals` on — an unused import fails the build |
 | `src/vite-env.d.ts` | Vite's client types plus the `__APP_VERSION__` declaration |
@@ -87,22 +87,25 @@ every 10 minutes, and when the app goes to the background.
 | File | What it is |
 |---|---|
 | `src/main.tsx` | Mounts React. Ten lines |
-| `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler |
+| `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler. Also mounts `MedalDefs` (the medals' shared gradients) and `AchievementToaster` (the "achievement unlocked" pop-up) once for the whole app |
 | `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, two animations |
 | `src/themes.ts` | The theme presets, including the AMOLED family built by the `amoled()` helper. `applyTheme` writes the CSS variables on `<html>` |
 | `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Build-time `.env` keys act as defaults so a shipped APK works out of the box while a user can still override them |
 | `src/i18n.ts` | Two flat dictionaries (en/it) and `useT()`. No interpolation by design: values are composed in JSX |
 | `src/net.ts` | Online/offline state in one place, so screens can degrade instead of erroring |
 | `src/util.ts` | `formatWatchTime`, `seasonEpisodeLabel` (the `S01 \| E04` format that sets the app's separator), `cn`, image error helpers |
+| `src/metals.ts` | Bronze/silver/gold/diamond gradient stops, shared by the rating badge and the achievement medals so the two golds are the same gold |
 | `src/types.ts` | Every shared shape. `MediaBase` → `MediaDetails` (provider data) → `LibraryItem` (adds your state). Read this file first when something is unclear |
 
 ### Data layer
 
 | File | What it is |
 |---|---|
-| `src/db.ts` | **The heart, 1200 lines.** Dexie schema + migrations (v8 = per-playthrough game times) and every mutation. Status derivation, rewatch grades, game playthroughs, the stats, the sort helpers. If behaviour is wrong, it is almost always here |
-| `src/backup.ts` | Backup/restore format (`version: 4`) and the file export. Deliberately excludes API keys and the Google refresh token |
-| `src/sync.ts` | The catch-up pass: refresh the items that can have changed (still airing, date arrived), fill in missing game lengths and low-res game art, then push the Drive backup. Bounded, throttled to 30 min, silent on failure |
+| `src/db.ts` | **The heart, 1200 lines.** Dexie schema + migrations (v8 = per-playthrough game times, v9 = the `clashes` table) and every mutation. Status derivation, rewatch grades, game playthroughs, the stats (`statsOf` is the pure core of `computeStats`), the sort helpers, `recordClash`. If behaviour is wrong, it is almost always here |
+| `src/backup.ts` | Backup/restore format (`version: 5`, clashes included) and the file export. Deliberately excludes API keys and the Google refresh token |
+| `src/sync.ts` | The catch-up pass: refresh the items that can have changed (still airing, date arrived), fill in missing game lengths and low-res game art, run the one-off `BACKFILLS` keyed on the details-cache version (MangaDex readership, IGDB key-art backdrop + add-on links), then push the Drive backup. Bounded, throttled to 30 min, silent on failure |
+| `src/achievements.ts` | **The medagliere, derived.** A fixed taxonomy of media + tag rows (Anime \| Shōnen, Videogiochi \| Azione…) plus "feats" (marathons, late nights, ratings, clashes…), four medals each. `computeAchievements` rebuilds it from items + episodes + clashes, so it is retroactive by construction; the tag matching is language-blind (TMDB answers "Azione" or "Action" depending on when the title was fetched). Row names and fun grade names live here as `{ it, en }` pairs, like theme names. The only stored state is per-device: which medals the pop-up already announced and which the medagliere already showed |
+| `src/clash.ts` | The favourites tournament: a knockout bracket with automatic byes, as immutable states (undo = pop the stack). Also the slot that keeps an unfinished clash alive across the back button |
 | `src/imageCache.ts` | Artwork stored as blobs in IndexedDB so the library still looks like itself offline, with an eviction budget |
 | `src/importTvTime.ts` | TV Time importers, two zip formats auto-detected, matching by TVDB/IMDb id where possible |
 | `src/drive.ts` | Google sign-in + Drive backup. The subtle part is the session: the access token lives in memory only, so `resumeGoogleSession()` re-mints it with no UI, and with the gateway configured the offline sign-in yields a **refresh token** that makes background backup work indefinitely |
@@ -116,12 +119,12 @@ every 10 minutes, and when the app goes to the background.
 | `http.ts` | `fetchTimeout` — the single place a provider URL becomes a gateway URL, and the hard timeout that stopped hung detail pages |
 | `errors.ts` | `ApiKeyMissingError`, so the UI can say "add a key" instead of "something failed" |
 | `titleMatch.ts` | Title normalisation and dedupe keys, shared by every cross-provider merge |
-| `tmdb.ts` | TV, anime and films. One `/search/tv` feeds both rows, split client-side by genre + original language |
+| `tmdb.ts` | TV, anime and films. One `/search/tv` feeds both rows, split client-side by genre + original language. Keywords become `tags` classifying-first (readership like "shounen", then sub-genres): TMDB buries them deep in its list, and a plain first-N cap used to drop them |
 | `anilist.ts` | Anime/manga reference data. Aggregates AniList's season-per-entry model into one item with real seasons |
 | `mangadex.ts` | Manga search, chapter counts, dates and chapter titles |
 | `comicvine.ts` | Western comics. No CORS, so it loads via JSONP `<script>` when there is no gateway |
 | `openlibrary.ts` | Books |
-| `igdb.ts` | Games (primary). Needs the gateway: server-to-server Twitch token, no CORS. Also `igdbTimeToBeat`, the fallback game length |
+| `igdb.ts` | Games (primary). Needs the gateway: server-to-server Twitch token, no CORS. Also `igdbTimeToBeat`, the fallback game length. The backdrop is chosen by IGDB `artwork_type` (key art first — logos, icons and covers never) and a game carries its DLCs/expansions (`addons`, page-only) while an add-on carries `gameKind` + `parentGame`, the link back |
 | `rawg.ts` | Games fallback + Steam/Wikipedia box-art resolution |
 | `hltb.ts` | HowLongToBeat lengths. No public API: goes through the gateway and matches by title + year, dropping anything it isn't sure about — a wrong match would silently corrupt the time stats |
 | `ratings.ts` | The critic banners (OMDb, Jikan/MAL, AniList, MangaDex). All best-effort |
@@ -141,6 +144,8 @@ every 10 minutes, and when the app goes to the background.
 | `PosterGrid.tsx`, `MediaRow.tsx`, `PageHeader.tsx`, `EmptyState.tsx` | Layout primitives |
 | `CheckButton.tsx` | The ✓. Unchecked = hollow outline, a rewatch round shows `xN` instead of the tick |
 | `RatingBadge.tsx` | Your 0–10 score as a metal tile: bronze ≥8, silver ≥8.5, gold ≥9, diamond 10 |
+| `Medal.tsx` | An achievement medal: pleated metal rosette (the grade), enamel medallion with the category icon, ribbon tails in the media's colour; a locked one is its own dark silhouette. `MedalDefs` holds the gradients ONCE for the app (hundreds of medals share them), `MetalTile` is the small squared metal chip |
+| `AchievementToaster.tsx` | The Google-Play-style pop-up at the top when a medal is earned. Watches a cheap signature of the library, recomputes debounced, and folds a burst (a whole season marked, an import) into one summary |
 | `RatingModal.tsx` | The rating sheet, with an emoji that follows the value |
 | `RewatchDialog.tsx` | Tapping something already done: un-mark, log another time, or — for one-shot media — start a new round (`onRestart`) |
 | `GameTimeDialog.tsx` | The game-completion sheet: type hours on the endless 5-digit roller, or take HowLongToBeat's time. The **only** place game hours are entered |
@@ -157,15 +162,17 @@ every 10 minutes, and when the app goes to the background.
 | `SinglesPages.tsx` | Films (and the shared single-media card) |
 | `BooksPage.tsx` | Manga/comics chapter cards + one-shot books |
 | `GamesPage.tsx` | Games, with the completion sheet wired to the ✓ |
-| `DetailPage.tsx` | **The biggest page, 1250 lines.** Three layouts (classic/poster/immersive), every media type, the episode and chapter checklists, ratings, the game state picker with its recorded playthroughs |
+| `DetailPage.tsx` | **The biggest page, 1250 lines.** Three layouts (classic/poster/immersive), every media type, the episode and chapter checklists, ratings, the game state picker with its recorded playthroughs, a game's "DLC ed espansioni" row and, on an add-on, the card linking back to its base game |
 | `SearchPage.tsx` | The four search rows |
-| `AccountPage.tsx` | Profile: stats, favourites, lists, catalog rows |
+| `AccountPage.tsx` | Profile: stats (with the Achievement button inside the watch-time box), favourites, the Clash box (the favourites box in inverted colours), lists, catalog rows |
+| `AchievementsPage.tsx` | The medagliere: one card per media, one row of four medals per tag, the medal's detail pop-up (grade, media + tag, requirement, progress). Rows are memoised — ~500 medals must not redraw when a card opens |
+| `ClashPage.tsx` | Clash home (`/clash`: pools, last champions, hall of fame, resume) and the duels + champion screen (`/clash/play`) |
 | `CatalogPage.tsx`, `FavoritesPage.tsx`, `ArchivedPage.tsx`, `OwnedPage.tsx`, `ToBuyPage.tsx` | Library grids over the same components, differing only in the filter |
 | `ListsPage.tsx`, `ListDetailPage.tsx` | User lists |
 | `SettingsPage.tsx` | Language, theme, layout, API keys, diagnostics, Google/Drive, TV Time import, export/clear |
 | `AboutPage.tsx` | Credits and the mandatory TMDB notice — a release requirement, not decoration |
 | `OnboardingPage.tsx` | First-run wizard |
-| `AvatarPage.tsx` | Avatar picker |
+| `AvatarPage.tsx` | Avatar picker: every favourite grouped by media (there used to be a 40-cover cap that silently dropped the older ones), then the rest of the library a page at a time |
 
 ### Widget (home screen)
 
@@ -206,6 +213,10 @@ every 10 minutes, and when the app goes to the background.
    degrades; keep it that way, it is also the "user brought their own key" path.
 6. **Nothing secret in the repo.** `.env`, `worker/.dev.vars`,
    `android/keystore*` are gitignored. Check before committing.
+7. **Medals are derived, never stored.** Don't persist "unlocked" flags: the
+   library is the truth, which is what makes the medals retroactive and
+   Drive-merge safe. The only stored bits (`onetracker.achievements` in
+   localStorage) are what this device already announced/showed.
 
 ## 6. "I want to change X" → touch Y
 
@@ -218,3 +229,6 @@ every 10 minutes, and when the app goes to the background.
 | A new provider | a module in `src/api/`, wired in `api/index.ts`, and a route in the Worker if it needs a key or blocks browsers |
 | Cache lifetimes | `REVALIDATE_TTL` (app side, `api/index.ts`) and `TTL_*` (edge, `worker/src/index.js`) |
 | Anything about the widget | `src/widget.ts` for the data, the Java + `res/layout` for the look |
+| A medal: a new tag row, a threshold, a grade nickname | `FAMILIES` / `FEATS` in `src/achievements.ts` |
+| How a medal looks | `src/components/Medal.tsx` (metals in `src/metals.ts`) |
+| The clash rules (bracket sizes, byes, round names) | `src/clash.ts` |

@@ -154,3 +154,132 @@ body {
   );
   animation: badgeShine 12s ease-in-out infinite;
 }
+
+/* ------------------------------------------------------------ medals */
+
+/* a locked medal is a flat dark shadow of itself: near-black on light themes,
+   black with a hairline (the medal's own stroke) on dark ones */
+.medal-shadow {
+  color: #000;
+}
+html.light .medal-shadow {
+  color: #1f1f24;
+}
+
+/* diamond sparkles breathe, out of step with the shine sweep */
+@keyframes medalTwinkle {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.medal-twinkle {
+  animation: medalTwinkle 2.6s ease-in-out infinite;
+}
+
+/* a medal earned since the last visit glows in the theme colour */
+@keyframes medalGlow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  50% {
+    filter: drop-shadow(0 0 7px var(--brand));
+  }
+}
+.medal-new {
+  animation: medalGlow 1.8s ease-in-out infinite;
+}
+
+/* the medal in the detail pop-up lands with a little bounce */
+@keyframes medalPop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.medal-pop {
+  animation: medalPop 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/*
+ * Achievement unlocked, Google Play style: a square with the medal drops in
+ * at the top, widens to reveal the text, holds, folds back and leaves. One
+ * keyframe list for the whole life of the toast, so `animationend` is the
+ * single signal that it's gone.
+ */
+@keyframes achToast {
+  0% {
+    transform: translateY(-160%);
+    opacity: 0;
+    max-width: 58px;
+  }
+  9% {
+    transform: translateY(0);
+    opacity: 1;
+    max-width: 58px;
+  }
+  20%,
+  84% {
+    transform: translateY(0);
+    opacity: 1;
+    max-width: 440px;
+  }
+  93% {
+    transform: translateY(0);
+    opacity: 1;
+    max-width: 58px;
+  }
+  100% {
+    transform: translateY(-160%);
+    opacity: 0;
+    max-width: 58px;
+  }
+}
+.ach-toast {
+  animation: achToast 4.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ------------------------------------------------------------ clash */
+
+/* the champion's confetti: little squares, like everything else in the app */
+@keyframes confettiFall {
+  0% {
+    transform: translate3d(0, -12vh, 0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--drift, 0px), 105vh, 0) rotate(var(--spin, 540deg));
+    opacity: 0.9;
+  }
+}
+.confetti {
+  position: absolute;
+  top: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  animation: confettiFall 2.8s cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .medal-new,
+  .medal-twinkle,
+  .medal-pop,
+  .confetti {
+    animation: none;
+  }
+  .confetti {
+    display: none;
+  }
+}

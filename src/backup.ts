@@ -1,16 +1,18 @@
 import { db } from './db'
 import { getSettings, updateSettings, type DetailLayout, type SortMode } from './settings'
-import type { GamePlaythrough, LibraryItem, WatchList, WatchedEpisode } from './types'
+import type { ClashResult, GamePlaythrough, LibraryItem, WatchList, WatchedEpisode } from './types'
 
 export interface BackupData {
   app: 'onetracker'
   /**
    * 1 = items+episodes · 2 = +lists/rewatch · 3 = +avatar/layout/sort
-   * 4 = game times moved to per-playthrough entries (`item.playthroughs`).
+   * 4 = game times moved to per-playthrough entries (`item.playthroughs`)
+   * 5 = + finished clashes (`clashes`).
    * Older files still restore: db.gamePlaythroughs derives the runs from the
-   * legacy `myPlaytime` + `watchCount` pair.
+   * legacy `myPlaytime` + `watchCount` pair, and a file without clashes just
+   * has none.
    */
-  version: 1 | 2 | 3 | 4
+  version: 1 | 2 | 3 | 4 | 5
   exportedAt: string
   settings: {
     language: string | null
@@ -25,18 +27,20 @@ export interface BackupData {
   items: LibraryItem[]
   episodes: WatchedEpisode[]
   lists?: WatchList[]
+  clashes?: ClashResult[]
 }
 
 export async function buildBackup(): Promise<string> {
-  const [items, episodes, lists] = await Promise.all([
+  const [items, episodes, lists, clashes] = await Promise.all([
     db.items.toArray(),
     db.episodes.toArray(),
     db.lists.toArray(),
+    db.clashes.toArray(),
   ])
   const s = getSettings()
   const data: BackupData = {
     app: 'onetracker',
-    version: 4,
+    version: 5,
     exportedAt: new Date().toISOString(),
     // everything the user personalizes — per-item state (status, rating,
     // favorite, archived, rewatch counts, per-playthrough game times) already
@@ -55,6 +59,7 @@ export async function buildBackup(): Promise<string> {
     items,
     episodes,
     lists,
+    clashes,
   }
   return JSON.stringify(data, null, 2)
 }
@@ -85,10 +90,11 @@ export function downloadBackup(json: string): void {
  */
 export async function mergeBackup(json: string): Promise<void> {
   const data = parseBackup(json)
-  const [items, episodes, lists] = await Promise.all([
+  const [items, episodes, lists, clashes] = await Promise.all([
     db.items.toArray(),
     db.episodes.toArray(),
     db.lists.toArray(),
+    db.clashes.toArray(),
   ])
 
   const localItems = new Map(items.map((i) => [i.id, i]))
@@ -136,10 +142,15 @@ export async function mergeBackup(json: string): Promise<void> {
   }
   mergedLists.push(...localLists.values())
 
-  await db.transaction('rw', db.items, db.episodes, db.lists, async () => {
+  // clash results never change once written: the union by id is the merge
+  const known = new Set(clashes.map((c) => c.id))
+  const newClashes = (data.clashes ?? []).filter((c) => !known.has(c.id))
+
+  await db.transaction('rw', [db.items, db.episodes, db.lists, db.clashes], async () => {
     await db.items.bulkPut(mergedItems)
     await db.episodes.bulkPut(mergedEps)
     await db.lists.bulkPut(mergedLists)
+    if (newClashes.length > 0) await db.clashes.bulkPut(newClashes)
   })
 }
 
@@ -192,13 +203,15 @@ function parseBackup(json: string): BackupData {
 /** Replace the whole library with the backup contents. */
 export async function applyBackup(json: string): Promise<void> {
   const data = parseBackup(json)
-  await db.transaction('rw', db.items, db.episodes, db.lists, async () => {
+  await db.transaction('rw', [db.items, db.episodes, db.lists, db.clashes], async () => {
     await db.items.clear()
     await db.episodes.clear()
     await db.lists.clear()
+    await db.clashes.clear()
     await db.items.bulkPut(data.items)
     await db.episodes.bulkPut(data.episodes ?? [])
     await db.lists.bulkPut(data.lists ?? [])
+    await db.clashes.bulkPut(data.clashes ?? [])
   })
   if (data.settings) {
     const s = data.settings

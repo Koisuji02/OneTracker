@@ -21,6 +21,7 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App as CapApp } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
+import { resetAchievementState } from '../achievements'
 import { checkProviders, type HealthState, type ProviderHealth } from '../api/health'
 import { applyBackup, buildBackup, downloadBackup } from '../backup'
 import { OfflineChip } from '../components/OfflineNotice'
@@ -617,9 +618,16 @@ export default function SettingsPage() {
           onClick={() =>
             run('clear', async () => {
               if (!confirm(t('settings.clearConfirm'))) return null
-              await Promise.all([db.items.clear(), db.episodes.clear(), db.episodeCache.clear()])
+              await Promise.all([
+                db.items.clear(),
+                db.episodes.clear(),
+                db.episodeCache.clear(),
+                db.clashes.clear(),
+              ])
               // the offline artwork belongs to those items — it goes with them
               await clearImageCache()
+              // a fresh start earns its medals again, pop-ups included
+              resetAchievementState()
               return null
             })
           }

@@ -92,23 +92,49 @@ public class OneWidgetService extends RemoteViewsService {
             return items.size();
         }
 
+        /**
+         * Root view id this item's row is inflated with (Android 12+).
+         *
+         * A row view is only RECYCLED onto a new RemoteViews when both share the
+         * layout AND the root id. With one stable id per item, a row that now
+         * shows a DIFFERENT item (a ✓ bumped another title to the top) is
+         * inflated fresh instead of patched in place: the launcher on HyperOS
+         * patched the texts but kept the previous item's poster. The same item
+         * in the same place still recycles, so a plain refresh doesn't flicker.
+         */
+        private static int rootIdOf(Item it) {
+            String key = it.route == null ? "" : it.route;
+            // a small positive range, clear of R.id (0x7f…) and android.R.id (0x01…)
+            return 0x00100000 + (key.hashCode() & 0x000fffff);
+        }
+
         @Override
         public RemoteViews getViewAt(int position) {
-            RemoteViews row = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
-            if (position < 0 || position >= items.size()) return row;
+            if (position < 0 || position >= items.size()) {
+                return new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
+            }
             Item it = items.get(position);
+            final int rootId;
+            final RemoteViews row;
+            if (Build.VERSION.SDK_INT >= 31) {
+                rootId = rootIdOf(it);
+                row = new RemoteViews(ctx.getPackageName(), R.layout.widget_row, rootId);
+            } else {
+                rootId = R.id.row_root;
+                row = new RemoteViews(ctx.getPackageName(), R.layout.widget_row);
+            }
             // rounded, bordered row: `line` frame around a `card2` card (see
             // widget_row.xml). Tinting keeps the corners; pre-12 has no
             // setColorStateList, so there it degrades to flat square fills.
-            row.setInt(R.id.row_root, "setBackgroundResource", R.drawable.widget_row_border);
+            row.setInt(rootId, "setBackgroundResource", R.drawable.widget_row_border);
             row.setInt(R.id.row_card, "setBackgroundResource", R.drawable.widget_row_bg);
             if (Build.VERSION.SDK_INT >= 31) {
-                row.setColorStateList(R.id.row_root, "setBackgroundTintList",
+                row.setColorStateList(rootId, "setBackgroundTintList",
                         ColorStateList.valueOf(th.line));
                 row.setColorStateList(R.id.row_card, "setBackgroundTintList",
                         ColorStateList.valueOf(th.card2));
             } else {
-                row.setInt(R.id.row_root, "setBackgroundColor", th.line);
+                row.setInt(rootId, "setBackgroundColor", th.line);
                 row.setInt(R.id.row_card, "setBackgroundColor", th.card2);
             }
             row.setTextViewText(R.id.row_title, it.title);
@@ -124,7 +150,7 @@ public class OneWidgetService extends RemoteViewsService {
             Intent open = new Intent();
             open.putExtra("t", "open");
             open.putExtra("route", it.route == null ? "" : it.route);
-            row.setOnClickFillInIntent(R.id.row_root, open);
+            row.setOnClickFillInIntent(rootId, open);
 
             // ✓ button → queue a "mark" the app applies when it next runs
             if (it.mark != null && !it.mark.isEmpty()) {

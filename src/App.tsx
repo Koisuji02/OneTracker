@@ -12,15 +12,19 @@ import {
   useNavigate,
   useNavigationType,
 } from 'react-router-dom'
+import AchievementToaster from './components/AchievementToaster'
 import BottomNav from './components/BottomNav'
+import { MedalDefs } from './components/Medal'
 import { db } from './db'
 import { syncDrive } from './drive'
 import { translate } from './i18n'
 import AboutPage from './pages/AboutPage'
 import AccountPage from './pages/AccountPage'
+import AchievementsPage from './pages/AchievementsPage'
 import AvatarPage from './pages/AvatarPage'
 import BooksPage from './pages/BooksPage'
 import ArchivedPage from './pages/ArchivedPage'
+import ClashPage, { ClashPlayPage } from './pages/ClashPage'
 import OwnedPage from './pages/OwnedPage'
 import ToBuyPage from './pages/ToBuyPage'
 import CatalogPage from './pages/CatalogPage'
@@ -303,6 +307,9 @@ export default function App() {
       <NetworkSync />
       <WidgetSync />
       <DeepLinkHandler />
+      {/* the medals' shared gradients, and the "achievement unlocked" pop-up */}
+      <MedalDefs />
+      <AchievementToaster />
       <div className="min-h-full pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-10 md:pl-20">
         <div className="mx-auto w-full max-w-3xl">
           <Routes>
@@ -317,6 +324,9 @@ export default function App() {
             <Route path="/archived" element={<ArchivedPage />} />
             <Route path="/owned" element={<OwnedPage />} />
             <Route path="/tobuy" element={<ToBuyPage />} />
+            <Route path="/clash" element={<ClashPage />} />
+            <Route path="/clash/play" element={<ClashPlayPage />} />
+            <Route path="/achievements" element={<AchievementsPage />} />
             <Route path="/catalog/:kind" element={<CatalogPage />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />

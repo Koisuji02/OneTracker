@@ -29,6 +29,19 @@ const MIN_INTERVAL = 30 * 60 * 1000
 const MAX_ITEMS = 20
 /** Extra slots for filling in missing game lengths (a one-off per title). */
 const MAX_GAMES = 12
+/**
+ * One-off backfills keyed on the details-cache version a provider's payload
+ * gained something at: once an item is refetched its cache entry is current,
+ * so it's never asked again — even when the new data turned out empty.
+ * - MangaDex v5: the target readership (Shounen, Seinen…) among the tags
+ * - IGDB v6: key art as backdrop (not a logo), DLC/expansion link to the base game
+ * - TMDB anime v7: the readership keyword, which the old first-8 cap dropped
+ */
+const BACKFILLS: Array<{ provider: string; mediaType?: string; v: number; max: number }> = [
+  { provider: 'mangadex', v: 5, max: 8 },
+  { provider: 'igdb', v: 6, max: 10 },
+  { provider: 'tmdb', mediaType: 'anime', v: 7, max: 15 },
+]
 const CONCURRENCY = 3
 
 let lastRun = 0
@@ -86,6 +99,32 @@ function staleGames(items: LibraryItem[]): LibraryItem[] {
     .slice(0, MAX_GAMES)
 }
 
+/**
+ * Library items whose provider payload predates a `BACKFILLS` entry.
+ *
+ * Same reasoning as `staleGames`: a finished or planned item is never due for
+ * a refresh, so without this an old manga's "Manga | Shōnen" medals would stay
+ * dark, and an old game would keep a logo as its backdrop, until the user
+ * happened to reopen its page.
+ */
+async function staleCached(items: LibraryItem[]): Promise<LibraryItem[]> {
+  const out: LibraryItem[] = []
+  for (const { provider, mediaType, v, max } of BACKFILLS) {
+    const own = items.filter(
+      (i) => i.provider === provider && (!mediaType || i.mediaType === mediaType) && !i.archived,
+    )
+    if (own.length === 0) continue
+    const cached = await db.detailsCache.bulkGet(own.map((i) => i.id))
+    out.push(
+      ...own
+        .filter((_, k) => (cached[k]?.v ?? 1) < v)
+        .sort((a, b) => (b.lastReadAt ?? b.addedAt) - (a.lastReadAt ?? a.addedAt))
+        .slice(0, max),
+    )
+  }
+  return out
+}
+
 /** Refresh one item's snapshot; the SWR cache decides if a request happens. */
 async function refreshOne(item: LibraryItem): Promise<void> {
   try {
@@ -129,7 +168,12 @@ export async function syncLibrary(force = false): Promise<void> {
     const items = await db.items.toArray()
     const due = dueForRefresh(items)
     const queued = new Set(due.map((i) => i.id))
-    await pooled([...due, ...staleGames(items).filter((g) => !queued.has(g.id))], refreshOne)
+    const extra = [...staleGames(items), ...(await staleCached(items))].filter((i) => {
+      if (queued.has(i.id)) return false
+      queued.add(i.id) // a stale game can be on both lists: refresh it once
+      return true
+    })
+    await pooled([...due, ...extra], refreshOne)
     // pull anything the other device wrote, merge, push back. Silent: it never
     // opens a sign-in sheet, so this stays a background pass
     await syncDrive(false)
