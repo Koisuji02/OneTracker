@@ -49,6 +49,12 @@ npx wrangler@4.86.0 secret put -c wrangler.toml APP_TOKEN
 Worker as an open proxy. It ships inside the app, so treat it as friction rather
 than real security — the important part is that provider keys stay server side.
 
+**Any provider secret can hold several keys, comma-separated** (`k1,k2,k3`).
+That is a key pool: the gateway spreads requests across them and rests a key
+the moment its provider says it is spent, so quotas add up (three OMDb keys =
+3,000 lookups a day). Adding a key later is just `secret put` again with the
+longer list — no deploy, no app update. See §7.
+
 ## 3. IGDB (better game data than RAWG)
 
 1. Sign in at <https://dev.twitch.tv/console/apps> (free Twitch account).
@@ -83,13 +89,16 @@ and the app keeps calling providers directly, exactly as before.
 curl https://onetracker-api.<your-subdomain>.workers.dev/health?t=<APP_TOKEN>
 ```
 
-Expected: `{"ok":true,"configured":{...}}` with `true` for every key you set.
+Expected: `{"ok":true,"configured":{...},"pools":{...},"advice":[]}` with
+`true` for every key you set. `pools` says how many keys each provider has and
+which are resting right now (in the datacenter that answered); `advice` is
+empty while everything is fine and otherwise tells you which key to add.
 
 ## Routes
 
 | Route | Purpose |
 |---|---|
-| `/health` | which secrets are configured |
+| `/health` | which secrets are configured, key pools, which keys are resting, advice |
 | `/p/{provider}/{path…}` | proxied JSON call, key injected (`tmdb`, `rawg`, `omdb`, `comicvine`, `mangadex`, `jikan`, `anilist`, `openlibrary`) |
 | `/img/{provider}/{path…}` | proxied images for blocked CDNs (`mangadex`, `tmdb`, `igdb`) |
 | `/igdb/{endpoint}` | IGDB v4 with a managed Twitch token (POST, APIcalypse body) |
@@ -153,6 +162,59 @@ Notes:
   `DEVELOPER_ERROR` before any of this is reached. A new machine means a new
   debug keystore, hence a new fingerprint to add:
   `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`
+
+## 7. Keeping it up without you
+
+Two mechanisms in `src/edge.js` make the gateway degrade instead of fail, with
+nobody watching:
+
+**Key pools.** Every keyed provider (`TMDB_KEY`, `RAWG_KEY`, `OMDB_KEY`,
+`COMICVINE_KEY`, and the `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET` pair) accepts a
+comma-separated list. A request picks a key at random; when the provider
+answers "spent" the key is **rested** and the request retried with the next
+one. What counts as spent, and for how long:
+
+| Provider says | Meaning | Key rests |
+|---|---|---|
+| OMDb `200` + `"Request limit reached!"` | daily quota gone | 1 h |
+| OMDb `200` + `"Invalid API key!"`, Comic Vine `status_code: 100` | dead key | 24 h |
+| Comic Vine `420` / `429` | 200/hour exceeded | 1 h |
+| `401` / `403` (keyed providers) | dead key, or RAWG's monthly quota | 1 h |
+| `429` (TMDB, RAWG) | burst limit | 60 s |
+| IGDB `429` | 4 req/s per Twitch client | 2 s |
+
+Rest markers live in the edge cache, so they are per datacenter and expire on
+their own — a key that recovered is retried automatically, nothing to reset.
+When **every** key of a provider is resting the gateway answers `503` with
+`X-OT-Reason: quota` without calling upstream at all… unless it has a stale
+copy, which brings us to:
+
+**Stale answers beat no answers.** Successful responses are kept 30 days past
+their freshness, and `X-OT-Cache` on every response says what happened:
+
+| Kind | Fresh for | Past that |
+|---|---|---|
+| searches | 1 h | `STALE`: served at once, refreshed in the background (one refresh per 30 s per key) |
+| HowLongToBeat, OMDb | 7 days | same — these are the upstreams to spare most |
+| details, episode/chapter lists | 24 h | `MISS`: goes upstream and waits (a new episode must show up the day it airs); `STALE-ERROR` if the upstream fails or every key is resting |
+
+So an outage, a blocked HowLongToBeat or an exhausted quota turns into
+"slightly old data" for anything anyone has asked for before, and into a clean
+`503` only for brand-new requests. Images (`/img`) are cached at the edge for a
+week too (`cf.cacheTtl`).
+
+**What to do when `advice` is not empty** (also shown in the app under
+Settings → provider check → Gateway):
+
+```bash
+npx wrangler@4.86.0 secret put -c wrangler.toml OMDB_KEY   # paste: oldkey,newkey
+```
+
+That is the whole operation. The logic is unit-tested without a Worker runtime:
+
+```bash
+npm run test:worker
+```
 
 ## Updating later
 

@@ -12,7 +12,8 @@
     "android:sync": "npm run build && cap sync android",
     "android:open": "npm run android:sync && cap open android",
     "android:apk": "npm run android:sync && cd android && gradlew assembleDebug",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "test:worker": "node --test \"worker/test/**/*.test.mjs\""
   },
   "dependencies": {
     "@capacitor/android": "^7.6.7",

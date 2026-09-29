@@ -196,7 +196,9 @@ Android-only. `src/widget.ts` returns early on any other platform (`getPlatform(
 
 | File | What it is |
 |---|---|
-| `worker/src/index.js` | One Worker: `/p/{provider}` proxies with the key injected, `/igdb`, `/hltb/search`, `/google/token` (the OAuth exchange that needs the client secret), `/img`, `/health`. Plus the edge cache and the per-IP rate limits |
+| `worker/src/index.js` | One Worker: `/p/{provider}` proxies with a key from the pool injected, `/igdb`, `/hltb/search`, `/google/token` (the OAuth exchange that needs the client secret), `/img`, `/health` (with `pools` and `advice`). Plus the per-IP rate limits |
+| `worker/src/edge.js` | What keeps the gateway up unattended: key pools (comma-separated secrets, spent keys rested via cache markers, retry with the next) and the stale policies (`POLICY.search/detail/static`: stale-while-revalidate or stale-if-error, copies kept 30 days). Takes the cache as a parameter on purpose — testable in Node |
+| `worker/test/edge.test.mjs` | `npm run test:worker`: pools, quota classification per provider, and every `X-OT-Cache` state, against a fake Cache API |
 | `worker/wrangler.toml` | Its config and the rate-limit bindings. Always deploy with `-c wrangler.toml` |
 
 ---
@@ -233,7 +235,7 @@ Android-only. `src/widget.ts` returns early on any other platform (`getPlatform(
 | What counts in the time stats | `computeStats` / `gameHoursOf` / `finishedViews` in `db.ts` |
 | How a card looks | `TrackCard.tsx` + `GridCard.tsx` (both, they are one component in two shapes) |
 | A new provider | a module in `src/api/`, wired in `api/index.ts`, and a route in the Worker if it needs a key or blocks browsers |
-| Cache lifetimes | `REVALIDATE_TTL` (app side, `api/index.ts`) and `TTL_*` (edge, `worker/src/index.js`) |
+| Cache lifetimes | `REVALIDATE_TTL` (app side, `api/index.ts`) and `POLICY` / `TTL_*` / `KEEP` (edge, `worker/src/edge.js`) |
 | Anything about the widget | `src/widget.ts` for the data, the Java + `res/layout` for the look |
 | A medal: a new tag row, a threshold, a grade nickname | `FAMILIES` / `FEATS` in `src/achievements.ts` |
 | How a medal looks | `src/components/Medal.tsx` (metals in `src/metals.ts`) |
