@@ -19,6 +19,7 @@
     "@capacitor/app": "^7.1.2",
     "@capacitor/browser": "^7.0.5",
     "@capacitor/core": "^7.6.7",
+    "@capacitor/ios": "^7.6.9",
     "@capacitor/toast": "^7.0.4",
     "@capgo/capacitor-social-login": "^7.20.0",
     "dexie": "^4.4.4",
