@@ -1,0 +1,168 @@
+# Signed App Store build, uploaded straight to TestFlight. Run by hand
+# (Actions → iOS TestFlight → Run workflow) once the Apple Developer account
+# exists and the secrets below are set — see docs/PRODUCTION.md §6 for how to
+# produce each one WITHOUT a Mac.
+#
+#   APPLE_CERTIFICATE_P12        Apple Distribution certificate + key, .p12, base64
+#   APPLE_CERTIFICATE_PASSWORD   its password
+#   APPLE_PROVISIONING_PROFILE   App Store profile for com.onetracker.app, base64
+#   APPLE_TEAM_ID                10-character team id
+#   ASC_KEY_ID / ASC_ISSUER_ID   App Store Connect API key id and issuer id
+#   ASC_API_KEY_P8               the AuthKey_<id>.p8 file, base64
+#   VITE_GOOGLE_CLIENT_ID_IOS    (secret) the iOS OAuth client id
+#   GOOGLE_IOS_URL_SCHEME        (variable) the same id reversed: com.googleusercontent.apps.…
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - name: Check the secrets exist
+        env:
+          P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          P12_PW: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+          P8: ${{ secrets.ASC_API_KEY_P8 }}
+          IOS_CLIENT: ${{ secrets.VITE_GOOGLE_CLIENT_ID_IOS }}
+          SCHEME: ${{ vars.GOOGLE_IOS_URL_SCHEME }}
+        run: |
+          missing=""
+          for n in P12 P12_PW PROFILE P8 APPLE_TEAM_ID ASC_KEY_ID ASC_ISSUER_ID IOS_CLIENT SCHEME; do
+            [ -n "${!n}" ] || missing="$missing $n"
+          done
+          if [ -n "$missing" ]; then echo "::error::missing:$missing (see the header of this workflow)"; exit 1; fi
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      - name: Build-time config
+        run: |
+          cat > .env <<ENV
+          VITE_GATEWAY_URL=${{ secrets.VITE_GATEWAY_URL }}
+          VITE_GATEWAY_TOKEN=${{ secrets.VITE_GATEWAY_TOKEN }}
+          VITE_GOOGLE_CLIENT_ID_WEB=${{ secrets.VITE_GOOGLE_CLIENT_ID_WEB }}
+          VITE_GOOGLE_CLIENT_ID_ANDROID=${{ secrets.VITE_GOOGLE_CLIENT_ID_ANDROID }}
+          VITE_GOOGLE_CLIENT_ID_IOS=${{ secrets.VITE_GOOGLE_CLIENT_ID_IOS }}
+          VITE_STEAMGRIDDB_KEY=${{ secrets.VITE_STEAMGRIDDB_KEY }}
+          ENV
+      - run: npm run build
+      - run: npx cap sync ios
+
+      - name: Version from build.gradle
+        id: v
+        run: |
+          echo "name=$(sed -nE 's/.*versionName "([^"]+)".*/\1/p' android/app/build.gradle)" >> "$GITHUB_OUTPUT"
+          # TestFlight refuses a build number it has already seen for a
+          # version, so the run number is appended: 37.12, 37.13, …
+          echo "code=$(sed -nE 's/.*versionCode ([0-9]+).*/\1/p' android/app/build.gradle).${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      # A throwaway keychain holding only the distribution certificate.
+      - name: Signing identity
+        env:
+          P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          P12_PW: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          KC="$RUNNER_TEMP/build.keychain-db"; KC_PW="$(uuidgen)"
+          echo "KC=$KC" >> "$GITHUB_ENV"
+          security create-keychain -p "$KC_PW" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security unlock-keychain -p "$KC_PW" "$KC"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -P "$P12_PW" -A -t cert -f pkcs12 -k "$KC"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KC_PW" "$KC" > /dev/null
+          security list-keychains -d user -s "$KC" login.keychain-db
+          security find-identity -v -p codesigning "$KC"
+
+      - name: Provisioning profile
+        id: profile
+        env:
+          PROFILE: ${{ secrets.APPLE_PROVISIONING_PROFILE }}
+        run: |
+          F="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$PROFILE" | base64 --decode > "$F"
+          security cms -D -i "$F" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print UUID' "$RUNNER_TEMP/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print Name' "$RUNNER_TEMP/profile.plist")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$F" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID.mobileprovision"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "profile: $NAME ($UUID)"
+
+      - name: App Store Connect key
+        env:
+          P8: ${{ secrets.ASC_API_KEY_P8 }}
+        run: echo "$P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGN_IDENTITY='Apple Distribution' \
+            PROVISIONING_PROFILE_SPECIFIER='${{ steps.profile.outputs.name }}' \
+            MARKETING_VERSION='${{ steps.v.outputs.name }}' \
+            CURRENT_PROJECT_VERSION='${{ steps.v.outputs.code }}' \
+            GOOGLE_IOS_URL_SCHEME='${{ vars.GOOGLE_IOS_URL_SCHEME }}' \
+            archive 2>&1 | tee xcodebuild.log | grep -E 'error:|ARCHIVE|BUILD' || true
+          grep -q 'ARCHIVE SUCCEEDED' xcodebuild.log
+
+      # destination=upload makes -exportArchive hand the build to App Store
+      # Connect itself, authenticated with the API key — no altool, no Transporter.
+      - name: Export and upload to TestFlight
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$APPLE_TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key><dict>
+              <key>com.onetracker.app</key><string>${{ steps.profile.outputs.name }}</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/App.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          echo "Uploaded ${{ steps.v.outputs.name }} (${{ steps.v.outputs.code }}) — it shows up in TestFlight after Apple's processing."
+
+      - name: Remove the keychain
+        if: always()
+        run: |
+          [ -z "$KC" ] || security delete-keychain "$KC" || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log

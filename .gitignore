@@ -47,3 +47,6 @@ worker/.dev.vars
 # keystore.properties.example documents the shape; the real one stays local.
 android/keystore/
 android/keystore.properties
+
+# GitHub Copilot "modernize" scratch, not part of the project
+.github/modernize/

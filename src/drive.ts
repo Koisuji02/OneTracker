@@ -140,8 +140,16 @@ async function ensureSocialInit(): Promise<GoogleMode> {
   const webClientId = settings.googleClientId.trim() || settings.googleClientIdAndroid.trim()
   if (!webClientId) throw new Error('missing-client-id')
   const mode: GoogleMode = (await gatewayCanRefresh()) ? 'offline' : 'online'
+  // iOS is the one platform that names its own client: Google matches it to
+  // the bundle id, and offline mode additionally wants the WEB id as the
+  // "server" client the serverAuthCode is minted for. Android never sees its
+  // client id at all — package name + SHA-1 pick it on Google's side.
+  const iOSClientId = settings.googleClientIdIos.trim()
+  if (Capacitor.getPlatform() === 'ios' && !iOSClientId) throw new Error('missing-client-id')
   if (socialMode !== mode) {
-    await SocialLogin.initialize({ google: { webClientId, mode } })
+    await SocialLogin.initialize({
+      google: { webClientId, mode, ...(iOSClientId ? { iOSClientId, iOSServerClientId: webClientId } : {}) },
+    })
     socialMode = mode
   }
   return mode

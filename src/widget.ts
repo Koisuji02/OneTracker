@@ -132,7 +132,9 @@ function themeVars() {
 
 /** Recompute the continue list and push it (+theme) to the native widget. */
 export async function syncWidget(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return
+  // The widget is Android-only (Java under android/); on iOS the plugin is
+  // simply not registered and every call would reject, so don't make any.
+  if (Capacitor.getPlatform() !== 'android') return
   try {
     const [items, eps] = await Promise.all([db.items.toArray(), db.episodes.toArray()])
     const watchedKeys = new Set(eps.map((e) => e.id))
@@ -223,7 +225,7 @@ export async function syncWidget(): Promise<void> {
  * Run on app launch/resume so widget marks reconcile into the library.
  */
 export async function drainWidgetActions(): Promise<void> {
-  if (!Capacitor.isNativePlatform()) return
+  if (Capacitor.getPlatform() !== 'android') return
   let actions: string[] = []
   try {
     actions = (await OneWidget.drain())?.actions ?? []

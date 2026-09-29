@@ -1,0 +1,99 @@
+# Builds the iOS app on every push, on GitHub's macOS runners — the only Mac
+# this project has. Free: the repo is public.
+#
+# Output: an UNSIGNED .ipa as a workflow artifact. It proves the Xcode project
+# compiles against the current web build, and it is what a tester can
+# sideload with AltStore/Sideloadly using a free Apple ID (re-signed on their
+# side, 7-day validity). Signed TestFlight builds are ios-testflight.yml.
+name: iOS build
+
+on:
+  push:
+    branches: [main, release/store-launch]
+    paths-ignore: ['docs/**', '**.md', 'android/**', 'worker/**', 'site/**', '.github/workflows/ios-testflight.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The same build-time values the APK ships with. None of them is a
+      # secret in the real sense (they are inside every APK), but they are
+      # kept out of the repo, so CI gets them from repository secrets.
+      - name: Build-time config
+        run: |
+          cat > .env <<ENV
+          VITE_GATEWAY_URL=${{ secrets.VITE_GATEWAY_URL }}
+          VITE_GATEWAY_TOKEN=${{ secrets.VITE_GATEWAY_TOKEN }}
+          VITE_GOOGLE_CLIENT_ID_WEB=${{ secrets.VITE_GOOGLE_CLIENT_ID_WEB }}
+          VITE_GOOGLE_CLIENT_ID_ANDROID=${{ secrets.VITE_GOOGLE_CLIENT_ID_ANDROID }}
+          VITE_GOOGLE_CLIENT_ID_IOS=${{ secrets.VITE_GOOGLE_CLIENT_ID_IOS }}
+          VITE_STEAMGRIDDB_KEY=${{ secrets.VITE_STEAMGRIDDB_KEY }}
+          ENV
+
+      - name: Web build
+        run: npm run build
+
+      # Copies dist/client into ios/App/App/public and regenerates
+      # CapApp-SPM/Package.swift (the committed one may carry Windows paths).
+      - name: Capacitor sync
+        run: npx cap sync ios
+
+      # build.gradle is the single source of truth for the version number;
+      # the Xcode project mirrors it but is overridden here regardless.
+      - name: Version from build.gradle
+        id: v
+        run: |
+          echo "name=$(sed -nE 's/.*versionName "([^"]+)".*/\1/p' android/app/build.gradle)" >> "$GITHUB_OUTPUT"
+          echo "code=$(sed -nE 's/.*versionCode ([0-9]+).*/\1/p' android/app/build.gradle)" >> "$GITHUB_OUTPUT"
+
+      - name: Xcode build (unsigned)
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -version
+          xcodebuild \
+            -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -derivedDataPath ios/DerivedData \
+            -skipPackagePluginValidation -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            MARKETING_VERSION='${{ steps.v.outputs.name }}' \
+            CURRENT_PROJECT_VERSION='${{ steps.v.outputs.code }}' \
+            GOOGLE_IOS_URL_SCHEME='${{ vars.GOOGLE_IOS_URL_SCHEME }}' \
+            build 2>&1 | tee xcodebuild.log | grep -E 'error:|warning: .*App/|BUILD|Compiling|Linking' || true
+          grep -q 'BUILD SUCCEEDED' xcodebuild.log
+
+      - name: Package unsigned IPA
+        run: |
+          APP=ios/DerivedData/Build/Products/Release-iphoneos/App.app
+          test -d "$APP"
+          mkdir -p out/Payload && cp -R "$APP" out/Payload/
+          (cd out && zip -qry "OneTracker-${{ steps.v.outputs.name }}-ios-unsigned.ipa" Payload)
+          ls -la out/*.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OneTracker-${{ steps.v.outputs.name }}-ios-unsigned
+          path: out/*.ipa
+          retention-days: 30
+
+      - name: Build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: xcodebuild.log

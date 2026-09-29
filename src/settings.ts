@@ -47,6 +47,7 @@ export interface Settings {
   googleClientId: string
   /** Android OAuth client (native Custom-Tab PKCE flow) */
   googleClientIdAndroid: string
+  googleClientIdIos: string
   googleEmail: string | null
   googleName: string | null
   googlePicture: string | null
@@ -100,6 +101,7 @@ const defaults: Settings = {
     (import.meta.env.VITE_GOOGLE_CLIENT_ID as string) ??
     '',
   googleClientIdAndroid: (import.meta.env.VITE_GOOGLE_CLIENT_ID_ANDROID as string) ?? '',
+  googleClientIdIos: (import.meta.env.VITE_GOOGLE_CLIENT_ID_IOS as string) ?? '',
   googleEmail: null,
   googleName: null,
   googlePicture: null,
@@ -119,6 +121,7 @@ const KEY_FIELDS = [
   'gatewayToken',
   'googleClientId',
   'googleClientIdAndroid',
+  'googleClientIdIos',
 ] as const
 
 /**
@@ -135,6 +138,7 @@ export const ENV_DEFAULTS = {
   gatewayToken: defaults.gatewayToken,
   googleClientId: defaults.googleClientId,
   googleClientIdAndroid: defaults.googleClientIdAndroid,
+  googleClientIdIos: defaults.googleClientIdIos,
 } as const
 
 function load(): Settings {
