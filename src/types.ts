@@ -50,6 +50,22 @@ export interface GameLength {
   samples?: number | null
 }
 
+/**
+ * What a game entry is on IGDB, when it isn't a plain full game: extra
+ * content that belongs to a base game (`MediaBase.parentGame`).
+ */
+export type GameKind = 'dlc' | 'expansion' | 'standalone'
+
+/** One DLC/expansion of a game, as listed on the base game's page. */
+export interface GameAddon {
+  /** IGDB id — the add-on is a game of its own (`/media/igdb/game/<id>`) */
+  providerId: string
+  title: string
+  poster?: string | null
+  year?: number | null
+  kind: GameKind
+}
+
 export interface Season {
   number: number
   name?: string
@@ -115,6 +131,10 @@ export interface MediaBase {
   mangadexId?: string | null
   /** games: RAWG parent-platform slugs (pc, playstation, xbox, nintendo…) */
   platforms?: string[]
+  /** games: set when the entry is a DLC/expansion rather than a full game */
+  gameKind?: GameKind | null
+  /** games (DLC/expansions): the base game it belongs to — the link back */
+  parentGame?: { providerId: string; title: string } | null
   /** descriptive tags beyond genres (RAWG tags, TMDB keywords, MangaDex themes) */
   tags?: string[]
   /** up to 5 stills/screenshots/volume covers shown in the detail gallery */
@@ -125,6 +145,11 @@ export interface MediaDetails extends MediaBase {
   cast?: CastMember[]
   airStatus?: string | null
   externalRatings?: ExternalRating[]
+  /**
+   * games: its DLCs and expansions. Page-only, like the cast — never copied
+   * into the library item (each add-on is a game of its own).
+   */
+  addons?: GameAddon[]
 }
 
 export interface LibraryItem extends MediaBase {
@@ -181,6 +206,34 @@ export interface WatchList {
   createdAt: number
   /** last content change — the profile preview shows the most recent list */
   updatedAt?: number
+}
+
+/** The four favourites pools a clash is played on — one per media tab. */
+export type ClashKind = 'series' | 'movies' | 'books' | 'games'
+
+/**
+ * A title as it stood when a clash ended. Kept BY VALUE (title + poster) so
+ * the hall of fame still reads right after the item leaves the library.
+ */
+export interface ClashEntrant {
+  id: string
+  title: string
+  poster?: string | null
+  year?: number | null
+  /** with the id, enough to open the detail page even once it's gone */
+  mediaType: MediaType
+}
+
+/** One finished clash: which pool, how many entered, and the final standings. */
+export interface ClashResult {
+  /** `clash-${finishedAt}-${random}` — results are immutable, merged by id */
+  id: string
+  kind: ClashKind
+  /** favourites that entered the bracket */
+  size: number
+  /** best first: champion, finalist, then whoever fell in the round before */
+  podium: ClashEntrant[]
+  finishedAt: number
 }
 
 export interface SearchResult {

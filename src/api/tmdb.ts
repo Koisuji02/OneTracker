@@ -189,12 +189,93 @@ function galleryOf(d: any): string[] {
     .slice(0, 5)
 }
 
-/** TMDB keywords as descriptive tags (movies: `keywords.keywords`, tv: `.results`). */
+/** The target readership of anime (and the manga behind them). */
+const READERSHIP = new Set(['shounen', 'shonen', 'seinen', 'shoujo', 'shojo', 'josei', 'kodomo'])
+
+/**
+ * Keywords that CLASSIFY a title — the sub-genres the app groups by (the
+ * achievements' media + tag rows) — rather than describe one of its moments.
+ * The plain genre words are here too: they're what tells the two halves of
+ * TMDB's paired TV genres ("Action & Adventure") apart.
+ */
+const CLASSIFYING = new Set([
+  'action',
+  'adventure',
+  'fantasy',
+  'science fiction',
+  'sci-fi',
+  'comedy',
+  'drama',
+  'mystery',
+  'thriller',
+  'psychological',
+  'combat',
+  'swordplay',
+  'fight',
+  'fighting',
+  'isekai',
+  'mecha',
+  'giant robot',
+  'slice of life',
+  'iyashikei',
+  'magical girl',
+  'mahou shoujo',
+  'idol',
+  'sports',
+  'martial arts',
+  'superhero',
+  'super power',
+  'dark fantasy',
+  'high fantasy',
+  'urban fantasy',
+  'sword and sorcery',
+  'psychological thriller',
+  'cyberpunk',
+  'dystopia',
+  'space opera',
+  'time travel',
+  'reincarnation',
+  'school life',
+  'harem',
+  'romance',
+  'historical',
+  'samurai',
+  'supernatural',
+  'horror',
+  'zombie',
+  'vampire',
+  'detective',
+  'military',
+  'music',
+])
+
+/** Keywords every title of its kind carries: they tell nothing. */
+const NOISE = new Set(['anime', 'animation', 'duringcreditsstinger', 'aftercreditsstinger'])
+
+/**
+ * TMDB keywords as descriptive tags (movies: `keywords.keywords`, tv:
+ * `.results`), the ones that classify first.
+ *
+ * TMDB lists keywords in no useful order, and the readership sits deep in the
+ * list — One Piece's "shounen" is 14th of 20, Jujutsu Kaisen's 22nd of 33,
+ * Vinland Saga's "seinen" 17th — so keeping the first 8 dropped it for every
+ * anime, and "Anime | Shōnen" medals never moved. The trailing mood keywords
+ * TMDB added ("somber", "exhilarated"…) are what the cap now cuts instead.
+ */
 function keywordsOf(d: any): string[] {
-  return ((d.keywords?.keywords ?? d.keywords?.results ?? []) as any[])
+  const all = ((d.keywords?.keywords ?? d.keywords?.results ?? []) as any[])
     .map((k) => k.name as string)
-    .filter(Boolean)
-    .slice(0, 8)
+    .filter((k) => !!k && !NOISE.has(k.toLowerCase()))
+  const rank = (k: string) => {
+    const key = k.toLowerCase()
+    return READERSHIP.has(key) ? 0 : CLASSIFYING.has(key) ? 1 : 2
+  }
+  // a stable sort: within each rank TMDB's own order is kept
+  return all
+    .map((k, i) => ({ k, i }))
+    .sort((a, b) => rank(a.k) - rank(b.k) || a.i - b.i)
+    .map((x) => x.k)
+    .slice(0, 10)
 }
 
 function enPoster(d: any): string | null {

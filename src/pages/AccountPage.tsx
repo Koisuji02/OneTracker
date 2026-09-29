@@ -19,11 +19,21 @@ import {
   Pencil,
   Plus,
   Settings,
+  Swords,
+  Trophy,
   Tv,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import {
+  METALS,
+  computeAchievements,
+  sectionVisible,
+  unlockedKeys,
+  useAchievementState,
+} from '../achievements'
 import Avatar from '../components/Avatar'
+import Medal from '../components/Medal'
 import MediaRow from '../components/MediaRow'
 import PosterCard from '../components/PosterCard'
 import { computeStats, db, isEpisodic, rewatchGrades } from '../db'
@@ -85,13 +95,24 @@ export default function AccountPage() {
   const items = useLiveQuery(() => db.items.toArray(), [])
   const lists = useLiveQuery(() => db.lists.orderBy('createdAt').toArray(), [])
   const eps = useLiveQuery(() => db.episodes.toArray(), [])
+  const clashes = useLiveQuery(() => db.clashes.toArray(), [])
+  const achState = useAchievementState()
+  const achRows = useMemo(
+    () =>
+      items && eps && clashes
+        ? computeAchievements(items, eps, clashes).filter((r) =>
+            sectionVisible(r.section, { showBooks: settings.showBooks, showGames: settings.showGames }),
+          )
+        : null,
+    [items, eps, clashes, settings.showBooks, settings.showGames],
+  )
 
   useEffect(() => {
     const timer = setInterval(() => setSlot(Math.floor(Date.now() / ROTATION_MS)), 60_000)
     return () => clearInterval(timer)
   }, [])
 
-  if (!items || !stats || !lists || !eps) return null
+  if (!items || !stats || !lists || !eps || !clashes || !achRows) return null
 
   const grades = rewatchGrades(items, eps)
 
@@ -122,6 +143,14 @@ export default function AccountPage() {
     updateSettings({ profileName: nameDraft.trim() })
     setEditingName(false)
   }
+
+  // the medagliere at a glance: earned / total, the best metal so far, and how
+  // many medals arrived since it was last opened
+  const achEarned = achRows.reduce((n, r) => n + r.tier + 1, 0)
+  const achTotal = achRows.length * 4
+  const achBest = achRows.reduce((best, r) => Math.max(best, r.tier), -1)
+  const seenKeys = new Set(achState.seen)
+  const achUnseen = unlockedKeys(achRows).filter((k) => !seenKeys.has(k)).length
 
   const timeRows = [
     // TV + anime merged under "Series" for now (both live in the Series tab)
@@ -220,43 +249,69 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* watch time */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="mx-4 mt-5 block w-[calc(100%-2rem)] rounded-2xl border border-line bg-card p-5 text-left"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold uppercase tracking-wider text-ink3">
-            {t('account.watchTime')}
-          </span>
-          <ChevronDown
-            size={16}
-            className={cn('text-ink3 transition-transform', expanded && 'rotate-180')}
-          />
-        </div>
-        <div className="mt-2 text-3xl font-extrabold tracking-tight text-accent">
-          {formatWatchTime(stats.totalMin, t)}
-        </div>
-        <div className="mt-1 text-xs text-ink4">{t('account.tapForDetails')}</div>
-        {expanded && (
-          <div className="mt-4 space-y-3 border-t border-line pt-4">
-            {timeRows.map((r) => (
-              <div key={r.label} className="flex items-center gap-3">
-                <span className="text-accent">{r.icon}</span>
-                <span className="flex-1 text-sm text-ink2">{r.label}</span>
-                <span className="text-sm font-bold">{r.value}</span>
-              </div>
-            ))}
-            <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-line pt-3">
-              {countRows.map((c) => (
-                <span key={c} className="text-xs text-ink3">
-                  {c}
-                </span>
-              ))}
-            </div>
+      {/* watch time — the dropdown part toggles, the medagliere sits under it */}
+      <div className="mx-4 mt-5 rounded-2xl border border-line bg-card">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="block w-full p-5 pb-4 text-left"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-ink3">
+              {t('account.watchTime')}
+            </span>
+            <ChevronDown
+              size={16}
+              className={cn('text-ink3 transition-transform', expanded && 'rotate-180')}
+            />
           </div>
-        )}
-      </button>
+          <div className="mt-2 text-3xl font-extrabold tracking-tight text-accent">
+            {formatWatchTime(stats.totalMin, t)}
+          </div>
+          <div className="mt-1 text-xs text-ink4">{t('account.tapForDetails')}</div>
+          {expanded && (
+            <div className="mt-4 space-y-3 border-t border-line pt-4">
+              {timeRows.map((r) => (
+                <div key={r.label} className="flex items-center gap-3">
+                  <span className="text-accent">{r.icon}</span>
+                  <span className="flex-1 text-sm text-ink2">{r.label}</span>
+                  <span className="text-sm font-bold">{r.value}</span>
+                </div>
+              ))}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-line pt-3">
+                {countRows.map((c) => (
+                  <span key={c} className="text-xs text-ink3">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </button>
+        <div className="px-5 pb-5">
+          <Link
+            to="/achievements"
+            className="flex items-center gap-3 rounded-xl border border-line bg-card2 px-3 py-2 transition-colors hover:border-accent/50"
+          >
+            <Medal
+              metal={METALS[Math.max(0, achBest)]}
+              icon={Trophy}
+              ribbon="var(--brand)"
+              locked={achBest < 0}
+              size={24}
+            />
+            <span className="flex-1 text-sm font-bold">{t('account.achievements')}</span>
+            {achUnseen > 0 && (
+              <span className="rounded-md bg-brand px-1.5 py-0.5 text-[10px] font-black uppercase text-black">
+                {achUnseen} {t('ach.newMany')}
+              </span>
+            )}
+            <span className="text-xs tabular-nums text-ink3">
+              {achEarned}/{achTotal}
+            </span>
+            <ChevronRight size={16} className="text-ink4" />
+          </Link>
+        </div>
+      </div>
 
       {/* favorites */}
       <Link
@@ -269,6 +324,19 @@ export default function AccountPage() {
         <span className="flex-1 font-bold">{t('account.favorites')}</span>
         <span className="text-sm text-ink3">{favoritesCount}</span>
         <ChevronRight size={18} className="text-ink4" />
+      </Link>
+
+      {/* clash — the favorites box turned inside out: theme fill, dark ink */}
+      <Link
+        to="/clash"
+        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-brand bg-brand p-4 text-black transition-transform active:scale-[0.99]"
+      >
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-black/10">
+          <Swords size={18} />
+        </span>
+        <span className="flex-1 font-bold">{t('account.clash')}</span>
+        <span className="text-sm text-black/60">{clashes.length}</span>
+        <ChevronRight size={18} className="text-black/50" />
       </Link>
 
       {/* lists */}

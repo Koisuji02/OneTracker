@@ -2,7 +2,9 @@
 <!-- One "Continue" row. Two nested layouts on purpose: row_root is tinted with
      the theme's `line` and its 1dp padding shows through as a border around
      row_card (tinted `card2`), which is what makes each row visibly separate
-     on a pure-black AMOLED theme. row_root stays the row's click target. -->
+     on a pure-black AMOLED theme. row_root stays the row's click target.
+     On Android 12+ OneWidgetService inflates the row with a per-item root id
+     instead of row_root (see rootIdOf), so address the root through that. -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/row_root"
     android:layout_width="match_parent"

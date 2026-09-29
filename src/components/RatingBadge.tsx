@@ -6,9 +6,10 @@
  * - 9–9.9   → metallic gold tile, white number
  * - 10      → reflective "diamond" tile with a rare shine sweep, white number
  */
+import { metalBackground, type MetalName } from '../metals'
 import { cn } from '../util'
 
-type Tier = 'plain' | 'bronze' | 'silver' | 'gold' | 'diamond'
+type Tier = 'plain' | MetalName
 
 function tierOf(value: number): Tier {
   if (value >= 10) return 'diamond'
@@ -16,14 +17,6 @@ function tierOf(value: number): Tier {
   if (value >= 8.5) return 'silver'
   if (value >= 8) return 'bronze'
   return 'plain'
-}
-
-/** [light, dark, mid] stops of the metallic gradient. */
-const METALS: Record<Exclude<Tier, 'plain'>, [string, string, string]> = {
-  bronze: ['#f0b27d', '#8a4f1d', '#c47f3e'],
-  silver: ['#f2f2f7', '#7c7c88', '#c9c9d2'],
-  gold: ['#ffe98a', '#a97b06', '#f2c94c'],
-  diamond: ['#e8fcff', '#4aa8dd', '#b9e8f5'],
 }
 
 const SIZES = {
@@ -42,7 +35,7 @@ export default function RatingBadge({
 }) {
   const tier = tierOf(value)
   const label = Number.isInteger(value) ? String(value) : value.toFixed(1)
-  const metal = tier === 'plain' ? null : METALS[tier]
+  const metal = tier === 'plain' ? null : tier
 
   return (
     <span
@@ -55,7 +48,7 @@ export default function RatingBadge({
         fontVariantNumeric: 'tabular-nums',
         ...(metal && {
           // glint top-left, darker under the number so plain white stays readable
-          background: `linear-gradient(145deg, ${metal[0]} 0%, ${metal[2]} 30%, ${metal[1]} 62%, ${metal[2]} 100%)`,
+          background: metalBackground(metal),
           boxShadow:
             'inset 0 1px 2px rgba(255,255,255,0.55), inset 0 -2px 3px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.4)',
         }),

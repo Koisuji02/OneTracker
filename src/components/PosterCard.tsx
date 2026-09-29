@@ -23,6 +23,8 @@ interface PosterCardProps {
   size?: 'md' | 'lg'
   /** library artwork: keep the bytes for offline use */
   persist?: boolean
+  /** small chip on the cover's top-left corner ("Expansion", "DLC") */
+  label?: string | null
   className?: string
 }
 
@@ -39,6 +41,7 @@ export default function PosterCard({
   favorite,
   size = 'md',
   persist = false,
+  label,
   className,
 }: PosterCardProps) {
   return (
@@ -83,6 +86,11 @@ export default function PosterCard({
         {rating != null && (
           <span className="absolute bottom-1.5 right-1.5">
             <RatingBadge value={rating} />
+          </span>
+        )}
+        {label && (
+          <span className="absolute left-1.5 top-1.5 max-w-[calc(100%-2.75rem)] truncate rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white backdrop-blur">
+            {label}
           </span>
         )}
         {favorite && (

@@ -8,7 +8,7 @@
  * and forwards APIcalypse queries (see worker/README.md). Without a gateway the
  * app keeps using RAWG.
  */
-import type { GameLength, MediaDetails, SearchResult } from '../types'
+import type { GameAddon, GameKind, GameLength, MediaDetails, SearchResult } from '../types'
 import { gatewayEnabled, igdbQuery } from './gateway'
 
 /**
@@ -80,6 +80,10 @@ export async function searchGamesIgdb(query: string): Promise<SearchResult[]> {
   return out.slice(0, 14)
 }
 
+/** An add-on's card: enough to draw it and open its own page. */
+const ADDON_FIELDS = (list: string) =>
+  [`${list}.name`, `${list}.cover.image_id`, `${list}.first_release_date`].join(',')
+
 const DETAIL_FIELDS = [
   'name',
   'summary',
@@ -87,9 +91,17 @@ const DETAIL_FIELDS = [
   'first_release_date',
   'total_rating',
   'total_rating_count',
+  'game_type',
+  'parent_game.name',
   'cover.image_id',
   'artworks.image_id',
+  'artworks.artwork_type',
+  'artworks.width',
+  'artworks.height',
   'screenshots.image_id',
+  ADDON_FIELDS('expansions'),
+  ADDON_FIELDS('standalone_expansions'),
+  ADDON_FIELDS('dlcs'),
   'genres.name',
   'themes.name',
   'game_modes.name',
@@ -133,6 +145,81 @@ export async function igdbTimeToBeat(id: string): Promise<GameLength | null> {
   }
 }
 
+/**
+ * IGDB `artwork_type`s (the `/artwork_types` endpoint): 1 artwork, 2 key art
+ * without logo, 3 key art with logo, 4 concept art — and then the ones that
+ * make terrible backgrounds: 5/6/7 the game LOGO (white/black/colour, often a
+ * 6:1 strip on black), 8 infographic, 9–11 covers, 12 icon, 13/14 historical
+ * logo/icon, 15 historical artwork.
+ *
+ * The backdrop used to be `artworks[0]` whatever it was, so the scenic detail
+ * page often showed a logo on black (Elden Ring, God of War), an app icon
+ * (The Witcher 3) or a second box cover (Hollow Knight) behind the poster.
+ */
+const BACKDROP_TYPES = [2, 1, 3, 4] // key art first, never a logo/icon/cover
+const NOT_ART = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+
+/** Landscape enough to fill the hero without cropping to a sliver. */
+const landscape = (a: any) => {
+  const r = a.width && a.height ? a.width / a.height : 16 / 9
+  return r >= 1.25 && r <= 2.4
+}
+
+/**
+ * The art behind the page: key art without logo, then plain artwork, key art
+ * with logo, concept art — in a sane landscape shape — then an in-game
+ * screenshot. An odd-shaped key art is still better than nothing at the end.
+ */
+function pickBackdrop(g: any): string | null {
+  const arts = ((g.artworks ?? []) as any[]).filter((a) => a.image_id)
+  const typeOf = (a: any) => (a.artwork_type as number | undefined) ?? 1
+  for (const type of BACKDROP_TYPES) {
+    const hit = arts
+      .filter((a) => typeOf(a) === type && landscape(a))
+      .sort((x, y) => (y.width ?? 0) - (x.width ?? 0))[0]
+    if (hit) return IMG(hit.image_id, 't_1080p')
+  }
+  const shot = (g.screenshots ?? [])[0]?.image_id as string | undefined
+  if (shot) return IMG(shot, 't_1080p')
+  const any = arts.find((a) => !NOT_ART.has(typeOf(a)))
+  return any ? IMG(any.image_id, 't_1080p') : null
+}
+
+/** IGDB `game_type` → the add-on kinds the app shows (null = a full game). */
+function kindOf(gameType: unknown): GameKind | null {
+  switch (gameType) {
+    case 1: // DLC
+    case 13: // pack / add-on
+      return 'dlc'
+    case 2:
+      return 'expansion'
+    case 4:
+      return 'standalone'
+    default:
+      return null
+  }
+}
+
+/** The base game's DLCs and expansions, biggest first, each by release date. */
+function addonsOf(g: any): GameAddon[] {
+  const list = (rows: any[] | undefined, kind: GameKind): GameAddon[] =>
+    ((rows ?? []) as any[])
+      .filter((x) => x?.id && x.name)
+      .sort((a, b) => (a.first_release_date ?? Infinity) - (b.first_release_date ?? Infinity))
+      .map((x) => ({
+        providerId: String(x.id),
+        title: x.name as string,
+        poster: x.cover?.image_id ? IMG(x.cover.image_id, 't_cover_big') : null,
+        year: x.first_release_date ? new Date(x.first_release_date * 1000).getUTCFullYear() : null,
+        kind,
+      }))
+  return [
+    ...list(g.expansions, 'expansion'),
+    ...list(g.standalone_expansions, 'standalone'),
+    ...list(g.dlcs, 'dlc'),
+  ]
+}
+
 export async function igdbDetails(id: string): Promise<MediaDetails> {
   const rows = await igdbQuery('games', `fields ${DETAIL_FIELDS}; where id = ${Number(id)};`)
   const g = rows[0]
@@ -142,9 +229,12 @@ export async function igdbDetails(id: string): Promise<MediaDetails> {
     .filter((c) => c.developer)
     .map((c) => c.company?.name as string)
     .filter(Boolean)
+  // the gallery skips logos, icons and alternative covers too
   const screenshots = [
     ...((g.screenshots ?? []) as any[]).map((s) => IMG(s.image_id, 't_720p')),
-    ...((g.artworks ?? []) as any[]).map((a) => IMG(a.image_id, 't_720p')),
+    ...((g.artworks ?? []) as any[])
+      .filter((a) => a.image_id && !NOT_ART.has(a.artwork_type))
+      .map((a) => IMG(a.image_id, 't_720p')),
   ].slice(0, 5)
 
   return {
@@ -158,9 +248,7 @@ export async function igdbDetails(id: string): Promise<MediaDetails> {
     poster: g.cover?.image_id ? IMG(g.cover.image_id, 't_cover_big_2x') : null,
     // the backdrop is stretched full-bleed behind the whole page, so it gets
     // the largest sane size — 720p was being upscaled on any modern phone
-    backdrop: (g.artworks ?? [])[0]?.image_id
-      ? IMG(g.artworks[0].image_id, 't_1080p')
-      : ((g.screenshots ?? [])[0]?.image_id ? IMG(g.screenshots[0].image_id, 't_1080p') : null),
+    backdrop: pickBackdrop(g),
     year: g.first_release_date
       ? new Date(g.first_release_date * 1000).getUTCFullYear()
       : null,
@@ -179,6 +267,13 @@ export async function igdbDetails(id: string): Promise<MediaDetails> {
     screenshots,
     platforms: ((g.platforms ?? []) as any[]).map((p) => p.slug as string).filter(Boolean),
     authors: developers.slice(0, 3),
+    gameKind: kindOf(g.game_type),
+    // the link back, for add-ons only (mods and episodes have a parent too)
+    parentGame:
+      kindOf(g.game_type) && g.parent_game?.id
+        ? { providerId: String(g.parent_game.id), title: g.parent_game.name as string }
+        : null,
+    addons: addonsOf(g),
     externalRatings:
       g.total_rating && (g.total_rating_count ?? 0) > 0
         ? [{ source: 'igdb', label: 'IGDB', score: `${Math.round(g.total_rating)}%` }]

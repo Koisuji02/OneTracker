@@ -19,6 +19,7 @@ import {
   ArrowLeft,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock,
   Heart,
   ImageOff,
@@ -26,6 +27,7 @@ import {
   Loader2,
   Lock,
   Plus,
+  Puzzle,
   Star,
   Trash2,
 } from 'lucide-react'
@@ -38,6 +40,7 @@ import Gallery from '../components/Gallery'
 import GameTimeDialog from '../components/GameTimeDialog'
 import OfflineNotice from '../components/OfflineNotice'
 import PlatformChips from '../components/PlatformChips'
+import PosterCard from '../components/PosterCard'
 import RatingBadge from '../components/RatingBadge'
 import RatingModal from '../components/RatingModal'
 import RatingsBanners from '../components/RatingsBanners'
@@ -77,7 +80,7 @@ import { useOnline } from '../net'
 import { useSettings } from '../settings'
 import type {
   EpisodeInfo,
-
+  GameKind,
   LibraryItem,
   MediaDetails,
   MediaType,
@@ -86,6 +89,18 @@ import type {
   WatchedEpisode,
 } from '../types'
 import { cn, formatDate } from '../util'
+
+/** The chip on an add-on's cover, and the "belongs to" line on its own page. */
+const ADDON_CHIP: Record<GameKind, string> = {
+  dlc: 'detail.kindDlc',
+  expansion: 'detail.kindExpansion',
+  standalone: 'detail.kindStandalone',
+}
+const ADDON_OF: Record<GameKind, string> = {
+  dlc: 'detail.dlcOf',
+  expansion: 'detail.expansionOf',
+  standalone: 'detail.standaloneOf',
+}
 
 type Ensure = () => Promise<LibraryItem | null>
 type UnitDialog = { season: number; episode: number; count: number; label: string } | null
@@ -408,6 +423,9 @@ export default function DetailPage() {
     () => db.episodes.where('itemId').equals(canonicalId).toArray(),
     [canonicalId],
   )
+  // a game's DLCs/expansions already in the library carry their own badges
+  const addonKeys = (details?.addons ?? []).map((a) => `${provider}:${a.providerId}`)
+  const addonItems = useLiveQuery(() => db.items.bulkGet(addonKeys), [addonKeys.join('|')])
 
   useEffect(() => {
     let alive = true
@@ -938,6 +956,25 @@ export default function DetailPage() {
         </>
       )}
 
+      {/* an add-on is a game of its own, linked back to the one it expands */}
+      {isGame && meta.gameKind && meta.parentGame && (
+        <Link
+          to={`/media/${meta.provider}/game/${meta.parentGame.providerId}`}
+          className="mx-4 mt-4 flex items-center gap-3 rounded-2xl border border-line bg-card p-3 transition-colors hover:border-accent/50"
+        >
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand/10 text-accent">
+            <Puzzle size={17} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-bold uppercase tracking-wider text-ink3">
+              {t(ADDON_OF[meta.gameKind])}
+            </span>
+            <span className="block truncate text-sm font-bold">{meta.parentGame.title}</span>
+          </span>
+          <ChevronRight size={18} className="shrink-0 text-ink4" />
+        </Link>
+      )}
+
       {/* actions */}
       <div className="mt-5 flex items-center gap-2.5 px-4">{mainAction}</div>
       {/* icon actions: one centered row between the progress bar and the
@@ -1031,6 +1068,36 @@ export default function DetailPage() {
           <p className="whitespace-pre-line text-sm leading-relaxed text-ink2">
             {meta.overview}
           </p>
+        </section>
+      )}
+
+      {/* a game's DLCs and expansions (Stash's "Add-on" row): each opens its
+          own page, where it can be tracked like any game */}
+      {isGame && details?.addons && details.addons.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 px-4 text-lg font-bold">{t('detail.addons')}</h2>
+          <div className="no-scrollbar flex gap-3 overflow-x-auto px-4">
+            {details.addons.map((a, k) => {
+              const own = addonItems?.[k]
+              return (
+                <PosterCard
+                  key={a.providerId}
+                  size="lg"
+                  title={a.title}
+                  poster={a.poster}
+                  year={a.year}
+                  label={t(ADDON_CHIP[a.kind])}
+                  persist={!!own}
+                  rating={own?.rating}
+                  statusKind={
+                    own?.status === 'completed' ? 'done' : own?.status === 'watching' ? 'ongoing' : null
+                  }
+                  favorite={own?.favorite}
+                  onClick={() => nav(`/media/${provider}/game/${a.providerId}`)}
+                />
+              )
+            })}
+          </div>
         </section>
       )}
 

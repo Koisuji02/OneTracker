@@ -19,6 +19,7 @@ import Dexie, { type Table } from 'dexie'
 import { forget } from './imageCache'
 import type { SortMode } from './settings'
 import type {
+  ClashResult,
   EpisodeCacheEntry,
   EpisodeInfo,
   GamePlaythrough,
@@ -76,6 +77,7 @@ class OneTrackerDB extends Dexie {
   covers!: Table<CoverCacheEntry, string>
   images!: Table<ImageBlobEntry, string>
   imageMeta!: Table<ImageMetaEntry, string>
+  clashes!: Table<ClashResult, string>
 
   constructor() {
     super('onetracker')
@@ -235,6 +237,19 @@ class OneTrackerDB extends Dexie {
             item.myPlaytime = null
           }),
       )
+    // v9: finished clashes (the favourites tournament) — a new table only,
+    // nothing to migrate. They travel in the backup like lists do.
+    this.version(9).stores({
+      items: 'id, mediaType, status, favorite, addedAt',
+      episodes: 'id, itemId, watchedAt',
+      episodeCache: 'id, itemId',
+      lists: 'id, createdAt',
+      detailsCache: 'id',
+      covers: 'key',
+      images: 'url',
+      imageMeta: 'url, usedAt',
+      clashes: 'id, kind, finishedAt',
+    })
   }
 }
 
@@ -293,6 +308,8 @@ const KEEP_IF_NULLISH = [
   'lastAired',
   'year',
   'ongoing',
+  'gameKind',
+  'parentGame',
 ] as const
 
 /**
@@ -505,7 +522,7 @@ export async function markRewatchUnit(
 export async function addToLibrary(details: MediaDetails): Promise<LibraryItem> {
   const existing = await db.items.get(details.id)
   if (existing) return existing
-  const { cast: _cast, airStatus: _s, externalRatings: _r, ...base } = details
+  const { cast: _cast, airStatus: _s, externalRatings: _r, addons: _a, ...base } = details
   const item: LibraryItem = {
     ...base,
     status: 'planned',
@@ -616,7 +633,14 @@ export async function recomputeStatus(itemId: string, touch = true): Promise<voi
 export async function refreshItemMetadata(details: MediaDetails): Promise<void> {
   const existing = await db.items.get(details.id)
   if (!existing) return
-  const { cast: _cast, airStatus: _s, externalRatings: _r, id: _id, ...base } = details
+  const {
+    cast: _cast,
+    airStatus: _s,
+    externalRatings: _r,
+    addons: _a,
+    id: _id,
+    ...base
+  } = details
 
   const patch: Partial<LibraryItem> = { ...base }
   const keepIfNullish = [
@@ -634,6 +658,8 @@ export async function refreshItemMetadata(details: MediaDetails): Promise<void> 
     'lastAired',
     'year',
     'ongoing',
+    'gameKind',
+    'parentGame',
   ] as const
   for (const k of keepIfNullish) {
     if (patch[k] == null && existing[k] != null) delete patch[k]
@@ -1066,6 +1092,21 @@ export async function toggleListItem(listId: string, itemId: string): Promise<vo
   await db.lists.update(listId, { itemIds, updatedAt: Date.now() })
 }
 
+// ---------------------------------------------------------------- clashes
+
+/**
+ * Store a finished clash. Results are immutable (a replay is a NEW result),
+ * which is what lets two devices merge them by id without ever conflicting.
+ */
+export async function recordClash(result: Omit<ClashResult, 'id'>): Promise<ClashResult> {
+  const row: ClashResult = {
+    ...result,
+    id: `clash-${result.finishedAt}-${Math.floor(Math.random() * 1e6)}`,
+  }
+  await db.clashes.put(row)
+  return row
+}
+
 // ------------------------------------------------------------------ stats
 
 export interface Stats {
@@ -1163,6 +1204,14 @@ export function gameHoursOf(item: LibraryItem): number {
  */
 export async function computeStats(): Promise<Stats> {
   const [items, episodes] = await Promise.all([db.items.toArray(), db.episodes.toArray()])
+  return statsOf(items, episodes)
+}
+
+/**
+ * The same totals from rows already in memory — what the achievements use, so
+ * "Tempo di visione" there can never disagree with the Profile's number.
+ */
+export function statsOf(items: LibraryItem[], episodes: WatchedEpisode[]): Stats {
   const byId = new Map(items.map((i) => [i.id, i]))
   const stats: Stats = {
     totalMin: 0,

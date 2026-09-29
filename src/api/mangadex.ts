@@ -154,6 +154,14 @@ export async function mangadexRating(id: string) {
   }
 }
 
+/** MangaDex `publicationDemographic` → the label shown among the tags. */
+const DEMOGRAPHIC: Record<string, string> = {
+  shounen: 'Shounen',
+  shoujo: 'Shoujo',
+  seinen: 'Seinen',
+  josei: 'Josei',
+}
+
 export async function mangadexDetails(id: string): Promise<MediaDetails> {
   const url = new URL(`${API}/manga/${id}`)
   for (const inc of ['cover_art', 'author', 'artist']) url.searchParams.append('includes[]', inc)
@@ -208,12 +216,16 @@ export async function mangadexDetails(id: string): Promise<MediaDetails> {
       .map((t) => t.attributes?.name?.en as string)
       .filter(Boolean)
       .slice(0, 6),
-    // themes/formats are the descriptive tags; genres above stay the genres
-    tags: ((a.tags ?? []) as any[])
-      .filter((tag) => ['theme', 'format'].includes(tag.attributes?.group))
-      .map((tag) => tag.attributes?.name?.en as string)
-      .filter(Boolean)
-      .slice(0, 8),
+    // themes/formats are the descriptive tags; genres above stay the genres.
+    // The target readership (Shounen, Seinen…) goes first: it's what "manga
+    // shōnen" means to a reader, and the achievements group manga by it
+    tags: [
+      ...(DEMOGRAPHIC[a.publicationDemographic as string] ? [DEMOGRAPHIC[a.publicationDemographic]] : []),
+      ...((a.tags ?? []) as any[])
+        .filter((tag) => ['theme', 'format'].includes(tag.attributes?.group))
+        .map((tag) => tag.attributes?.name?.en as string)
+        .filter(Boolean),
+    ].slice(0, 8),
     screenshots: await mangadexVolumeCovers(id),
     totalEpisodes: chapters,
     pages: chapters,

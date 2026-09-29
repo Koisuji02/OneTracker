@@ -26,6 +26,7 @@ Manga/comic chapters are stored as season `1`.
 | `detailsCache` | `id` | cached `MediaDetails` payloads (stale-while-revalidate, 6h) |
 | `covers` | `key` | resolved cover URLs shared by search rows and detail pages |
 | `images` / `imageMeta` | `url` | downloaded artwork (blob + LRU bookkeeping) — see *Offline* below |
+| `clashes` | `id` | finished clashes: `kind`, `size`, `podium[]` (champion first, kept by value: title + poster + mediaType), `finishedAt`. Immutable — merged across devices by id |
 
 Status is always **derived**: `planned` (0 units) → `watching` (some) →
 `completed` (all units *and* the work is finished). Ongoing works never auto-complete.
@@ -59,6 +60,8 @@ Status is always **derived**: `planned` (0 units) → `watching` (some) →
 | `isWaiting` | `(item, watchedKeys, airDateOf?) → boolean` | item with nothing to do right now (unreleased, or caught up on everything aired). `airDateOf(season, slot)` supplies the next unit's own air date so an episode released **today** leaves "Waiting" immediately instead of waiting for the next metadata refresh |
 | `isCaughtUp` | `(item, watchedCount) → boolean` | ongoing + everything released watched |
 | `computeStats` | `() → Stats` | totals: tv/anime/movie/game minutes (rewatches multiply), episodes, chapters, counts |
+| `statsOf` | `(items, episodes) → Stats` | the same totals from rows already in memory (what the achievements use) |
+| `recordClash` | `(result without id) → ClashResult` | store a finished clash; a replay is always a NEW result |
 | `gameBaseHours` | `(item) → number` | one playthrough of a game in hours — the how-long-to-beat main story |
 | `gameHoursOf` | `(item) → number` | what a game adds to the totals: the sum of its runs, each at its own chosen time |
 | `createList` / `deleteList` / `toggleListItem` | — | user lists CRUD |
@@ -130,7 +133,8 @@ Movies/specials are never aggregated. Nodes are memory-cached per session.
 ### MangaDex as the manga source (`src/api/mangadex.ts`)
 
 `mangadexDetails(id)` returns full manga details keyless: title, description
-(Italian preferred), cover art, year, genres (tags), authors/artists, ongoing
+(Italian preferred), cover art, year, genres (tags), the target readership
+(`publicationDemographic` → "Shounen", "Seinen"… as the first tag), authors/artists, ongoing
 status, released-chapter count (`lastChapter` + highest chapter in the feed) and
 `externalRatings` = MangaDex community rating + AniList/MAL scores grafted via
 `attributes.links.al`. Legacy `anilist:` manga items still use `mangadexFind` /
@@ -161,10 +165,33 @@ stored on items and shown as platform chips.
 plugin JSON), resolves TVDB→TMDB via `/find`, movies via IMDb id or title+year,
 and merges episode rows keeping the highest rewatch count (idempotent re-import).
 
+### Game add-ons (`src/api/igdb.ts`)
+
+`igdbDetails(id)` also returns, for a base game, `addons: GameAddon[]` — its
+expansions, standalone expansions and DLCs (`game_type` 2, 4, 1/13) with
+cover and year; the list is page-only and never copied into the library item.
+For an add-on it returns `gameKind` (`dlc` | `expansion` | `standalone`) and
+`parentGame { providerId, title }`, which ARE stored: a DLC is tracked as a
+game of its own but keeps the link to the game it expands. The backdrop is
+picked by `artwork_type`: key art without logo → artwork → key art with logo
+→ concept art (landscape only) → a screenshot; logos, icons, covers and
+infographics are never used.
+
+## Achievements (`src/achievements.ts`) and clashes (`src/clash.ts`)
+
+| Function | Signature | Behavior |
+|---|---|---|
+| `computeAchievements` | `(items, episodes, clashes) → AchievementRow[]` | every row of the medagliere (feats first, then media + tag), each with its value, thresholds and highest tier reached (-1…3). Pure: medals are never stored |
+| `unlockedKeys` | `(rows) → string[]` | earned medals as `'anime:shonen:gold'` keys |
+| `useAchievementRows` | `() → rows \| undefined` | live rows for a screen |
+| `useAchievementState` / `updateAchievementState` / `resetAchievementState` | — | per-device record of what the pop-up already announced (`notified`) and the medagliere already showed (`seen`) |
+| `startClash` / `choose` / `duelOf` / `standings` | — | the knockout bracket: seeds with byes, settles a duel, reads the current pair and the final standings |
+
 ## Backup (`src/backup.ts`)
 
-`buildBackup()` → JSON v2: settings (language, toggles, theme, profile name) +
-`items` + `episodes` + `lists`. `applyBackup(json)` replaces the whole library.
+`buildBackup()` → JSON v5: settings (language, toggles, theme, profile name) +
+`items` + `episodes` + `lists` + `clashes`. `applyBackup(json)` replaces the
+whole library; `mergeBackup(json)` merges it (clashes as a union by id).
 Same format is used for file export and the Google Drive appDataFolder copy
 (`src/drive.ts`).
 

@@ -246,9 +246,13 @@ const REVALIDATE_TTL = 1000 * 60 * 60 * 6 // 6h
 /**
  * Bump when cached payloads must be re-derived.
  * v2: CJK-title EN fallback · v3: games carry how-long-to-beat times ·
- * v4: game artwork at retina/1080p sizes.
+ * v4: game artwork at retina/1080p sizes · v5: MangaDex manga carry their
+ * target readership (Shounen, Seinen…) among the tags · v6: IGDB games pick
+ * key art (never a logo or icon) as backdrop and carry their DLCs/expansions
+ * and, for an add-on, the base game · v7: TMDB keywords keep the classifying
+ * ones first (the anime readership used to be cut by the first-8 cap).
  */
-const CACHE_V = 4
+const CACHE_V = 7
 
 export async function getDetails(
   provider: Provider,
@@ -275,10 +279,15 @@ export async function getDetails(
     // entries cached before the CJK-title fix hold raw Japanese titles that
     // then leak into the library, and an OLD game payload is stale twice over
     // (no how-long-to-beat times, low-res artwork) — refetch those NOW instead
-    // of after the 6h SWR window (once: the rewrite stamps the current version)
+    // of after the 6h SWR window (once: the rewrite stamps the current version).
+    // Each rule keeps the version it was introduced at, so a later bump never
+    // refetches payloads that were already fine.
+    const v = cached.v ?? 1
     const outdated =
-      (cached.v ?? 1) < CACHE_V &&
-      (CJK_RE.test(cached.details.title) || cached.details.mediaType === 'game')
+      (v < 4 && (CJK_RE.test(cached.details.title) || cached.details.mediaType === 'game')) ||
+      (v < 5 && cached.details.provider === 'mangadex') ||
+      (v < 6 && cached.details.provider === 'igdb') ||
+      (v < 7 && cached.details.provider === 'tmdb' && cached.details.mediaType === 'anime')
     if (outdated) {
       try {
         return await revalidate()
