@@ -56,7 +56,9 @@ middle step where it gets expensive.
 **Measured, not assumed** (15 Sep 2026, against the live gateway): a repeat
 request to every provider path returns `X-OT-Cache: HIT` — TMDB details and
 season lists, RAWG, MangaDex, Comic Vine, IGDB (POST bodies are hashed into the
-key) and HLTB.
+key) and HLTB. Since 29 Sep a stale copy is also kept 30 days for fallbacks
+(`STALE` / `STALE-ERROR`), so a miss that reaches an exhausted or dead upstream
+is rarer still — see §3.
 
 OMDb did NOT, and that was a real bug: it answers with `Vary: *`, which makes a
 response permanently uncacheable, so every ratings lookup went upstream — on the
@@ -80,22 +82,58 @@ in the order things break:
 | **HowLongToBeat** | no public API at all | game lengths | Unofficial. Can break or be blocked any day |
 | **Google Drive** | per-user quota | backup | Costs us nothing, it is the user's own storage |
 
-### What to do about it
+### What to do about it — done, in the gateway (`worker/src/edge.js`)
 
-1. **Cache at the edge** — done for the two that matter: HLTB and OMDb answers
-   are kept 7 days (`TTL_STATIC`), searches 1 h, everything else 24 h. Episode
-   and chapter lists deliberately stay at 24 h: a new episode has to show up
-   the day it airs, which is the whole point of the Continue list.
-2. **Let the tight providers degrade.** Ratings (OMDb) and comics (Comic Vine)
-   already fail silently. Keep it that way — a missing IMDb banner is not an
-   outage.
-3. **Bring-your-own-key already exists.** Settings accepts a user's own TMDB /
-   RAWG / OMDb / Comic Vine keys, and `ENV_DEFAULTS` hides the shipped ones.
-   If a provider's shared key ever gets exhausted, power users have an escape
-   hatch without an app update.
-4. **Ask, don't guess.** TMDB and IGDB both grant free non-commercial use to
+1. **Key pools.** Every provider secret takes a comma-separated list of keys.
+   The gateway spreads load across them and *rests* a key the moment its
+   provider says it is spent (OMDb's "Request limit reached!", Comic Vine's
+   420, a 401/403, a 429), retrying with the next one. Quotas add up: three
+   free OMDb keys are 3,000 distinct titles a day. Adding a key is one
+   `wrangler secret put` with a longer list — no deploy, no app update, and
+   the rest markers expire on their own, so nothing is ever reset by hand.
+2. **Stale answers beat no answers.** Successful responses are kept 30 days
+   past their freshness. Searches and the static stuff (HLTB, OMDb) are
+   served stale at once and refreshed in the background; details go upstream
+   when stale but fall back to the old copy if the upstream fails or every
+   key is resting. Episode and chapter lists deliberately never serve stale on
+   a healthy upstream: a new episode has to show up the day it airs, which is
+   the whole point of the Continue list.
+3. **Let the tight providers degrade.** Ratings (OMDb) and comics (Comic Vine)
+   fail silently in the app, and now they mostly don't fail at all: an
+   exhausted quota means "yesterday's score" for anything seen before.
+4. **Bring-your-own-key already exists.** Settings accepts a user's own TMDB /
+   RAWG / OMDb / Comic Vine keys, and `ENV_DEFAULTS` hides the shipped ones —
+   the escape hatch for power users, without an app update.
+5. **Ask, don't guess.** TMDB and IGDB both grant free non-commercial use to
    apps like this; if usage grows, write to them rather than silently
    exceeding a limit. A free tracker with attribution is exactly their case.
+
+### Running it without watching it
+
+Nothing here needs a daily look. The two things worth knowing:
+
+- **`/health` tells you when to act.** Its `advice` array is empty while all
+  is well; when a provider's keys are resting it says so and names the secret
+  to extend. The same line appears in the app under *Impostazioni → verifica
+  provider → Gateway*, so a glance at your own phone is the monitoring.
+  Per datacenter, so a quiet answer from one colo doesn't prove another is
+  fine — but the keys are shared, so an exhausted quota shows up everywhere
+  within the hour.
+- **Cloudflare's own ceiling is the only one that needs money.** The Workers
+  dashboard shows requests/day; when it sits near 100k the answer is the
+  $5/month plan, not more keys. Everything else is provider quotas, and those
+  are solved by pools.
+
+What a user sees when something is exhausted, worst case (nothing cached):
+
+| Spent | Effect in the app |
+|---|---|
+| OMDb | no IMDb/RT/Metacritic banner on titles nobody looked up before |
+| Comic Vine | comics search returns nothing for an hour |
+| RAWG | games still work — IGDB is primary, RAWG only fills Steam art |
+| HowLongToBeat (blocked) | new games show no length; IGDB's estimate is used |
+| TMDB / IGDB burst | a retry a second later works (pools) |
+| Cloudflare 100k/day | search and new titles fail until midnight UTC; the library, marking episodes and the widget keep working (local) |
 
 ## 4. Do NOT monetise
 

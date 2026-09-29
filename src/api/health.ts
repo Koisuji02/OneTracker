@@ -83,10 +83,14 @@ export function checkProviders(): Promise<ProviderHealth[]> {
       const data = await res.json().catch(() => null)
       const cfg = data?.configured ?? {}
       const missing = ['tmdb', 'rawg', 'omdb', 'comicvine', 'igdb'].filter((k) => !cfg[k])
-      return {
-        state: 'ok',
-        detail: missing.length ? `secrets missing: ${missing.join(', ')}` : 'all secrets set',
-      }
+      // the Worker also says which provider keys are resting right now (a
+      // quota hit) — the one line that tells the operator to add a key
+      const advice: string[] = Array.isArray(data?.advice) ? data.advice : []
+      const notes = [
+        ...(missing.length ? [`secrets missing: ${missing.join(', ')}`] : []),
+        ...advice,
+      ]
+      return { state: 'ok', detail: notes.length ? notes.join(' | ') : 'all secrets set' }
     }),
 
     probe('tmdb', 'TMDB', 'health.roleTmdb', async () => {

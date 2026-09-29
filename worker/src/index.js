@@ -12,7 +12,7 @@
  *    sends no CORS headers, so it's only usable behind a proxy like this.
  *
  * Routes
- *   GET  /health                      → which secrets are configured
+ *   GET  /health                      → which secrets are configured, which keys are resting
  *   ANY  /p/{provider}/{path...}      → proxied provider call, key injected
  *   GET  /img/{provider}/{path...}    → proxied image host (blocked CDNs)
  *   POST /igdb/{endpoint}             → IGDB with a managed Twitch token
@@ -20,14 +20,17 @@
  *   POST /google/token                → OAuth code/refresh → Drive access token
  *
  * Free tier: 100k requests/day, and the CPU cost here is negligible (pure I/O).
+ * How it stays up with nobody watching — key pools, stale answers — is edge.js.
  */
 
+import { cached, classify, KEYED, keysOf, POLICY, restingKeys, withKeys } from './edge.js'
+
 const JSON_PROVIDERS = {
-  // provider → { base, auth(url, env, headers) }
+  // provider → { base, auth(url, key, headers) } — `key` is the ONE key picked
+  // for this attempt out of the provider's pool (edge.js), '' when none is set
   tmdb: {
     base: 'https://api.themoviedb.org/3',
-    auth(url, env, headers) {
-      const key = env.TMDB_KEY
+    auth(url, key, headers) {
       if (!key) return
       // v4 read tokens go in the header, legacy v3 keys in the query string
       if (key.startsWith('ey')) headers.set('Authorization', `Bearer ${key}`)
@@ -36,20 +39,20 @@ const JSON_PROVIDERS = {
   },
   rawg: {
     base: 'https://api.rawg.io/api',
-    auth(url, env) {
-      if (env.RAWG_KEY) url.searchParams.set('key', env.RAWG_KEY)
+    auth(url, key) {
+      if (key) url.searchParams.set('key', key)
     },
   },
   omdb: {
     base: 'https://www.omdbapi.com',
-    auth(url, env) {
-      if (env.OMDB_KEY) url.searchParams.set('apikey', env.OMDB_KEY)
+    auth(url, key) {
+      if (key) url.searchParams.set('apikey', key)
     },
   },
   comicvine: {
     base: 'https://comicvine.gamespot.com/api',
-    auth(url, env) {
-      if (env.COMICVINE_KEY) url.searchParams.set('api_key', env.COMICVINE_KEY)
+    auth(url, key) {
+      if (key) url.searchParams.set('api_key', key)
       // through the proxy we can finally use plain JSON instead of JSONP
       url.searchParams.set('format', 'json')
     },
@@ -66,24 +69,6 @@ const IMAGE_PROVIDERS = {
   tmdb: 'https://image.tmdb.org',
   igdb: 'https://images.igdb.com',
 }
-
-/**
- * Edge cache. 100 people looking up the same popular titles should not cost 100
- * upstream calls: OMDb allows 1000/day and Comic Vine 200/hour, so caching is
- * what makes a shared instance viable at all. Cloudflare's Cache API is free.
- *
- * Searches move fast (new titles, typos while typing) → short TTL.
- * Details are stable → long TTL. Errors are never cached.
- */
-const TTL_SEARCH = 60 * 60 // 1 h
-const TTL_DETAIL = 24 * 60 * 60 // 24 h
-/**
- * For answers that do not change and whose upstream we most want to spare:
- * a game's how-long-to-beat time is a years-old crowd average (and HLTB is an
- * unofficial endpoint), and OMDb's critic scores move glacially while its free
- * key allows only ~1,000 calls a DAY across every user of this gateway.
- */
-const TTL_STATIC = 7 * 24 * 60 * 60 // 7 days
 
 const isSearch = (pathname, body = '') =>
   /\/search|\/games\?|q=|query=|title=/i.test(pathname) || /^\s*search\s+"/i.test(body)
@@ -105,44 +90,19 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 }
 
-const json = (body, status = 200) =>
+const json = (body, status = 200, extra = {}) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS },
+    headers: { 'Content-Type': 'application/json', ...CORS, ...extra },
   })
 
 /**
- * Serve from the edge cache when possible, otherwise run `produce()` and store
- * a copy. Only successful responses are cached; `X-OT-Cache` says HIT or MISS
- * so a cache problem is visible from the client.
+ * Every key of a provider is resting. 503 so the edge cache falls back to a
+ * stale copy when it has one (cached() never stores a non-ok answer), and
+ * `X-OT-Reason` so the app can tell "quota" from "provider down".
  */
-async function cached(ctx, key, ttl, produce) {
-  const cache = caches.default
-  const hit = await cache.match(key)
-  if (hit) {
-    const headers = new Headers(hit.headers)
-    headers.set('X-OT-Cache', 'HIT')
-    return new Response(hit.body, { status: hit.status, headers })
-  }
-  const res = await produce()
-  if (res.ok && ttl > 0) {
-    const store = new Response(res.clone().body, res)
-    store.headers.set('Cache-Control', `public, max-age=${ttl}`)
-    // Upstream caching headers must not survive: OMDb answers with `Vary: *`,
-    // which makes a response permanently UNCACHEABLE — every rating lookup was
-    // going upstream, on the provider with the tightest quota of the lot
-    // (~1,000 calls a day shared by everyone). The cache key here is one we
-    // build ourselves, so Vary is meaningless to us either way.
-    store.headers.delete('Vary')
-    store.headers.delete('Expires')
-    store.headers.delete('Age')
-    store.headers.delete('Pragma')
-    ctx.waitUntil(cache.put(key, store))
-  }
-  const headers = new Headers(res.headers)
-  headers.set('X-OT-Cache', 'MISS')
-  return new Response(res.body, { status: res.status, headers })
-}
+const quota = (provider) =>
+  json({ error: 'quota', provider, hint: 'every key is resting; add one to the pool' }, 503, { 'X-OT-Reason': 'quota' })
 
 /** Copy an upstream response through, adding CORS. */
 function passThrough(res) {
@@ -155,39 +115,56 @@ function passThrough(res) {
 
 // ------------------------------------------------------------------ IGDB
 
-/** Twitch app token, cached in the isolate until shortly before it expires. */
-let igdbToken = null
+/**
+ * Twitch app tokens, one per client id, cached in the isolate until shortly
+ * before they expire. `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET` are pools too
+ * (comma-separated, paired by position): IGDB allows 4 requests a second per
+ * client, so a second client doubles the burst ceiling.
+ */
+const igdbTokens = new Map()
 
-async function igdbAccessToken(env) {
-  if (igdbToken && Date.now() < igdbToken.exp - 60_000) return igdbToken.value
-  if (!env.IGDB_CLIENT_ID || !env.IGDB_CLIENT_SECRET) throw new Error('igdb-not-configured')
+async function igdbAccessToken(clientId, secret) {
+  const have = igdbTokens.get(clientId)
+  if (have && Date.now() < have.exp - 60_000) return have.value
   const url = new URL('https://id.twitch.tv/oauth2/token')
-  url.searchParams.set('client_id', env.IGDB_CLIENT_ID)
-  url.searchParams.set('client_secret', env.IGDB_CLIENT_SECRET)
+  url.searchParams.set('client_id', clientId)
+  url.searchParams.set('client_secret', secret)
   url.searchParams.set('grant_type', 'client_credentials')
   const res = await fetch(url, { method: 'POST' })
   if (!res.ok) throw new Error(`igdb-token-${res.status}`)
   const data = await res.json()
-  igdbToken = {
-    value: data.access_token,
-    exp: Date.now() + (data.expires_in ?? 3600) * 1000,
-  }
-  return igdbToken.value
+  igdbTokens.set(clientId, { value: data.access_token, exp: Date.now() + (data.expires_in ?? 3600) * 1000 })
+  return data.access_token
 }
 
-async function handleIgdb(body, env, endpoint) {
-  const token = await igdbAccessToken(env)
-  const res = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Client-ID': env.IGDB_CLIENT_ID,
-      Authorization: `Bearer ${token}`,
-      Accept: 'application/json',
-      'Content-Type': 'text/plain',
+async function handleIgdb(body, env, endpoint, cache, origin) {
+  const ids = keysOf(env, 'IGDB_CLIENT_ID')
+  const secrets = keysOf(env, 'IGDB_CLIENT_SECRET')
+  if (ids.length === 0 || secrets.length !== ids.length) throw new Error('igdb-not-configured')
+  const r = await withKeys({
+    cache,
+    origin,
+    provider: 'igdb',
+    keys: ids,
+    attempt: async (clientId, i) => {
+      const token = await igdbAccessToken(clientId, secrets[i])
+      const res = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Client-ID': clientId,
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          'Content-Type': 'text/plain',
+        },
+        body,
+      })
+      const c = await classify('igdb', res)
+      // a refused token is re-minted on the next attempt, not kept
+      if (c.reason === 'token') igdbTokens.delete(clientId)
+      return c
     },
-    body,
   })
-  return passThrough(res)
+  return r.outcome === 'quota' ? quota('igdb') : passThrough(r.res)
 }
 
 // ---------------------------------------------------------------- Google
@@ -358,7 +335,7 @@ async function handleHltb(query) {
   if (!res.ok) return json({ error: `hltb-${res.status}` }, 502)
   const data = await res.json()
   return json({
-    data: ((data?.data ?? []).slice(0, 20)).map((g) => ({
+    data: (data?.data ?? []).slice(0, 20).map((g) => ({
       id: g.game_id,
       name: g.game_name ?? '',
       alias: g.game_alias ?? '',
@@ -375,6 +352,57 @@ async function handleHltb(query) {
       /** submissions behind the numbers — the popularity/confidence signal */
       samples: g.count_comp || 0,
     })),
+  })
+}
+
+// ---------------------------------------------------------------- health
+
+/**
+ * The operator's dashboard, one JSON. `configured` is what the app's Settings
+ * screen reads; `pools` and `advice` are for whoever runs the gateway — the
+ * one line that says "add a key" before users notice anything.
+ *
+ * Deliberately only booleans and counts: this used to report the LENGTH of
+ * every secret, a free hint about its shape to anyone holding the app token
+ * (which ships inside the APK).
+ */
+async function health(env, request, cache, origin) {
+  const pools = {}
+  for (const [provider, secret] of Object.entries({ ...KEYED, igdb: 'IGDB_CLIENT_ID' })) {
+    const n = keysOf(env, secret).length
+    pools[provider] = { keys: n, resting: await restingKeys(cache, origin, provider, n) }
+  }
+  const advice = []
+  for (const [provider, p] of Object.entries(pools)) {
+    if (p.keys === 0 || p.resting.length === 0) continue
+    const why = [...new Set(p.resting.map((r) => r.reason))].join(', ')
+    const secret = provider === 'igdb' ? 'IGDB_CLIENT_ID + IGDB_CLIENT_SECRET' : KEYED[provider]
+    advice.push(
+      p.resting.length >= p.keys
+        ? `${provider}: every key is resting (${why}) — add one: wrangler secret put ${secret}, comma-separated`
+        : `${provider}: ${p.resting.length}/${p.keys} keys resting (${why})`,
+    )
+  }
+  return json({
+    ok: true,
+    configured: {
+      tmdb: pools.tmdb.keys > 0,
+      rawg: pools.rawg.keys > 0,
+      omdb: pools.omdb.keys > 0,
+      comicvine: pools.comicvine.keys > 0,
+      igdb: pools.igdb.keys > 0 && keysOf(env, 'IGDB_CLIENT_SECRET').length === pools.igdb.keys,
+      // with this on, the app can hold a Google REFRESH token and back
+      // up to Drive in the background indefinitely
+      google: !!(env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CLIENT_ID),
+      appToken: !!env.APP_TOKEN,
+      // abuse shield: both must be true for it to do anything
+      rateLimit: !!(env.RL_API && env.RL_HEAVY),
+      clientIp: !!request.headers.get('CF-Connecting-IP'),
+    },
+    // per datacenter: each colo learns on its own which keys are spent
+    pools,
+    cache: { policy: 'stale-while-revalidate + stale-if-error', keepDays: 30, colo: request.cf?.colo ?? null },
+    advice,
   })
 }
 
@@ -403,6 +431,7 @@ export default {
 
     const url = new URL(request.url)
     const [, section, provider, ...rest] = url.pathname.split('/')
+    const cache = caches.default
 
     // health stays reachable so the app can always diagnose itself
     if (section !== 'health' && url.pathname !== '/health') {
@@ -422,28 +451,7 @@ export default {
 
     try {
       if (url.pathname === '/health' || section === 'health') {
-        return json({
-          ok: true,
-          configured: {
-            tmdb: !!env.TMDB_KEY,
-            rawg: !!env.RAWG_KEY,
-            omdb: !!env.OMDB_KEY,
-            comicvine: !!env.COMICVINE_KEY,
-            igdb: !!(env.IGDB_CLIENT_ID && env.IGDB_CLIENT_SECRET),
-            // with this on, the app can hold a Google REFRESH token and back
-            // up to Drive in the background indefinitely
-            google: !!(env.GOOGLE_CLIENT_SECRET && env.GOOGLE_CLIENT_ID),
-            appToken: !!env.APP_TOKEN,
-            // abuse shield: both must be true for it to do anything
-            rateLimit: !!(env.RL_API && env.RL_HEAVY),
-            clientIp: !!request.headers.get('CF-Connecting-IP'),
-          },
-          // Deliberately only booleans. This used to also report the LENGTH of
-          // every string binding, which is a free hint about the shape of each
-          // secret to anyone who has the app token (and the app token ships
-          // inside the APK). "Configured or not" is all the Settings screen
-          // needs to diagnose a provider.
-        })
+        return await health(env, request, cache, url.origin)
       }
 
       if (section === 'google' && provider === 'token') {
@@ -460,24 +468,27 @@ export default {
             query = body.trim()
           }
         }
-        // game lengths barely move; cache them for the full detail TTL
         const key = await cacheKeyFor(request, url, `hltb:${query}`)
-        return await cached(ctx, key, TTL_STATIC, () => handleHltb(query))
+        return await cached(cache, ctx, key, POLICY.static, () => handleHltb(query))
       }
 
       if (section === 'igdb') {
         const body = await request.text()
         const key = await cacheKeyFor(request, url, body)
-        return await cached(ctx, key, isSearch(url.pathname, body) ? TTL_SEARCH : TTL_DETAIL, () =>
-          handleIgdb(body, env, provider ?? 'games'),
-        )
+        const policy = isSearch(url.pathname, body) ? POLICY.search : POLICY.detail
+        return await cached(cache, ctx, key, policy, () => handleIgdb(body, env, provider ?? 'games', cache, url.origin))
       }
 
       if (section === 'img') {
         const base = IMAGE_PROVIDERS[provider]
         if (!base) return json({ error: 'unknown image provider' }, 404)
         const target = `${base}/${rest.join('/')}${url.search}`
-        const res = await fetch(target, { headers: { Accept: 'image/*' } })
+        // `cf.cacheTtl` keeps the upstream image at the edge as well: the 200th
+        // person opening the same manga costs MangaDex nothing
+        const res = await fetch(target, {
+          headers: { Accept: 'image/*' },
+          cf: { cacheEverything: true, cacheTtl: 604800 },
+        })
         const headers = new Headers(res.headers)
         for (const [k, v] of Object.entries(CORS)) headers.set(k, v)
         // images are immutable; let the browser and the edge keep them
@@ -497,21 +508,30 @@ export default {
         headers.set('Accept', 'application/json')
         // a descriptive UA keeps politeness-checking APIs (Open Library) happy
         headers.set('User-Agent', 'OneTracker/1.0 (personal media tracker)')
-        cfg.auth?.(target, env, headers)
 
         const key = await cacheKeyFor(request, url, body)
-        // OMDb is the tightest budget of the lot (~1,000 calls a DAY for every
-        // user of this gateway put together) and a critic score barely moves
-        const detailTtl = provider === 'omdb' ? TTL_STATIC : TTL_DETAIL
-        return await cached(ctx, key, isSearch(url.pathname + url.search, body) ? TTL_SEARCH : detailTtl, async () =>
-          passThrough(
-            await fetch(target.toString(), {
-              method: request.method,
-              headers,
-              body: body || undefined,
-            }),
-          ),
-        )
+        const policy = isSearch(url.pathname + url.search, body)
+          ? POLICY.search
+          : provider === 'omdb'
+            ? POLICY.static
+            : POLICY.detail
+        const keys = KEYED[provider] ? keysOf(env, KEYED[provider]) : []
+        return await cached(cache, ctx, key, policy, async () => {
+          const r = await withKeys({
+            cache,
+            origin: url.origin,
+            provider,
+            keys,
+            attempt: async (apiKey) => {
+              const t = new URL(target.toString())
+              const h = new Headers(headers)
+              cfg.auth?.(t, apiKey, h)
+              const res = await fetch(t.toString(), { method: request.method, headers: h, body: body || undefined })
+              return classify(provider, res)
+            },
+          })
+          return r.outcome === 'quota' ? quota(provider) : passThrough(r.res)
+        })
       }
 
       return json({ error: 'not found', routes: ['/health', '/p/{provider}/…', '/img/{provider}/…', '/igdb/{endpoint}'] }, 404)
