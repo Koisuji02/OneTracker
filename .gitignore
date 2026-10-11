@@ -50,3 +50,7 @@ android/keystore.properties
 
 # GitHub Copilot "modernize" scratch, not part of the project
 .github/modernize/
+
+# Finished builds (APK, AAB, IPA), one folder per version: kept next to the
+# project, never committed — binaries, and the release ones are signed.
+/builds/
