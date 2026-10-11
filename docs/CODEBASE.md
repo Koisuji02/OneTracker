@@ -91,7 +91,7 @@ every 10 minutes, and when the app goes to the background.
 | File | What it is |
 |---|---|
 | `src/main.tsx` | Mounts React. Ten lines |
-| `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler. Also mounts `MedalDefs` (the medals' shared gradients) and `AchievementToaster` (the "achievement unlocked" pop-up) once for the whole app |
+| `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler. Also mounts `MedalDefs` (the medals' shared gradients), `AchievementToaster` (the "achievement unlocked" pop-up) and `RecapLauncher` (the end-of-month recap) once for the whole app. The back handler asks `back.ts` first, so an open overlay closes instead of the page navigating |
 | `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, two animations |
 | `src/themes.ts` | The theme presets, including the AMOLED family built by the `amoled()` helper. `applyTheme` writes the CSS variables on `<html>` |
 | `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Build-time `.env` keys act as defaults so a shipped APK works out of the box while a user can still override them |
@@ -109,6 +109,8 @@ every 10 minutes, and when the app goes to the background.
 | `src/backup.ts` | Backup/restore format (`version: 5`, clashes included) and the file export. Deliberately excludes API keys and the Google refresh token |
 | `src/sync.ts` | The catch-up pass: refresh the items that can have changed (still airing, date arrived), fill in missing game lengths and low-res game art, run the one-off `BACKFILLS` keyed on the details-cache version (MangaDex readership, IGDB key-art backdrop + add-on links), then push the Drive backup. Bounded, throttled to 30 min, silent on failure |
 | `src/achievements.ts` | **The medagliere, derived.** A fixed taxonomy of media + tag rows (Anime \| Shōnen, Videogiochi \| Azione…) plus "feats" (marathons, late nights, ratings, clashes…), four medals each. `computeAchievements` rebuilds it from items + episodes + clashes, so it is retroactive by construction; the tag matching is language-blind (TMDB answers "Azione" or "Action" depending on when the title was fetched). Row names and fun grade names live here as `{ it, en }` pairs, like theme names. The only stored state is per-device: which medals the pop-up already announced and which the medagliere already showed |
+| `src/history.ts` | The month-by-month history and the end-of-month recap, DERIVED from timestamps already stored (episode `watchedAt`, movie/book `completedAt`, each game run's `at`) — nothing new is written. `monthHistory()` builds a month, `monthRecap()` the story, `recapCandidate()` says which month's recap is due (the current one on its last day, otherwise the one just ended), `recapSeen`/`markRecapSeen` remember it per device. Known limit by design: an episode or a film keeps only its LATEST date, so a rewatch moves it to the rewatch's month |
+| `src/back.ts` | Android back button for overlays: `useBackInterceptor(active, onBack)` makes the newest open overlay take the press instead of `nav(-1)` navigating the page underneath |
 | `src/clash.ts` | The favourites tournament: a knockout bracket with automatic byes, as immutable states (undo = pop the stack). Also the slot that keeps an unfinished clash alive across the back button |
 | `src/imageCache.ts` | Artwork stored as blobs in IndexedDB so the library still looks like itself offline, with an eviction budget |
 | `src/importTvTime.ts` | TV Time importers, two zip formats auto-detected, matching by TVDB/IMDb id where possible |
@@ -150,6 +152,8 @@ every 10 minutes, and when the app goes to the background.
 | `RatingBadge.tsx` | Your 0–10 score as a metal tile: bronze ≥8, silver ≥8.5, gold ≥9, diamond 10 |
 | `Medal.tsx` | An achievement medal: pleated metal rosette (the grade), enamel medallion with the category icon, ribbon tails in the media's colour; a locked one is its own dark silhouette. `MedalDefs` holds the gradients ONCE for the app (hundreds of medals share them), `MetalTile` is the small squared metal chip |
 | `AchievementToaster.tsx` | The Google-Play-style pop-up at the top when a medal is earned. Watches a cheap signature of the library, recomputes debounced, and folds a burst (a whole season marked, an import) into one summary |
+| `MonthRecap.tsx` | The end-of-month story (Spotify-Wrapped style): one centred slide per thing worth telling, 6 s each, tap right/left to move, hold to pause, a closing card with every cover and `StatTiles`. `RecapLauncher` (mounted once in App) opens it by itself once a month |
+| `StatTiles.tsx` | Numbers as tiles (big value, small label), three to a row, centred — the recap's closing card and the History header |
 | `RatingModal.tsx` | The rating sheet, with an emoji that follows the value |
 | `RewatchDialog.tsx` | Tapping something already done: un-mark, log another time, or — for one-shot media — start a new round (`onRestart`) |
 | `GameTimeDialog.tsx` | The game-completion sheet: type hours on the endless 5-digit roller, or take HowLongToBeat's time. The **only** place game hours are entered |
@@ -170,6 +174,7 @@ every 10 minutes, and when the app goes to the background.
 | `SearchPage.tsx` | The four search rows |
 | `AccountPage.tsx` | Profile: stats (with the Achievement button inside the watch-time box), favourites, the Clash box (the favourites box in inverted colours), lists, catalog rows |
 | `AchievementsPage.tsx` | The medagliere: one card per media, one row of four medals per tag, the medal's detail pop-up (grade, media + tag, requirement, progress). Rows are memoised — ~500 medals must not redraw when a card opens |
+| `HistoryPage.tsx` | `/history?m=YYYY-MM` — Cronologia: one month's covers by media with "10 ep. \| 7 h 50 min" captions, its totals as tiles, the recap button; ← stops at the first month with data, → at the current one. The month is in the URL (replaced, not pushed) so returning from a title lands on the same month |
 | `ClashPage.tsx` | Clash home (`/clash`: pools, last champions, hall of fame, resume) and the duels + champion screen (`/clash/play`) |
 | `CatalogPage.tsx`, `FavoritesPage.tsx`, `ArchivedPage.tsx`, `OwnedPage.tsx`, `ToBuyPage.tsx` | Library grids over the same components, differing only in the filter |
 | `ListsPage.tsx`, `ListDetailPage.tsx` | User lists |

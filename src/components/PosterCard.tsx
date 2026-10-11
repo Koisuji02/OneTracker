@@ -25,6 +25,8 @@ interface PosterCardProps {
   persist?: boolean
   /** small chip on the cover's top-left corner ("Expansion", "DLC") */
   label?: string | null
+  /** second line under the title, in place of the year (the History's "12 ep. | 8 h") */
+  subtitle?: string | null
   className?: string
 }
 
@@ -42,6 +44,7 @@ export default function PosterCard({
   size = 'md',
   persist = false,
   label,
+  subtitle,
   className,
 }: PosterCardProps) {
   return (
@@ -121,7 +124,11 @@ export default function PosterCard({
         )}
       </div>
       <div className="mt-1.5 truncate text-xs font-medium text-ink">{title}</div>
-      {year != null && <div className="text-[11px] text-ink3">{year}</div>}
+      {subtitle ? (
+        <div className="truncate text-[11px] text-ink3">{subtitle}</div>
+      ) : (
+        year != null && <div className="text-[11px] text-ink3">{year}</div>
+      )}
     </div>
   )
 }
