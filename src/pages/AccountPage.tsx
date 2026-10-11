@@ -15,6 +15,7 @@ import {
   Clapperboard,
   Gamepad2,
   Heart,
+  History,
   ListVideo,
   Pencil,
   Plus,
@@ -37,6 +38,7 @@ import Medal from '../components/Medal'
 import MediaRow from '../components/MediaRow'
 import PosterCard from '../components/PosterCard'
 import { computeStats, db, isEpisodic, rewatchGrades } from '../db'
+import { monthKey, monthLabel } from '../history'
 import { useT } from '../i18n'
 import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
@@ -287,7 +289,19 @@ export default function AccountPage() {
             </div>
           )}
         </button>
-        <div className="px-5 pb-5">
+        <div className="space-y-2 px-5 pb-5">
+          {/* month by month, with the end-of-month recap */}
+          <Link
+            to="/history"
+            className="flex items-center gap-3 rounded-xl border border-line bg-card2 px-3 py-2 transition-colors hover:border-accent/50"
+          >
+            <span className="grid h-6 w-6 place-items-center text-accent">
+              <History size={20} />
+            </span>
+            <span className="flex-1 text-sm font-bold">{t('account.history')}</span>
+            <span className="text-xs text-ink3">{monthLabel(monthKey(new Date()), settings.language, false)}</span>
+            <ChevronRight size={16} className="text-ink4" />
+          </Link>
           <Link
             to="/achievements"
             className="flex items-center gap-3 rounded-xl border border-line bg-card2 px-3 py-2 transition-colors hover:border-accent/50"

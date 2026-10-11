@@ -74,6 +74,19 @@ body {
   overscroll-behavior-y: none;
 }
 
+/*
+ * It is an app, not a page: no pinch zoom and no double-tap zoom. The viewport
+ * meta (index.html) is the main switch; `pan-x pan-y` is the same rule for
+ * engines that honour touch-action but not the meta, and it keeps every
+ * scroll and swipe working — only the zoom gestures are dropped. iOS ignores
+ * both in Safari, hence the gesture listener in main.tsx.
+ */
+html {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /* hide horizontal scrollbars on media rows */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -270,6 +283,44 @@ html.light .medal-shadow {
   height: 9px;
   border-radius: 2px;
   animation: confettiFall 2.8s cubic-bezier(0.25, 0.6, 0.4, 1) forwards;
+}
+
+/* ------------------------------------------------------------ month recap */
+
+/* the story's progress segment: fills once per slide, its end moves on */
+@keyframes recapBar {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+.recap-bar {
+  width: 0;
+  animation-name: recapBar;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+/* the time-split bars grow in from the left */
+@keyframes recapGrow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.recap-grow {
+  transform-origin: left;
+  animation: recapGrow 0.9s 0.25s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recap-grow {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

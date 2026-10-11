@@ -15,6 +15,8 @@ import {
 import AchievementToaster from './components/AchievementToaster'
 import BottomNav from './components/BottomNav'
 import { MedalDefs } from './components/Medal'
+import { RecapLauncher } from './components/MonthRecap'
+import { consumeBack } from './back'
 import { db } from './db'
 import { syncDrive } from './drive'
 import { translate } from './i18n'
@@ -31,6 +33,7 @@ import CatalogPage from './pages/CatalogPage'
 import DetailPage from './pages/DetailPage'
 import FavoritesPage from './pages/FavoritesPage'
 import GamesPage from './pages/GamesPage'
+import HistoryPage from './pages/HistoryPage'
 import ListDetailPage from './pages/ListDetailPage'
 import ListsPage from './pages/ListsPage'
 import OnboardingPage from './pages/OnboardingPage'
@@ -108,6 +111,7 @@ function ScrollRestoration() {
  *   (first press shows the classic Android toast hint)
  * - everywhere else (Search, Profile, detail, settings, lists, catalog…) →
  *   real history back, returning exactly to the previous page
+ * - an overlay registered in back.ts (the month recap) takes it before both
  */
 const EXIT_TABS = new Set(['/series', '/movies', '/books', '/games'])
 const DOUBLE_BACK_MS = 2000
@@ -122,6 +126,8 @@ function AndroidBackHandler() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     const sub = CapApp.addListener('backButton', () => {
+      // a full-screen overlay (the month recap) closes first
+      if (consumeBack()) return
       const path = pathRef.current
       if (EXIT_TABS.has(path)) {
         const now = Date.now()
@@ -310,6 +316,8 @@ export default function App() {
       {/* the medals' shared gradients, and the "achievement unlocked" pop-up */}
       <MedalDefs />
       <AchievementToaster />
+      {/* the end-of-month recap, once a month, by itself */}
+      <RecapLauncher />
       <div className="min-h-full pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-10 md:pl-20">
         <div className="mx-auto w-full max-w-3xl">
           <Routes>
@@ -327,6 +335,7 @@ export default function App() {
             <Route path="/clash" element={<ClashPage />} />
             <Route path="/clash/play" element={<ClashPlayPage />} />
             <Route path="/achievements" element={<AchievementsPage />} />
+            <Route path="/history" element={<HistoryPage />} />
             <Route path="/catalog/:kind" element={<CatalogPage />} />
             <Route path="/lists" element={<ListsPage />} />
             <Route path="/lists/:id" element={<ListDetailPage />} />
