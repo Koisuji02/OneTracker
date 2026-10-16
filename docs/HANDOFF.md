@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.39** (versionCode 39) — `android/app/build.gradle` is the single source |
+| Version | **1.0.40** (versionCode 40) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.39/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. **1.0.39 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.40/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.40 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -45,6 +45,11 @@ Circular-like face) replaces the Inter/system stack. **Games in progress** now s
 Cronologia/recap in every month from their start to the month they're beaten in
 (`playStartedAt` on the item, `startedAt` on each run; older games fall back to
 `lastReadAt`), with a "giochi in corso" tile.
+
+**1.0.40 (2026-10-16).** The share image shows EVERY title of the month, up to 18, in
+an adaptive grid (≤ 3 rows × 6 columns, the shape with the biggest covers wins); covers
+a canvas can't read (CDNs without CORS) go through `CapacitorHttp`, and one that still
+fails is skipped instead of leaving a hole.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its

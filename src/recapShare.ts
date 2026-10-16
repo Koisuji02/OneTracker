@@ -12,7 +12,7 @@
  * wrong (and taint the canvas). Covers come from the offline image cache when
  * they are there, so sharing works with no network too.
  */
-import { Capacitor } from '@capacitor/core'
+import { Capacitor, CapacitorHttp } from '@capacitor/core'
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
 import { db } from './db'
@@ -23,6 +23,8 @@ const W = 1080
 const H = 1920
 const PAD = 90
 const FONT = '"Figtree Variable", "Figtree", system-ui, sans-serif'
+/** Covers on the card at most: 3 rows of 6. */
+const MAX_COVERS = 18
 
 export interface RecapCard {
   ym: string
@@ -34,26 +36,65 @@ export interface RecapCard {
   /** the month's time, already formatted ("38 h 20 min"), or null for none */
   time: string | null
   tiles: Array<{ value: number; label: string }>
-  /** cover URLs, biggest first */
+  /** cover URLs, biggest first — every title of the month, the card keeps the first 18 that load */
   covers: string[]
 }
 
 // ----------------------------------------------------------------- images
 
-/** The cover's bytes: the offline cache first, the network otherwise. */
+/**
+ * The bytes of a CDN that sends no CORS headers: an `<img>` shows it, a canvas
+ * may not read it. In the app the native HTTP bridge fetches it anyway.
+ */
+async function nativeBlob(url: string): Promise<Blob | undefined> {
+  if (!Capacitor.isNativePlatform()) return undefined
+  const res = await CapacitorHttp.get({ url, responseType: 'blob' })
+  if (res.status < 200 || res.status >= 300 || typeof res.data !== 'string') return undefined
+  const bin = atob(res.data)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return new Blob([bytes])
+}
+
+/** The cover's bytes: the offline cache first, then the network, then the native bridge. */
 async function loadImage(url: string): Promise<ImageBitmap | null> {
+  let blob: Blob | undefined
   try {
-    let blob: Blob | undefined = (await db.images.get(url))?.blob
-    if (!blob) {
-      const res = await fetch(url, { mode: 'cors', cache: 'force-cache' })
-      if (!res.ok) return null
-      blob = await res.blob()
-    }
-    return await createImageBitmap(blob)
+    blob = (await db.images.get(url))?.blob
   } catch {
-    // a CDN without CORS, no network: that cover is drawn as an empty tile
+    // no IndexedDB: straight to the network
+  }
+  if (!blob) {
+    try {
+      const res = await fetch(url, { mode: 'cors', cache: 'force-cache' })
+      if (res.ok) blob = await res.blob()
+    } catch {
+      // no CORS, or no network: the native bridge may still get it
+    }
+  }
+  try {
+    if (!blob) blob = await nativeBlob(url)
+    return blob ? await createImageBitmap(blob) : null
+  } catch {
     return null
   }
+}
+
+/**
+ * The grid for `n` covers in a `width × height` box: at most 3 rows of 6, and
+ * of all the shapes that fit, the one with the BIGGEST covers — 4 covers make
+ * a 2×2, 7 a 4+3, 18 a full 6×3. Never wider than `maxW`, so one or two
+ * covers don't swell to fill the card.
+ */
+function coverGrid(n: number, width: number, height: number, gap: number, maxW: number) {
+  let best = { cols: 1, w: 0 }
+  for (let cols = 1; cols <= 6; cols++) {
+    const rows = Math.ceil(n / cols)
+    if (rows > 3 || cols > n) continue
+    const w = Math.min((width - gap * (cols - 1)) / cols, (height - gap * (rows - 1)) / rows / 1.5, maxW)
+    if (w > best.w + 0.5) best = { cols, w }
+  }
+  return { cols: best.cols, rows: Math.ceil(n / best.cols), w: best.w, h: best.w * 1.5 }
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -65,7 +106,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 /** object-fit: cover, clipped to the squared corners the app uses. */
 function drawCover(ctx: CanvasRenderingContext2D, img: ImageBitmap | null, x: number, y: number, w: number, h: number) {
   ctx.save()
-  roundRect(ctx, x, y, w, h, 14)
+  roundRect(ctx, x, y, w, h, w < 160 ? 10 : 14)
   ctx.fillStyle = '#1f1f26'
   ctx.fill()
   if (img) {
@@ -136,32 +177,35 @@ export async function renderRecapCard(card: RecapCard): Promise<Blob> {
     ctx.fillText(card.time, W / 2, 650)
   }
 
-  // the covers (one big row for up to three, two rows of four beyond that)
-  // and the totals as the app's tiles, centred together under the month
+  // every cover of the month (up to 18, in a grid shaped by how many there
+  // are) and the totals as the app's tiles, centred together under the month.
+  // A cover that can't be loaded is left out rather than drawn as a hole.
   const gap = 24
-  const urls = card.covers.slice(0, card.covers.length > 3 ? 8 : 3)
-  const cols = urls.length > 3 ? 4 : 3
-  const cw = (W - PAD * 2 - gap * (cols - 1)) / cols
-  const ch = cw * 1.5
-  const coverRows = Math.ceil(urls.length / cols)
-  const coversH = coverRows > 0 ? coverRows * ch + (coverRows - 1) * gap : 0
+  const images: ImageBitmap[] = []
+  for (let i = 0; i < card.covers.length && images.length < MAX_COVERS; i += MAX_COVERS) {
+    const batch = await Promise.all(card.covers.slice(i, i + MAX_COVERS).map(loadImage))
+    for (const img of batch) if (img && images.length < MAX_COVERS) images.push(img)
+  }
   const tiles = card.tiles.slice(0, 6)
   const perRow = Math.min(3, tiles.length)
   const tw = perRow > 0 ? (W - PAD * 2 - gap * (perRow - 1)) / perRow : 0
   const th = 160
   const tileRows = perRow > 0 ? Math.ceil(tiles.length / perRow) : 0
   const tilesH = tileRows > 0 ? tileRows * th + (tileRows - 1) * gap : 0
+  const cgap = 20
+  const grid = coverGrid(images.length, W - PAD * 2, H - top - 120 - tilesH - (tilesH ? 50 : 0), cgap, 300)
+  const coversH = images.length > 0 ? grid.rows * grid.h + (grid.rows - 1) * cgap : 0
   const blockH = coversH + (coversH && tilesH ? 50 : 0) + tilesH
   let y = top + Math.max(60, (H - top - blockH) / 2)
 
-  if (urls.length > 0) {
-    const images = await Promise.all(urls.map(loadImage))
-    for (let n = 0; n < urls.length; n++) {
+  if (images.length > 0) {
+    const { cols, w, h } = grid
+    for (let n = 0; n < images.length; n++) {
       const r = Math.floor(n / cols)
-      const inRow = Math.min(cols, urls.length - r * cols)
+      const inRow = Math.min(cols, images.length - r * cols)
       // a short last row is centred, like the rest of the card
-      const x0 = (W - (inRow * cw + (inRow - 1) * gap)) / 2
-      drawCover(ctx, images[n], x0 + (n % cols) * (cw + gap), y + r * (ch + gap), cw, ch)
+      const x0 = (W - (inRow * w + (inRow - 1) * cgap)) / 2
+      drawCover(ctx, images[n], x0 + (n % cols) * (w + cgap), y + r * (h + cgap), w, h)
     }
     y += coversH + 50
   }
