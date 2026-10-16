@@ -57,7 +57,7 @@ function TmdbMark() {
         fontSize="13"
         fontWeight="900"
         fill="#0D253F"
-        fontFamily="Inter, system-ui, sans-serif"
+        fontFamily="Figtree Variable, system-ui, sans-serif"
       >
         TMDB
       </text>

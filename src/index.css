@@ -13,7 +13,7 @@
   --color-ink2: var(--ink2);
   --color-ink3: var(--ink3);
   --color-ink4: var(--ink4);
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-sans: "Figtree Variable", "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
 
   /*
    * Corner radii, TIGHTER than Tailwind's defaults (which are 6/8/12/16/24px).

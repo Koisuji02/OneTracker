@@ -9,7 +9,10 @@
  * What dates a month, per media:
  * - episodes and chapters: the row's `watchedAt`
  * - movies and books: `completedAt`, i.e. when the viewing was closed
- * - games: every finished playthrough carries its own `at`
+ * - games: every finished playthrough carries its own `at`, and a game being
+ *   played shows up in EVERY month from the one it was started in (its
+ *   `playStartedAt`, or the run's `startedAt`) to the one it was beaten in —
+ *   like a series being watched, without counting any time until it's beaten
  * - a series or manga FINISHED in the month: `completedAt` (shown as a flag)
  *
  * The known limit, by construction: a unit or a film keeps only its LATEST
@@ -17,7 +20,7 @@
  * three times shows up once, in the month of its last viewing. Games are the
  * exception — each run is dated, so each run lands in its own month.
  */
-import { defaultEpisodeRuntime, gameBaseHours, gamePlaythroughs, hasUnits } from './db'
+import { defaultEpisodeRuntime, gameBaseHours, gamePlaythroughs, hasUnits, playStart } from './db'
 import type { Language } from './settings'
 import type { LibraryItem, MediaType, WatchedEpisode } from './types'
 
@@ -41,6 +44,8 @@ export interface HistoryEntry {
   finished: number
   /** a series/manga that reached `completed` in the month */
   completedHere: boolean
+  /** a game being played during the month (started, not yet beaten in it) */
+  playing: boolean
   /** minutes the month counts for this title (books have no time) */
   minutes: number
   /** most recent activity in the month (ms) */
@@ -63,6 +68,8 @@ export interface MonthStats {
   books: number
   /** game playthroughs finished */
   games: number
+  /** games being played in the month and not beaten in it */
+  playing: number
   /** days of the month with at least one thing marked */
   activeDays: number
 }
@@ -134,10 +141,18 @@ export function dayLabel(ym: string, day: number, lang: Language | null): string
 /** The earliest month anything was marked in — where the ← arrow stops. */
 export function firstMonth(items: LibraryItem[], eps: WatchedEpisode[], now = Date.now()): string {
   let first = now
-  for (const e of eps) if (e.watchedAt > 0 && e.watchedAt < first) first = e.watchedAt
+  const seen = (ts: number | null | undefined) => {
+    if (ts && ts > 0 && ts < first) first = ts
+  }
+  for (const e of eps) seen(e.watchedAt)
   for (const i of items) {
-    if (i.completedAt && i.completedAt < first) first = i.completedAt
-    if (i.mediaType === 'game') for (const r of gamePlaythroughs(i)) if (r.at > 0 && r.at < first) first = r.at
+    seen(i.completedAt)
+    if (i.mediaType !== 'game') continue
+    for (const r of gamePlaythroughs(i)) {
+      seen(r.at)
+      seen(r.startedAt)
+    }
+    if (i.status === 'watching') seen(playStart(i))
   }
   return monthKey(first)
 }
@@ -158,7 +173,16 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
   const entryOf = (item: LibraryItem): HistoryEntry => {
     let e = entries.get(item.id)
     if (!e) {
-      e = { item, kind: kindOf(item.mediaType), units: 0, finished: 0, completedHere: false, minutes: 0, last: 0 }
+      e = {
+        item,
+        kind: kindOf(item.mediaType),
+        units: 0,
+        finished: 0,
+        completedHere: false,
+        playing: false,
+        minutes: 0,
+        last: 0,
+      }
       entries.set(item.id, e)
     }
     return e
@@ -199,6 +223,20 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
         // was closed (or that day would always be the "busiest", at 55 h)
         onDay(run.at, 0, 1)
       }
+      // being played: from the month it was started up to (not including) the
+      // month it was beaten in, or up to today while it is still being played
+      const spans = gamePlaythroughs(item)
+        .filter((r) => r.startedAt)
+        .map((r) => ({ from: r.startedAt as number, beaten: r.at }))
+      if (item.status === 'watching') spans.push({ from: playStart(item), beaten: Infinity })
+      for (const { from, beaten } of spans) {
+        if (from >= end || beaten < end) continue
+        const e = entryOf(item)
+        e.playing = true
+        e.last = Math.max(e.last, Math.max(from, start))
+        // starting a game is something done that day
+        if (inMonth(from)) onDay(from, 0, 1)
+      }
       continue
     }
     if (item.status !== 'completed' || !inMonth(item.completedAt)) continue
@@ -228,6 +266,7 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
     movies: 0,
     books: 0,
     games: 0,
+    playing: 0,
     activeDays: days.size,
   }
   for (const e of list) {
@@ -240,6 +279,7 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
     } else if (e.kind === 'games') {
       stats.gameMin += e.minutes
       stats.games += e.finished
+      if (e.playing && e.finished === 0) stats.playing++
     } else {
       stats.chapters += e.units
       stats.books += e.finished + (e.completedHere ? 1 : 0)
@@ -321,7 +361,7 @@ export function monthRecap(h: MonthHistory, show: { showBooks: boolean; showGame
       ...h.stats,
       // hidden media must not leak into the numbers either
       ...(show.showBooks ? {} : { chapters: 0, books: 0 }),
-      ...(show.showGames ? {} : { games: 0, gameMin: 0, totalMin: h.stats.totalMin - h.stats.gameMin }),
+      ...(show.showGames ? {} : { games: 0, playing: 0, gameMin: 0, totalMin: h.stats.totalMin - h.stats.gameMin }),
     },
     topSeries: series[0] ?? null,
     moreSeries: Math.max(0, series.length - 1),

@@ -1,18 +1,18 @@
 # Handoff — where OneTracker stands, and what's next
 
-Last updated: **2026-10-12**. Read this first when the user says "ripartiamo".
+Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 ## 1. Snapshot
 
 | | |
 |---|---|
-| Version | **1.0.38** (versionCode 38) — `android/app/build.gradle` is the single source |
+| Version | **1.0.39** (versionCode 39) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/1.0.37/` and `builds/1.0.38/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. **1.0.38 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.39/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. **1.0.39 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -36,6 +36,15 @@ totals as tiles, ← stops at the first month with data, → at the current mont
 **Monthly recap** (Spotify-Wrapped style, centred slides, tiles on the closing card):
 opens by itself once per device on the last day of the month (or at the first opening
 after it), and on demand from Cronologia.
+
+**1.0.39 (2026-10-16).** Recap **share button** (top bar + closing card): a 1080×1920
+image drawn on a canvas (`src/recapShare.ts`) goes to the system share sheet
+(`@capacitor/share` + `@capacitor/filesystem`) — Instagram, WhatsApp… — with no text or
+link attached. **Font Figtree** (bundled via `@fontsource-variable/figtree`, a free
+Circular-like face) replaces the Inter/system stack. **Games in progress** now show in
+Cronologia/recap in every month from their start to the month they're beaten in
+(`playStartedAt` on the item, `startedAt` on each run; older games fall back to
+`lastReadAt`), with a "giochi in corso" tile.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
@@ -85,14 +94,14 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
      privacy URL `/privacy`, content rating questionnaire, target audience 13+, **Data
      safety: no data collected, none shared**.
    - **closed test with ≥12 testers for 14 consecutive days** (the long pole: start it as
-     soon as the account exists), uploading `builds/1.0.38/OneTracker-1.0.38-release.aab`.
+     soon as the account exists), uploading the latest `builds/<v>/OneTracker-<v>-release.aab`.
    - after the upload: add the **Play App Signing SHA-1** (Play Console → App integrity)
      as a further Android OAuth client, or sign-in breaks for store installs.
    - after 14 days: apply for production → review → publish.
    - back up `android/keystore/onetracker-upload.jks` + `android/keystore.properties`
      somewhere off this PC.
 3. **iPhone test** (free): Sideloadly + iTunes (from apple.com) on Windows, install
-   `builds/1.0.38/OneTracker-1.0.38-ios-unsigned.ipa` with a free Apple ID, keeping the
+   the latest `builds/<v>/OneTracker-<v>-ios-unsigned.ipa` with a free Apple ID, keeping the
    bundle id `com.onetracker.app`; trust the profile + Developer Mode on the phone.
    Check onboarding, notch/safe areas, edge-swipe back, Google sign-in → same library.
 4. **Apple** (optional, $99/year — the project's only recurring cost): only after the
@@ -104,7 +113,9 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
 
 ### 3b. Claude's next tasks
 
-1. **Get feedback on 1.0.38** (Cronologia, recap, no zoom) and fix whatever comes up.
+1. **Get feedback on 1.0.38–1.0.39** (Cronologia, recap, no zoom, share on Instagram,
+   the new font, games in progress) and fix whatever comes up. Sharing and "Save image"
+   can only be checked on the phones.
 2. **Play Store support**: write the listing texts (IT + EN), produce icon 512 and
    feature graphic 1024×500 from `public/logo.png`, list the exact Data safety / content
    rating answers, walk the user through the console.

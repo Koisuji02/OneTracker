@@ -72,5 +72,7 @@
 	<string>UIStatusBarStyleLightContent</string>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save your monthly recap image to Photos.</string>
 </dict>
 </plist>
