@@ -35,6 +35,8 @@ export interface GamePlaythrough {
   hours: number | null
   /** when the run was recorded (ms) */
   at: number
+  /** when the run was started, i.e. the game went to "playing" (ms) — absent on runs recorded before it was tracked */
+  startedAt?: number
 }
 
 export interface GameLength {
@@ -170,6 +172,13 @@ export interface LibraryItem extends MediaBase {
    * as an array (an empty one = never finished), see db.gamePlaythroughs.
    */
   playthroughs?: GamePlaythrough[]
+  /**
+   * games: when the run being played NOW was started (ms), set while the game
+   * is `watching` and handed to the run once it is recorded — so the history
+   * can show a game in every month it was being played, not only the one it
+   * was beaten in.
+   */
+  playStartedAt?: number | null
   /**
    * @deprecated games: one manual total for the whole game. Replaced by
    * `playthroughs` in db v8; only still read to migrate old rows and backups.

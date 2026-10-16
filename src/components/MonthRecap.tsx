@@ -10,9 +10,13 @@
  *
  * Two ways in: `RecapLauncher` (mounted once in App) opens it by itself at
  * the end of each month, and the History page has a button for any month.
+ *
+ * The share button (top bar, and on the closing card) sends the month as one
+ * story-sized image through the system share sheet — see src/recapShare.ts.
  */
 import { useLiveQuery } from 'dexie-react-hooks'
-import { CalendarDays, Clapperboard, Gamepad2, History, Sparkles, Tv, X } from 'lucide-react'
+import { Toast } from '@capacitor/toast'
+import { CalendarDays, Clapperboard, Gamepad2, History, Share2, Sparkles, Tv, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackInterceptor } from '../back'
@@ -33,6 +37,7 @@ import {
   type MonthStats,
 } from '../history'
 import { useT } from '../i18n'
+import { renderRecapCard, shareImage } from '../recapShare'
 import { getSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
 import { cn } from '../util'
@@ -97,11 +102,17 @@ export function monthTiles(s: MonthStats, t: (k: string) => string, withDays = f
     s.chapters > 0 ? tile(s.chapters, 'history.chapters') : null,
     s.books > 0 ? tile(s.books, 'history.books') : null,
     s.games > 0 ? tile(s.games, 'history.games') : null,
+    s.playing > 0 ? tile(s.playing, 'history.playingGames') : null,
     withDays && s.activeDays > 0 ? tile(s.activeDays, 'history.activeDays') : null,
   ].filter((x): x is StatTile => x !== null)
 }
 
-function useSlides(recap: Recap | null, onOpenHistory?: () => void, onClose?: () => void): Slide[] {
+function useSlides(
+  recap: Recap | null,
+  onOpenHistory?: () => void,
+  onClose?: () => void,
+  onShare?: () => void,
+): Slide[] {
   const t = useT()
   const { language: lang } = useSettings()
   if (!recap) return []
@@ -263,12 +274,23 @@ function useSlides(recap: Recap | null, onOpenHistory?: () => void, onClose?: ()
           <Poster item={e.item} className="mt-7 aspect-[2/3] w-44 shadow-2xl ring-1 ring-white/10" />
           <Title>{e.item.title}</Title>
           <div className="mt-2 text-lg font-semibold opacity-80">
-            {t('history.beaten')}
-            {e.finished > 1 ? ` x${e.finished}` : ''} | {shortTime(e.minutes)}
+            {e.finished > 0 ? (
+              <>
+                {t('history.beaten')}
+                {e.finished > 1 ? ` x${e.finished}` : ''} | {shortTime(e.minutes)}
+              </>
+            ) : (
+              t('history.playing')
+            )}
           </div>
-          {s.games > 1 && (
+          {s.games + s.playing > 1 && (
             <div className="mt-6 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-semibold backdrop-blur-sm">
-              {counted(s.games, 'history.games', t)} | {shortTime(s.gameMin)}
+              {[
+                s.games > 0 ? `${counted(s.games, 'history.games', t)} | ${shortTime(s.gameMin)}` : null,
+                s.playing > 0 ? counted(s.playing, 'history.playingGames', t) : null,
+              ]
+                .filter(Boolean)
+                .join(' | ')}
             </div>
           )}
         </Center>
@@ -341,7 +363,18 @@ function useSlides(recap: Recap | null, onOpenHistory?: () => void, onClose?: ()
           <StatTiles tiles={monthTiles(s, t)} className="mt-3" />
         </div>
         <div className="mt-6 text-lg font-bold text-ink">{t('recap.outro')}</div>
-        <div className="mt-5 flex w-full gap-2">
+        {onShare && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onShare()
+            }}
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-line bg-card px-4 py-3 text-sm font-bold text-ink"
+          >
+            <Share2 size={16} /> {t('recap.share')}
+          </button>
+        )}
+        <div className="mt-2 flex w-full gap-2">
           {onOpenHistory && (
             <button
               onClick={(e) => {
@@ -388,7 +421,30 @@ export default function MonthRecapStory({
         : null,
     [items, eps, ym, settings.showBooks, settings.showGames],
   )
-  const slides = useSlides(recap, onOpenHistory, onClose)
+  const t = useT()
+  const [sharing, setSharing] = useState(false)
+  const share = async () => {
+    if (!recap || sharing) return
+    setSharing(true)
+    try {
+      const s = recap.stats
+      const blob = await renderRecapCard({
+        ym: recap.ym,
+        lang: settings.language,
+        lead: t('recap.your'),
+        timeLabel: t('history.time'),
+        time: s.totalMin > 0 ? shortTime(s.totalMin) : null,
+        tiles: monthTiles(s, t).map((x) => ({ value: Number(x.value), label: String(x.label) })),
+        covers: recap.covers.map((c) => c.poster).filter((u): u is string => !!u),
+      })
+      await shareImage(blob, `recap-${recap.ym}.png`, t('recap.share'))
+    } catch {
+      void Toast.show({ text: t('recap.shareFailed') }).catch(() => undefined)
+    } finally {
+      setSharing(false)
+    }
+  }
+  const slides = useSlides(recap, onOpenHistory, onClose, share)
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
   const pressedAt = useRef(0)
@@ -448,7 +504,7 @@ export default function MonthRecapStory({
                   className={cn('recap-bar h-full', slide.dark ? 'bg-black' : 'bg-white')}
                   style={{
                     animationDuration: `${SLIDE_MS}ms`,
-                    animationPlayState: paused ? 'paused' : 'running',
+                    animationPlayState: paused || sharing ? 'paused' : 'running',
                   }}
                   onAnimationEnd={() => {
                     if (i < last) step(1)
@@ -459,19 +515,34 @@ export default function MonthRecapStory({
           ))}
         </div>
 
-        <button
-          aria-label="close"
-          onPointerDown={(e) => e.stopPropagation()}
-          onPointerUp={(e) => e.stopPropagation()}
-          onClick={onClose}
-          className={cn(
-            'absolute right-3 z-20 grid h-10 w-10 place-items-center rounded-xl backdrop-blur',
-            slide.dark ? 'bg-black/10 text-black' : 'bg-white/10 text-white',
-          )}
-          style={{ top: 'calc(1.4rem + var(--sat))' }}
-        >
-          <X size={20} />
-        </button>
+        <div className="absolute right-3 z-20 flex gap-2" style={{ top: 'calc(1.4rem + var(--sat))' }}>
+          <button
+            aria-label={t('recap.share')}
+            disabled={sharing}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onClick={share}
+            className={cn(
+              'grid h-10 w-10 place-items-center rounded-xl backdrop-blur transition-opacity',
+              slide.dark ? 'bg-black/10 text-black' : 'bg-white/10 text-white',
+              sharing && 'opacity-50',
+            )}
+          >
+            <Share2 size={18} />
+          </button>
+          <button
+            aria-label="close"
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerUp={(e) => e.stopPropagation()}
+            onClick={onClose}
+            className={cn(
+              'grid h-10 w-10 place-items-center rounded-xl backdrop-blur',
+              slide.dark ? 'bg-black/10 text-black' : 'bg-white/10 text-white',
+            )}
+          >
+            <X size={20} />
+          </button>
+        </div>
 
         <div
           key={slide.key}

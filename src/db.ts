@@ -944,19 +944,32 @@ export async function setSingleStatus(id: string, status: ItemStatus): Promise<v
  * mutation goes through here — that is the whole point.
  */
 async function putPlaythroughs(
-  id: string,
+  item: LibraryItem,
   runs: GamePlaythrough[],
   status: ItemStatus,
+  /** start of the run played from now on, when it isn't simply "now" */
+  resumedFrom?: number,
 ): Promise<void> {
-  await db.items.update(id, {
+  await db.items.update(item.id, {
     playthroughs: runs,
     status,
     watchCount: gameCount(runs.length, status),
     completedAt: status === 'completed' ? (runs[runs.length - 1]?.at ?? Date.now()) : null,
     lastReadAt: Date.now(),
+    playStartedAt:
+      status !== 'watching' ? null : item.status === 'watching' ? playStart(item) : (resumedFrom ?? Date.now()),
     // the pre-v8 single total is gone for good once runs are recorded
     myPlaytime: null,
   })
+}
+
+/**
+ * When the run being played now was started. Games set to "playing" before
+ * this was tracked fall back to their last status change, which for a game is
+ * exactly that moment.
+ */
+export function playStart(item: LibraryItem): number {
+  return item.playStartedAt ?? item.lastReadAt ?? item.addedAt
 }
 
 /**
@@ -967,7 +980,11 @@ async function putPlaythroughs(
 export async function logGamePlaythrough(id: string, hours: number | null): Promise<void> {
   const item = await db.items.get(id)
   if (!item) return
-  await putPlaythroughs(id, [...gamePlaythroughs(item), { hours, at: Date.now() }], 'completed')
+  const run: GamePlaythrough = { hours, at: Date.now() }
+  // a run closed from "playing" knows when it began; one marked straight from
+  // the backlog doesn't, and only counts in the month it was beaten
+  if (item.status === 'watching') run.startedAt = playStart(item)
+  await putPlaythroughs(item, [...gamePlaythroughs(item), run], 'completed')
 }
 
 /**
@@ -978,8 +995,11 @@ export async function logGamePlaythrough(id: string, hours: number | null): Prom
 export async function removeGamePlaythrough(id: string, index: number): Promise<void> {
   const item = await db.items.get(id)
   if (!item) return
-  const runs = gamePlaythroughs(item).filter((_, i) => i !== index)
-  await putPlaythroughs(id, runs, runs.length === 0 ? 'watching' : 'completed')
+  const all = gamePlaythroughs(item)
+  const runs = all.filter((_, i) => i !== index)
+  // back to playing: the removed run was being played since it began
+  const removed = all[index]
+  await putPlaythroughs(item, runs, runs.length === 0 ? 'watching' : 'completed', removed?.startedAt ?? removed?.at)
 }
 
 /**
@@ -994,7 +1014,7 @@ export async function removeGamePlaythrough(id: string, index: number): Promise<
 export async function startGameReplay(id: string): Promise<void> {
   const item = await db.items.get(id)
   if (!item) return
-  await putPlaythroughs(id, gamePlaythroughs(item), 'watching')
+  await putPlaythroughs(item, gamePlaythroughs(item), 'watching')
 }
 
 /**
@@ -1012,7 +1032,8 @@ export async function setGameStatus(
   const item = await db.items.get(id)
   if (!item) return
   const runs = gamePlaythroughs(item)
-  await putPlaythroughs(id, item.status === 'completed' ? runs.slice(0, -1) : runs, status)
+  const undone = item.status === 'completed' ? runs[runs.length - 1] : undefined
+  await putPlaythroughs(item, undone ? runs.slice(0, -1) : runs, status, undone?.startedAt ?? undone?.at)
 }
 
 /**

@@ -48,6 +48,8 @@ function useCaption() {
     if (e.units > 0) parts.push(`${e.units} ${t(e.kind === 'books' ? 'history.chaptersShort' : 'history.episodesShort')}`)
     if (e.kind === 'games' && e.finished > 1) parts.push(`x${e.finished}`)
     if (e.minutes > 0) parts.push(shortTime(e.minutes))
+    // a game being played has no time yet: say it is under way
+    if (parts.length === 0 && e.playing) parts.push(t('history.playing'))
     // a book has no time: say it was read
     if (parts.length === 0) parts.push(t(e.kind === 'books' ? 'history.read' : 'history.seen'))
     return parts.join(' | ')
@@ -92,7 +94,7 @@ export default function HistoryPage() {
   const shown = {
     ...s,
     ...(show.showBooks ? {} : { chapters: 0, books: 0 }),
-    ...(show.showGames ? {} : { games: 0 }),
+    ...(show.showGames ? {} : { games: 0, playing: 0 }),
   }
   const totalMin = s.totalMin - (show.showGames ? 0 : s.gameMin)
 
