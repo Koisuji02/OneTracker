@@ -18,6 +18,7 @@ Map of the docs:
 - [docs/HANDOFF.md](docs/HANDOFF.md) — where we are and what's next (start here)
 - [docs/CODEBASE.md](docs/CODEBASE.md) — every file, the layers, the invariants
 - [docs/PRODUCTION.md](docs/PRODUCTION.md) — costs, limits, store checklist, iOS without a Mac
+- [docs/STORE_LISTING.md](docs/STORE_LISTING.md) — Play listing texts IT/EN, console answers, how to regenerate the store images
 - [worker/README.md](worker/README.md) — the gateway: deploy, secrets, key pools, stale cache
 
 ## Working with the user (Mattia)
