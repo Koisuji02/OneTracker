@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Figtree in the widget (font resources work in widget layouts from
+     Android 8). The TTFs in res/font are static instances of the variable
+     font the web app ships (@fontsource-variable/figtree). -->
+<resources>
+    <style name="WidgetTextTitle">
+        <item name="android:fontFamily">@font/figtree_bold</item>
+    </style>
+
+    <style name="WidgetText">
+        <item name="android:fontFamily">@font/figtree_regular</item>
+    </style>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widget's text styles. Below Android 8 a widget can't use a font
+     resource, so these keep the system font; values-v26 swaps in Figtree,
+     the app's own font, so the widget reads like the app. -->
+<resources>
+    <style name="WidgetTextTitle">
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="WidgetText" />
+</resources>

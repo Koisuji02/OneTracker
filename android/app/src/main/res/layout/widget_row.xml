@@ -44,7 +44,7 @@
                 android:ellipsize="end"
                 android:textColor="#f4f4f5"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                style="@style/WidgetTextTitle" />
 
             <TextView
                 android:id="@+id/row_sub"
@@ -54,7 +54,8 @@
                 android:ellipsize="end"
                 android:textColor="#71717a"
                 android:textSize="12sp"
-                android:layout_marginTop="2dp" />
+                android:layout_marginTop="2dp"
+                style="@style/WidgetText" />
         </LinearLayout>
 
         <ImageView
