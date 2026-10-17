@@ -118,7 +118,8 @@
                 android:gravity="center"
                 android:text="@string/widget_empty"
                 android:textColor="#71717a"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                style="@style/WidgetText" />
         </FrameLayout>
     </LinearLayout>
 </LinearLayout>

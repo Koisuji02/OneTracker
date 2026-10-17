@@ -197,6 +197,7 @@ Android-only. `src/widget.ts` returns early on any other platform (`getPlatform(
 | `OneWidgetActionReceiver.java` | Handles taps: open the app on an item, queue a ✓, switch category |
 | `MainActivity.java` | Registers the widget plugin and forwards the Google authorisation result the social-login plugin needs |
 | `res/layout/widget_*.xml` | The widget layouts. `overScrollMode="never"` on the list is what stops the stretch wobble |
+| `res/font/figtree_*.ttf`, `values*/widget_text.xml` | The app's font (Figtree) in the widget: static regular/bold TTFs instanced from the web app's variable woff2 (fontTools), applied through the `WidgetText` / `WidgetTextTitle` styles — Figtree from Android 8 (`values-v26`), the system font below |
 
 ### Gateway
 
