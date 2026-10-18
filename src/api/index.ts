@@ -29,7 +29,7 @@ import {
 import { comicDetails, comicvineIssueTitles, searchComics } from './comicvine'
 import { ApiKeyMissingError } from './errors'
 import { hltbLength } from './hltb'
-import { igdbAvailable, igdbDetails, igdbTimeToBeat, searchGamesIgdb } from './igdb'
+import { igdbAvailable, igdbDetails, searchGamesIgdb } from './igdb'
 import { jikanEpisodeTitles } from './jikan'
 import { mangadexChapterTitles, mangadexDetails, searchManga as searchMangaMangadex } from './mangadex'
 import { bookDetails, searchBooks } from './openlibrary'
@@ -184,7 +184,8 @@ function dedupeSameWork(
 async function withGameLength(details: MediaDetails): Promise<MediaDetails> {
   if (details.mediaType !== 'game') return details
   let len: GameLength | null = await hltbLength(details.title, details.year)
-  if (!len) len = await igdbTimeToBeat(details.providerId)
+  // IGDB's own time-to-beat came with the details (one /multiquery)
+  if (!len && details.timeToBeat?.source === 'igdb') len = details.timeToBeat
   if (!len && details.playtime) {
     len = { main: details.playtime, plus: null, full: null, source: 'rawg' }
   }

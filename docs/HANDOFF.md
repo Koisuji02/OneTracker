@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.43** (versionCode 43) — `android/app/build.gradle` is the single source |
+| Version | **1.0.44** (versionCode 44) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.43/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.43 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.44/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.44 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -76,6 +76,18 @@ The gateway is now a CACHE SHARED BY ALL USERS: calls carry the user's key
 goes upstream with the caller's key; when the Worker's free 100k/day are spent (or
 it is down) the app calls the providers directly. Worker deployed. The Worker's own
 provider secrets are only a fallback for builds ≤ 1.0.42.
+
+**1.0.44 (2026-10-18) — keys only where they are "sign in and copy".** TMDB and
+IGDB are BUILT IN again (the gateway's one key each, behind the shared cache): no
+setup for users, an own key is optional in Settings → Chiavi personali ("if the app
+is slow"). Only Comic Vine (guide on Libri, one step) and OMDb (suggested once in
+Settings) are the user's own. Guides cut to 1–2 steps. IGDB requests cut: a game
+page is ONE `/multiquery` (details + time-to-beat), a search runs IGDB's fuzzy
+`search` only when the first query is thin (`search` can't go in a multiquery); the
+14 Wikipedia lookups per game search are gone (IGDB covers have the logo). Load
+test: `scripts/stress/simulate.mjs`, results and levers in `docs/LOAD_TEST.md` —
+~41 gateway requests/user/day, so the free Worker plan carries ~2,400 daily users;
+IGDB holds normal days up to 50k users but not bursts.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
@@ -144,10 +156,10 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
 
 ### 3b. Claude's next tasks
 
-0. **After the user's phone runs 1.0.43**: delete the Worker's provider secrets
-   (TMDB_KEY, RAWG_KEY, OMDB_KEY, COMICVINE_KEY, IGDB_CLIENT_ID/SECRET) so the
-   gateway holds no provider credentials; ask first. For Play review, the App access
-   section needs test keys (docs/STORE_LISTING.md §4).
+0. **Load levers** (docs/LOAD_TEST.md): the user picks among MangaDex direct-first,
+   TMDB direct with the app key, IGDB wait-and-retry on 429, TMDB short rest on 429,
+   Workers Paid. Then, once phones run 1.0.44: delete RAWG_KEY, OMDB_KEY,
+   COMICVINE_KEY from the Worker (ask first); TMDB_KEY and IGDB_* stay.
 
 1. **Get feedback on 1.0.38–1.0.39** (Cronologia, recap, no zoom, share on Instagram,
    the new font, games in progress) and fix whatever comes up. Sharing and "Save image"

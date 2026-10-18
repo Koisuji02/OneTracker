@@ -95,7 +95,7 @@ every 10 minutes, and when the app goes to the background.
 | `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, two animations |
 | `src/themes.ts` | The theme presets, including the AMOLED family built by the `amoled()` helper. `applyTheme` writes the CSS variables on `<html>` |
 | `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Holds the user's OWN provider keys (`tmdbKey`, `igdbClientId/Secret`, `comicvineKey`, `omdbKey` — never in backups) and `dismissedGuides`; build-time `.env` values are defaults only for the gateway and Google client ids |
-| `src/keys.ts` | The keyed services (bring your own key): TMDB = Serie TV + Film, IGDB = Giochi, Comic Vine = western comics, OMDb = optional ratings. Their link, colours, fields, `hasKey`, `guideDue` |
+| `src/keys.ts` | The keyed services. TMDB (Serie TV + Film) and IGDB (Giochi) are BUILT IN — the gateway's own keys behind its shared cache — and a user may add their own in Settings → Chiavi personali; Comic Vine (western comics, guide on Libri) and OMDb (optional ratings, suggested once in Settings) are the user's own. Link, colours, fields, `hasKey`, `serviceReady`, `guideDue` |
 | `src/i18n.ts` | Two flat dictionaries (en/it) and `useT()`. No interpolation by design: values are composed in JSX |
 | `src/net.ts` | Online/offline state in one place, so screens can degrade instead of erroring |
 | `src/util.ts` | `formatWatchTime`, `seasonEpisodeLabel` (the `S01 \| E04` format that sets the app's separator), `cn`, image error helpers |
@@ -150,7 +150,7 @@ every 10 minutes, and when the app goes to the background.
 | `TrackCard.tsx` / `GridCard.tsx` | The list and grid forms of the same card. **Same props on purpose** — a page computes its state once and renders either |
 | `PosterCard.tsx` | The library grid cover (rating badge, status icon, favourite) |
 | `PosterGrid.tsx`, `MediaRow.tsx`, `PageHeader.tsx`, `EmptyState.tsx` | Layout primitives |
-| `KeyGuide.tsx` | The themed guide to a service key: steps, a button in the SERVICE's colours that opens its key page, then the field + \"Collega\" (checked before saving), \"Apri dal computer\" (QR + link + share). On top of Serie TV / Film (TMDB), Giochi (IGDB), Libri (Comic Vine, can be put off), Settings (OMDb, suggested once), a detail page missing a key, and as the editor of each key in Settings → Chiavi dei servizi |
+| `KeyGuide.tsx` | The themed guide to a service key: one or two short steps, a button in the SERVICE's colours that opens its key page, then the field + "Collega" (checked before saving), "Apri dal computer" (QR + link + share). On top of Libri (Comic Vine, can be put off), Settings (OMDb, suggested once), a detail page missing a key, and as the editor of each key in Settings |
 | `CheckButton.tsx` | The ✓. Unchecked = hollow outline, a rewatch round shows `xN` instead of the tick |
 | `RatingBadge.tsx` | Your 0–10 score as a metal tile: bronze ≥8, silver ≥8.5, gold ≥9, diamond 10 |
 | `Medal.tsx` | An achievement medal: pleated metal rosette (the grade), enamel medallion with the category icon, ribbon tails in the media's colour; a locked one is its own dark silhouette. `MedalDefs` holds the gradients ONCE for the app (hundreds of medals share them), `MetalTile` is the small squared metal chip |

@@ -32,8 +32,8 @@ const settings = (language) => ({
   showGames: true,
   profileName: 'Alex',
   avatar: null,
-  // the app runs on the user's own keys (since 1.0.43): pass yours in the
-  // environment, e.g. OT_TMDB_KEY=… OT_IGDB_ID=… OT_IGDB_SECRET=… node …
+  // TMDB and IGDB answer through the gateway's own keys; the optional
+  // user keys (comics, IMDb/RT ratings) can come from the environment
   tmdbKey: process.env.OT_TMDB_KEY ?? '',
   igdbClientId: process.env.OT_IGDB_ID ?? '',
   igdbClientSecret: process.env.OT_IGDB_SECRET ?? '',

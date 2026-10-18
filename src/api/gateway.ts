@@ -16,9 +16,9 @@ import { ApiKeyMissingError } from './errors'
 
 /**
  * Hosts routed through the gateway: the keyed providers, whose answers the
- * Worker caches for EVERY user (each call carries the user's own key, see
- * http.ts — a miss goes upstream with it and fills the shared cache), and
- * MangaDex, which some ISPs block. IGDB goes through it too (igdbQuery).
+ * Worker caches for EVERY user (a miss goes upstream with the user's own key
+ * when the call carries one — see http.ts — or the Worker's built-in one for
+ * TMDB), and MangaDex, which some ISPs block. IGDB goes through it too.
  *
  * AniList, Jikan and Open Library are deliberately NOT here: they're keyless and
  * reachable everywhere, and AniList actively 403s traffic coming from datacenter
@@ -122,21 +122,22 @@ export function igdbCredentialHeaders(id: string, secret: string): Record<string
 }
 
 /**
- * POST an APIcalypse query to IGDB through the gateway, with the user's own
- * Twitch app. IGDB sends no CORS headers and only takes an app token minted
- * with the secret, so the Worker mints it (never storing the secret) and
- * forwards the query; its cache of the answers is shared by everyone.
+ * POST an APIcalypse query to IGDB through the gateway. IGDB sends no CORS
+ * headers and only takes an app token minted with a secret, so the Worker
+ * mints it — with the app's own Twitch app, or the user's when they added one
+ * (never stored) — and forwards the query; its cache is shared by everyone.
  */
 export async function igdbQuery(endpoint: string, query: string): Promise<any[]> {
   const base = gatewayUrl()
+  if (!base) throw new ApiKeyMissingError('igdb')
   const { igdbClientId, igdbClientSecret } = getSettings()
-  if (!base || !igdbClientId.trim() || !igdbClientSecret.trim()) throw new ApiKeyMissingError('igdb')
+  const own = igdbClientId.trim() && igdbClientSecret.trim()
   const res = await fetch(`${base}/igdb/${endpoint}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'text/plain',
       ...gatewayHeaders(),
-      ...igdbCredentialHeaders(igdbClientId, igdbClientSecret),
+      ...(own ? igdbCredentialHeaders(igdbClientId, igdbClientSecret) : {}),
     },
     body: query,
   })

@@ -6,13 +6,15 @@
  */
 import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
+import { gatewayEnabled } from './gateway'
 
 export async function tmdbTvPosterByTitle(
   title: string,
   year?: number | null,
 ): Promise<{ poster: string | null; backdrop: string | null } | null> {
   const key = getSettings().tmdbKey.trim()
-  if (!key) return null
+  // no key of the user's: the gateway's built-in one answers
+  if (!key && !gatewayEnabled()) return null
   try {
     const isV4 = key.startsWith('ey')
     const url = new URL('https://api.themoviedb.org/3/search/tv')

@@ -35,15 +35,14 @@ the public URL, e.g. `https://onetracker-api.<your-subdomain>.workers.dev`.
 
 ## 2. Load the keys as secrets
 
-> **Since app 1.0.43 users bring their own keys** (the app's key guides), sent
-> with each request as `X-OT-Key` (IGDB: `X-IGDB-Client-Id` / `-Secret`). The
-> Worker answers from its cache SHARED by everyone and only on a miss calls the
-> provider with the caller's key, never storing it. The provider secrets below
-> are a fallback for older builds only: once every phone runs 1.0.43+, delete
-> them (`wrangler secret delete … TMDB_KEY`, `RAWG_KEY`, `OMDB_KEY`,
-> `COMICVINE_KEY`, `IGDB_CLIENT_ID`, `IGDB_CLIENT_SECRET`) and keep only
-> `APP_TOKEN` and the Google pair. When the free 100k requests/day run out the
-> app calls the providers directly, so nothing breaks and nothing is paid.
+> **Since app 1.0.44** the Worker is a cache SHARED by every user in front of
+> the providers. TMDB and IGDB run on the app's own keys (`TMDB_KEY`,
+> `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET`, ONE of each — no pools); a user can
+> send their own instead (`X-OT-Key`, IGDB `X-IGDB-Client-Id` / `-Secret`),
+> used only to fetch a miss and never stored. Comic Vine and OMDb are always the
+> user's own key. `RAWG_KEY`, `OMDB_KEY` and `COMICVINE_KEY` only serve builds
+> older than 1.0.43: delete them once every phone is updated. Capacity, request
+> by request: docs/LOAD_TEST.md.
 
 Run each line and paste the value when prompted (nothing is written to disk):
 
