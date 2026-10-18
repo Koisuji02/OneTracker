@@ -2,6 +2,7 @@ import {
   Activity,
   ArrowLeft,
   Check,
+  ChevronDown,
   Cloud,
   CloudDownload,
   CloudUpload,
@@ -24,6 +25,7 @@ import { Capacitor } from '@capacitor/core'
 import { resetAchievementState } from '../achievements'
 import { checkProviders, type HealthState, type ProviderHealth } from '../api/health'
 import { applyBackup, buildBackup, downloadBackup } from '../backup'
+import KeyGuide, { KeyMark } from '../components/KeyGuide'
 import { OfflineChip } from '../components/OfflineNotice'
 import { db } from '../db'
 import { clearImageCache } from '../imageCache'
@@ -31,7 +33,8 @@ import { connectGoogle, disconnectGoogle, restoreFromDrive, syncDrive } from '..
 import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
 import { useOnline } from '../net'
-import { ENV_DEFAULTS, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
+import { KEY_SERVICES, guideDue, hasKey, type KeyService } from '../keys'
+import { ENV_DEFAULTS, getSettings, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
 import { THEMES } from '../themes'
 import { cn } from '../util'
 
@@ -104,6 +107,37 @@ function InputRow({
         className="mt-1.5 w-full rounded-xl border border-line bg-surface px-3 py-2 font-mono text-xs outline-none transition-colors placeholder:text-ink4 focus:border-accent"
       />
       {hint && <div className="mt-1.5 text-[11px] text-ink4">{hint}</div>}
+    </div>
+  )
+}
+
+/** One service key (src/keys.ts): tap to open its guide, on the field. */
+function KeyRow({ service }: { service: KeyService }) {
+  const t = useT()
+  const settings = useSettings()
+  const [open, setOpen] = useState(false)
+  const on = hasKey(service, settings)
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-card2"
+      >
+        <KeyMark service={service} size={34} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{KEY_SERVICES[service].label}</span>
+          <span className="block text-xs text-ink3">{t(`keys.${service}.what`)}</span>
+        </span>
+        <span className={cn('text-xs font-semibold', on ? 'text-accent' : 'text-ink3')}>
+          {t(on ? 'keys.connected' : 'keys.notConnected')}
+        </span>
+        <ChevronDown size={16} className={cn('text-ink3 transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="px-3 pb-3">
+          <KeyGuide service={service} editing onSaved={() => setOpen(false)} className="bg-surface" />
+        </div>
+      )}
     </div>
   )
 }
@@ -243,6 +277,11 @@ export default function SettingsPage() {
   }
 
   const onTvTimeZip = async (file: File) => {
+    // the import looks every title up on TMDB
+    if (!hasKey('tmdb', getSettings())) {
+      setToast(t('tvtimport.needTmdb'))
+      return
+    }
     setImportResult(null)
     setImportProg({ done: 0, total: 1, label: '…' })
     try {
@@ -271,6 +310,9 @@ export default function SettingsPage() {
         </button>
         <h1 className="text-2xl font-extrabold tracking-tight">{t('settings.title')}</h1>
       </header>
+
+      {/* the optional ratings key, suggested here until added or put off */}
+      {guideDue('omdb', settings) && <KeyGuide service="omdb" className="mx-4 mt-4" />}
 
       <Section title={t('settings.language')}>
         <div className="flex gap-2 px-4 py-3.5">
@@ -372,9 +414,17 @@ export default function SettingsPage() {
         />
       </Section>
 
+      <Section title={t('keys.section')}>
+        <p className="px-4 pt-3 text-xs text-ink3">{t('keys.sectionHint')}</p>
+        <KeyRow service="tmdb" />
+        {settings.showGames && <KeyRow service="igdb" />}
+        {settings.showBooks && <KeyRow service="comicvine" />}
+        <KeyRow service="omdb" />
+      </Section>
+
       <Section title={t('settings.apiKeys')}>
-        {/* with a gateway configured the keys below are optional: they live in
-            the Worker instead of inside the app */}
+        {/* the gateway: the shared cache in front of the providers, MangaDex
+            for blocked networks, IGDB and game lengths */}
         <InputRow
           label={t('settings.gatewayUrl')}
           hint={t('settings.gatewayHint')}
@@ -385,30 +435,6 @@ export default function SettingsPage() {
           hint={t('settings.gatewayTokenHint')}
           {...keyProps('gatewayToken', 'APP_TOKEN')}
         />
-        <InputRow
-          label={t('settings.tmdbKey')}
-          hint={t('settings.tmdbHint')}
-          {...keyProps('tmdbKey', 'eyJhbGciOi… / 32-char v3 key')}
-        />
-        <InputRow
-          label={t('settings.omdbKey')}
-          hint={t('settings.omdbHint')}
-          {...keyProps('omdbKey', 'abc12345')}
-        />
-        {settings.showGames && (
-          <InputRow
-            label={t('settings.rawgKey')}
-            hint={t('settings.rawgHint')}
-            {...keyProps('rawgKey', '0123456789abcdef…')}
-          />
-        )}
-        {settings.showBooks && (
-          <InputRow
-            label={t('settings.comicvineKey')}
-            hint={t('settings.comicvineHint')}
-            {...keyProps('comicvineKey', '0123456789abcdef…')}
-          />
-        )}
       </Section>
 
       {/* diagnostics: which providers answer right now, and why they don't */}

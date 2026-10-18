@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.42** (versionCode 42) — `android/app/build.gradle` is the single source |
+| Version | **1.0.43** (versionCode 43) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.42/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.42 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.43/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.43 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -61,6 +61,21 @@ covers have no minutes, the game slide says only Completato / In corso, the busi
 is the one with the most things marked, the share image has no time. Minutes remain
 only on the series-of-the-month and films slides; the all-time total stays in the
 profile. The closing card shows 8 covers in 4 columns so Chiudi fits on short phones.
+
+**1.0.43 (2026-10-18) — bring your own key.** Every user uses their OWN free keys,
+never the developer's: TMDB (Serie TV + Film), IGDB (Giochi, a Twitch app: id +
+secret), Comic Vine (western comics, optional), OMDb (IMDb/RT/Metacritic ratings,
+optional — without it films/series show TMDB's score). RAWG is gone (an old RAWG
+entry keeps its stored data); SteamGridDB was unused and is gone. Themed key guides
+(`components/KeyGuide.tsx`, services in `src/keys.ts`) sit on top of each tab while
+its key is missing, in Settings → Chiavi dei servizi (OMDb suggested once on top),
+and on a detail page that needs one: steps, a button in the service's colours, the
+field + "Collega" (checked with one call), "Apri dal computer" (QR + link + share).
+The gateway is now a CACHE SHARED BY ALL USERS: calls carry the user's key
+(`X-OT-Key`, IGDB `X-IGDB-Client-Id/-Secret`), a hit is served to anyone, a miss
+goes upstream with the caller's key; when the Worker's free 100k/day are spent (or
+it is down) the app calls the providers directly. Worker deployed. The Worker's own
+provider secrets are only a fallback for builds ≤ 1.0.42.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
@@ -128,6 +143,11 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
    comma-separated list, no deploy). Afterwards only when `/health` `advice` says so.
 
 ### 3b. Claude's next tasks
+
+0. **After the user's phone runs 1.0.43**: delete the Worker's provider secrets
+   (TMDB_KEY, RAWG_KEY, OMDB_KEY, COMICVINE_KEY, IGDB_CLIENT_ID/SECRET) so the
+   gateway holds no provider credentials; ask first. For Play review, the App access
+   section needs test keys (docs/STORE_LISTING.md §4).
 
 1. **Get feedback on 1.0.38–1.0.39** (Cronologia, recap, no zoom, share on Instagram,
    the new font, games in progress) and fix whatever comes up. Sharing and "Save image"

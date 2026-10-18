@@ -3,10 +3,10 @@
  * comics. A "volume" is a comic run (e.g. Ultimate X-Men 2024) with a
  * `count_of_issues`, which OneTracker tracks chapter-by-chapter like manga.
  *
- * The API has no CORS headers, but supports JSONP (`format=jsonp`), so we
- * load responses through a temporary <script> tag instead of fetch(). When the
- * API gateway is configured we get proper JSON instead: the Worker adds CORS,
- * injects the key and reports real HTTP errors (JSONP can only say "failed").
+ * Calls carry the user's own key (settings.comicvineKey). Through the gateway
+ * they get plain JSON from the Worker's shared cache; when it can't answer we
+ * fall back to the API itself, which has no CORS headers but supports JSONP
+ * (`format=jsonp`): a temporary <script> tag instead of fetch().
  */
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
@@ -18,21 +18,22 @@ const API = 'https://comicvine.gamespot.com/api'
 
 function key(): string {
   const k = getSettings().comicvineKey.trim()
-  // the gateway injects the key server-side
-  if (!k && !gatewayEnabled()) throw new ApiKeyMissingError('comicvine')
+  if (!k) throw new ApiKeyMissingError('comicvine')
   return k
 }
 
-/**
- * One Comic Vine call: plain JSON through the gateway, JSONP when calling the
- * API directly from the browser. Callers only see the parsed payload.
- */
+/** One Comic Vine call: the gateway's JSON first, JSONP straight to the API otherwise. */
 async function cvFetch(url: string): Promise<any> {
-  if (!gatewayEnabled()) return jsonp(url)
-  // fetchTimeout rewrites the host onto the gateway, which appends format=json
-  const res = await fetchTimeout(url)
-  if (!res.ok) throw new Error(`Comic Vine error ${res.status}`)
-  return res.json()
+  if (gatewayEnabled()) {
+    try {
+      // fetchTimeout rewrites the host onto the gateway, which appends format=json
+      const res = await fetchTimeout(url)
+      if (res.ok) return await res.json()
+    } catch {
+      // no gateway answer, and a direct fetch has no CORS: JSONP below
+    }
+  }
+  return jsonp(url)
 }
 
 /** Minimal JSONP client: injects a <script>, resolves via a global callback. */
@@ -67,9 +68,11 @@ function jsonp(url: string, timeoutMs = 12000): Promise<any> {
  * `status_code` (1 = OK, 100/102 = bad/missing key). Throws when the script
  * never loads — which JSONP can't tell apart from a network block.
  */
-export async function comicvinePing(): Promise<number> {
-  const data = await cvFetch(
-    `${API}/search/?api_key=${key()}&resources=volume&limit=1&query=batman&field_list=id`,
+/** Comic Vine's own status code for a key: 1 = fine, 100 = invalid key. */
+export async function comicvinePing(apiKey: string = key()): Promise<number> {
+  // straight to Comic Vine: a key check must not be answered by the shared cache
+  const data = await jsonp(
+    `${API}/search/?api_key=${encodeURIComponent(apiKey)}&resources=volume&limit=1&query=batman&field_list=id`,
   )
   return Number(data?.status_code ?? -1)
 }

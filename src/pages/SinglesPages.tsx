@@ -4,12 +4,14 @@ import type { ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import GridCard from '../components/GridCard'
+import KeyGuide from '../components/KeyGuide'
 import PageHeader from '../components/PageHeader'
 import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
 import ViewToggle from '../components/ViewToggle'
 import { db, isWaiting, lastActivity, setSingleStatus } from '../db'
 import { useT } from '../i18n'
+import { guideDue } from '../keys'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
 import { formatDate } from '../util'
@@ -95,7 +97,8 @@ function MovieCard({
 
 export function MoviesPage() {
   const t = useT()
-  const { viewMovies } = useSettings()
+  const settings = useSettings()
+  const { viewMovies } = settings
   const items = useLiveQuery(
     () =>
       db.items
@@ -137,6 +140,8 @@ export function MoviesPage() {
           />
         }
       />
+
+      {guideDue('tmdb', settings) && <KeyGuide service="tmdb" className="mx-4 mb-6" />}
 
       <section className="px-4">
         <SectionTitle text={t('movies.watching')} />

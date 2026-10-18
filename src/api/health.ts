@@ -10,10 +10,11 @@
  * - `badkey`      the service rejected our credentials (401/403)
  * - `nokey`       nothing configured, so the feature is simply off
  */
-import { comicvinePing } from './comicvine'
-import { gatewayEnabled, gatewayHeaders, gatewayUrl } from './gateway'
-import { fetchTimeout } from './http'
+import { hasKey, type KeyService } from '../keys'
 import { getSettings } from '../settings'
+import { gatewayHeaders, gatewayUrl } from './gateway'
+import { fetchTimeout } from './http'
+import { verifyKey } from './keys'
 
 export type HealthState = 'ok' | 'down' | 'unreachable' | 'badkey' | 'nokey'
 
@@ -67,9 +68,17 @@ function fromStatus(res: Response): { state: HealthState; detail?: string } {
   return { state: 'down', detail: `HTTP ${res.status}` }
 }
 
+/** A keyed provider, probed with the user's own key (api/keys.ts). */
+function keyed(service: KeyService, label: string, roleKey: string, values: string[]): Promise<ProviderHealth> {
+  return probe(service, label, roleKey, async () => {
+    if (!hasKey(service)) return { state: 'nokey' }
+    const state = await verifyKey(service, values)
+    return { state: state === 'ok' ? 'ok' : state === 'badkey' ? 'badkey' : 'down' }
+  })
+}
+
 export function checkProviders(): Promise<ProviderHealth[]> {
   const s = getSettings()
-  const gw = gatewayEnabled()
 
   return Promise.all([
     // the gateway first: when it's up, everything below is proxied through it,
@@ -79,34 +88,13 @@ export function checkProviders(): Promise<ProviderHealth[]> {
       if (!base) return { state: 'nokey' }
       const res = await fetchTimeout(`${base}/health`, { headers: gatewayHeaders() }, TIMEOUT)
       if (!res.ok) return fromStatus(res)
-      // /health reports which secrets the Worker actually holds
-      const data = await res.json().catch(() => null)
-      const cfg = data?.configured ?? {}
-      const missing = ['tmdb', 'rawg', 'omdb', 'comicvine', 'igdb'].filter((k) => !cfg[k])
-      // the Worker also says which provider keys are resting right now (a
-      // quota hit) — the one line that tells the operator to add a key
-      const advice: string[] = Array.isArray(data?.advice) ? data.advice : []
-      const notes = [
-        ...(missing.length ? [`secrets missing: ${missing.join(', ')}`] : []),
-        ...advice,
-      ]
-      return { state: 'ok', detail: notes.length ? notes.join(' | ') : 'all secrets set' }
+      // provider keys are the user's own now: the Worker only proxies
+      return { state: 'ok' }
     }),
 
-    probe('tmdb', 'TMDB', 'health.roleTmdb', async () => {
-      const key = s.tmdbKey.trim()
-      // the Worker injects the key when the gateway is on, so probe anyway
-      if (!key && !gw) return { state: 'nokey' }
-      // v4 read tokens go in the header, v3 keys in the query string
-      const isToken = key.startsWith('ey')
-      const url = `https://api.themoviedb.org/3/configuration${isToken ? '' : `?api_key=${key}`}`
-      const res = await fetchTimeout(
-        url,
-        isToken ? { headers: { Authorization: `Bearer ${key}` } } : {},
-        TIMEOUT,
-      )
-      return fromStatus(res)
-    }),
+    keyed('tmdb', 'TMDB', 'health.roleTmdb', [s.tmdbKey]),
+
+    keyed('igdb', 'IGDB', 'health.roleIgdb', [s.igdbClientId, s.igdbClientSecret]),
 
     probe('anilist', 'AniList', 'health.roleAnilist', async () => {
       const res = await fetchTimeout(
@@ -131,17 +119,6 @@ export function checkProviders(): Promise<ProviderHealth[]> {
       return fromStatus(res)
     }),
 
-    probe('rawg', 'RAWG', 'health.roleRawg', async () => {
-      const key = s.rawgKey.trim()
-      if (!key && !gw) return { state: 'nokey' }
-      const res = await fetchTimeout(
-        `https://api.rawg.io/api/games/3498?key=${key}`,
-        {},
-        TIMEOUT,
-      )
-      return fromStatus(res)
-    }),
-
     probe('openlibrary', 'Open Library', 'health.roleOpenLibrary', async () => {
       const res = await fetchTimeout(
         'https://openlibrary.org/search.json?q=dune&limit=1&fields=key',
@@ -151,30 +128,8 @@ export function checkProviders(): Promise<ProviderHealth[]> {
       return fromStatus(res)
     }),
 
-    probe('omdb', 'OMDb', 'health.roleOmdb', async () => {
-      const key = s.omdbKey.trim()
-      if (!key && !gw) return { state: 'nokey' }
-      const res = await fetchTimeout(
-        `https://www.omdbapi.com/?apikey=${key}&i=tt0133093`,
-        {},
-        TIMEOUT,
-      )
-      if (!res.ok) return fromStatus(res)
-      // OMDb reports auth failures inside a 200 body
-      const data = await res.json().catch(() => null)
-      if (data?.Response === 'False') {
-        const err = String(data.Error ?? '')
-        return /key/i.test(err) ? { state: 'badkey', detail: err } : { state: 'down', detail: err }
-      }
-      return { state: 'ok' }
-    }),
+    keyed('omdb', 'OMDb', 'health.roleOmdb', [s.omdbKey]),
 
-    probe('comicvine', 'Comic Vine', 'health.roleComicVine', async () => {
-      if (!s.comicvineKey.trim() && !gw) return { state: 'nokey' }
-      // JSONP: no CORS, so a failure can't be told apart from a block
-      const code = await comicvinePing()
-      if (code === 1) return { state: 'ok' }
-      return { state: code === 100 || code === 102 ? 'badkey' : 'down', detail: `status ${code}` }
-    }),
+    keyed('comicvine', 'Comic Vine', 'health.roleComicVine', [s.comicvineKey]),
   ])
 }

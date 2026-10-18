@@ -94,7 +94,8 @@ every 10 minutes, and when the app goes to the background.
 | `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler. Also mounts `MedalDefs` (the medals' shared gradients), `AchievementToaster` (the "achievement unlocked" pop-up) and `RecapLauncher` (the end-of-month recap) once for the whole app. The back handler asks `back.ts` first, so an open overlay closes instead of the page navigating |
 | `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, two animations |
 | `src/themes.ts` | The theme presets, including the AMOLED family built by the `amoled()` helper. `applyTheme` writes the CSS variables on `<html>` |
-| `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Build-time `.env` keys act as defaults so a shipped APK works out of the box while a user can still override them |
+| `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Holds the user's OWN provider keys (`tmdbKey`, `igdbClientId/Secret`, `comicvineKey`, `omdbKey` — never in backups) and `dismissedGuides`; build-time `.env` values are defaults only for the gateway and Google client ids |
+| `src/keys.ts` | The keyed services (bring your own key): TMDB = Serie TV + Film, IGDB = Giochi, Comic Vine = western comics, OMDb = optional ratings. Their link, colours, fields, `hasKey`, `guideDue` |
 | `src/i18n.ts` | Two flat dictionaries (en/it) and `useT()`. No interpolation by design: values are composed in JSX |
 | `src/net.ts` | Online/offline state in one place, so screens can degrade instead of erroring |
 | `src/util.ts` | `formatWatchTime`, `seasonEpisodeLabel` (the `S01 \| E04` format that sets the app's separator), `cn`, image error helpers |
@@ -121,20 +122,20 @@ every 10 minutes, and when the app goes to the background.
 
 | File | What it is |
 |---|---|
-| `index.ts` | The dispatcher every page uses: `getDetails` (stale-while-revalidate + cache version), `getEpisodes` (cached per season), and the search rows that merge several providers into one list. Also `withGameLength`, which decides HLTB → IGDB → RAWG |
-| `gateway.ts` | Rewrites provider URLs onto the Worker when one is configured. With no gateway, every function here is a no-op and the app calls providers directly |
-| `http.ts` | `fetchTimeout` — the single place a provider URL becomes a gateway URL, and the hard timeout that stopped hung detail pages |
+| `index.ts` | The dispatcher every page uses: `getDetails` (stale-while-revalidate + cache version), `getEpisodes` (cached per season), and the search rows that merge several providers into one list. Also `withGameLength`, which decides HLTB → IGDB (→ an old RAWG payload's playtime). RAWG is retired: an old RAWG entry keeps its stored metadata |
+| `gateway.ts` | Which hosts go through the Worker (TMDB, OMDb, Comic Vine — its SHARED cache — and MangaDex, blocked by some ISPs) and `igdbQuery`, which sends the user's Twitch app as `X-IGDB-Client-Id/-Secret` |
+| `http.ts` | `fetchTimeout`: modules build the DIRECT request with the user's key; here a gateway host gets the key moved into `X-OT-Key` (the cache is keyed without it), and when the gateway can't answer (429/5xx — its free daily quota — or unreachable) the direct request goes out. `fetchDirect` skips the gateway (key checks) |
+| `keys.ts` | `verifyKey`: one cheap call to the service itself (never the shared cache) — what the key guides and the provider check run |
 | `errors.ts` | `ApiKeyMissingError`, so the UI can say "add a key" instead of "something failed" |
 | `titleMatch.ts` | Title normalisation and dedupe keys, shared by every cross-provider merge |
 | `tmdb.ts` | TV, anime and films. One `/search/tv` feeds both rows, split client-side by genre + original language. Keywords become `tags` classifying-first (readership like "shounen", then sub-genres): TMDB buries them deep in its list, and a plain first-N cap used to drop them |
 | `anilist.ts` | Anime/manga reference data. Aggregates AniList's season-per-entry model into one item with real seasons |
 | `mangadex.ts` | Manga search, chapter counts, dates and chapter titles |
-| `comicvine.ts` | Western comics. No CORS, so it loads via JSONP `<script>` when there is no gateway |
+| `comicvine.ts` | Western comics, with the user's key. JSON from the gateway's cache, JSONP `<script>` straight to Comic Vine when the gateway can't answer (no CORS) |
 | `openlibrary.ts` | Books |
 | `igdb.ts` | Games (primary). Needs the gateway: server-to-server Twitch token, no CORS. Also `igdbTimeToBeat`, the fallback game length. The backdrop is chosen by IGDB `artwork_type` (key art first — logos, icons and covers never) and a game carries its DLCs/expansions (`addons`, page-only) while an add-on carries `gameKind` + `parentGame`, the link back |
-| `rawg.ts` | Games fallback + Steam/Wikipedia box-art resolution |
 | `hltb.ts` | HowLongToBeat lengths. No public API: goes through the gateway and matches by title + year, dropping anything it isn't sure about — a wrong match would silently corrupt the time stats |
-| `ratings.ts` | The critic banners (OMDb, Jikan/MAL, AniList, MangaDex). All best-effort |
+| `ratings.ts` | The critic banners (OMDb with the user's optional key — else TMDB's score, see `tmdb.ts` `filmRatings` — Jikan/MAL, AniList, Open Library; games use IGDB's rating). All best-effort |
 | `jikan.ts` | Keyless MAL mirror for real anime episode titles |
 | `covers.ts` | Shared cover cache so a title looks the same in search and on its page |
 | `tmdbPoster.ts` | TMDB poster lookup for anime, in its own module to avoid a circular import |
@@ -149,6 +150,7 @@ every 10 minutes, and when the app goes to the background.
 | `TrackCard.tsx` / `GridCard.tsx` | The list and grid forms of the same card. **Same props on purpose** — a page computes its state once and renders either |
 | `PosterCard.tsx` | The library grid cover (rating badge, status icon, favourite) |
 | `PosterGrid.tsx`, `MediaRow.tsx`, `PageHeader.tsx`, `EmptyState.tsx` | Layout primitives |
+| `KeyGuide.tsx` | The themed guide to a service key: steps, a button in the SERVICE's colours that opens its key page, then the field + \"Collega\" (checked before saving), \"Apri dal computer\" (QR + link + share). On top of Serie TV / Film (TMDB), Giochi (IGDB), Libri (Comic Vine, can be put off), Settings (OMDb, suggested once), a detail page missing a key, and as the editor of each key in Settings → Chiavi dei servizi |
 | `CheckButton.tsx` | The ✓. Unchecked = hollow outline, a rewatch round shows `xN` instead of the tick |
 | `RatingBadge.tsx` | Your 0–10 score as a metal tile: bronze ≥8, silver ≥8.5, gold ≥9, diamond 10 |
 | `Medal.tsx` | An achievement medal: pleated metal rosette (the grade), enamel medallion with the category icon, ribbon tails in the media's colour; a locked one is its own dark silhouette. `MedalDefs` holds the gradients ONCE for the app (hundreds of medals share them), `MetalTile` is the small squared metal chip |

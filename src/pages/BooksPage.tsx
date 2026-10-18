@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom'
 import { getEpisodes } from '../api'
 import EmptyState from '../components/EmptyState'
 import GridCard from '../components/GridCard'
+import KeyGuide from '../components/KeyGuide'
 import PageHeader from '../components/PageHeader'
 import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
@@ -28,6 +29,7 @@ import {
   unitActivity,
 } from '../db'
 import { useT } from '../i18n'
+import { guideDue } from '../keys'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
 import { formatDate } from '../util'
@@ -211,7 +213,8 @@ function SectionTitle({ text }: { text: string }) {
 
 export default function BooksPage() {
   const t = useT()
-  const { viewBooks } = useSettings()
+  const settings = useSettings()
+  const { viewBooks } = settings
   // completed items stay in the query on purpose: a finished manga with an open
   // re-read round belongs in "Continue reading" (the ones without a round are
   // filtered out below)
@@ -292,6 +295,8 @@ export default function BooksPage() {
           <ViewToggle value={viewBooks} onChange={(viewBooks) => updateSettings({ viewBooks })} />
         }
       />
+
+      {guideDue('comicvine', settings) && <KeyGuide service="comicvine" className="mx-4 mb-6" />}
 
       <section className="px-4">
         <SectionTitle text={t('books.continue')} />

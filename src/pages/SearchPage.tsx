@@ -50,8 +50,12 @@ interface LibMatch {
  */
 let searchMemory: { q: string; rows: Record<string, RowState> } = { q: '', rows: {} }
 
-const KEY_MISSING_MSG: Record<string, string> = {
-  games: 'search.rawgKeyMissing',
+/** A row whose key is missing points to the tab with that key's guide. */
+const KEY_MISSING: Record<string, { msg: string; to: string }> = {
+  shows: { msg: 'search.tmdbKeyMissing', to: '/series' },
+  movies: { msg: 'search.tmdbKeyMissing', to: '/movies' },
+  books: { msg: 'search.comicvineKeyMissing', to: '/books' },
+  games: { msg: 'search.igdbKeyMissing', to: '/games' },
 }
 
 function SkeletonRow() {
@@ -236,10 +240,10 @@ export default function SearchPage() {
                 {row.status === 'loading' && row.items.length === 0 && <SkeletonRow />}
                 {row.status === 'keymissing' && (
                   <Link
-                    to="/settings"
+                    to={KEY_MISSING[cfg.key]?.to ?? '/settings'}
                     className="w-full rounded-2xl border border-accent/30 bg-brand/10 px-4 py-4 text-sm font-medium text-accent"
                   >
-                    {t(KEY_MISSING_MSG[cfg.key] ?? 'search.tmdbKeyMissing')} →
+                    {t(KEY_MISSING[cfg.key]?.msg ?? 'search.tmdbKeyMissing')} →
                   </Link>
                 )}
                 {row.status === 'error' && (

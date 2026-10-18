@@ -32,6 +32,13 @@ const settings = (language) => ({
   showGames: true,
   profileName: 'Alex',
   avatar: null,
+  // the app runs on the user's own keys (since 1.0.43): pass yours in the
+  // environment, e.g. OT_TMDB_KEY=… OT_IGDB_ID=… OT_IGDB_SECRET=… node …
+  tmdbKey: process.env.OT_TMDB_KEY ?? '',
+  igdbClientId: process.env.OT_IGDB_ID ?? '',
+  igdbClientSecret: process.env.OT_IGDB_SECRET ?? '',
+  comicvineKey: process.env.OT_COMICVINE_KEY ?? '',
+  omdbKey: process.env.OT_OMDB_KEY ?? '',
 })
 
 async function boot(language) {

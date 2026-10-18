@@ -4,8 +4,9 @@
  * API module; getEpisodes() adds a 7-day IndexedDB cache on top.
  *
  * Providers: TMDB (tv/movies) · AniList (anime/manga) · MangaDex (chapter
- * counts) · Open Library (books) · RAWG (games) · Comic Vine (comics) ·
- * OMDb + Jikan (external ratings).
+ * counts) · Open Library (books) · IGDB (games) · Comic Vine (comics) ·
+ * OMDb + Jikan (external ratings). The keyed ones (TMDB, IGDB, Comic Vine,
+ * OMDb) run on the user's own keys — see settings.ts.
  */
 import { db, putCachedEpisodes } from '../db'
 import { isOnline } from '../net'
@@ -32,28 +33,16 @@ import { igdbAvailable, igdbDetails, igdbTimeToBeat, searchGamesIgdb } from './i
 import { jikanEpisodeTitles } from './jikan'
 import { mangadexChapterTitles, mangadexDetails, searchManga as searchMangaMangadex } from './mangadex'
 import { bookDetails, searchBooks } from './openlibrary'
-import { gameDetails, searchGames as searchGamesRawg } from './rawg'
 import { CJK_RE, dedupeKey, looseTitleKey, matchesTitleSet, normalizeTitle } from './titleMatch'
 import { movieDetails, searchShowsTmdb, seasonEpisodes, tmdbTvTitleKeys, tvDetails } from './tmdb'
 
 export { ApiKeyMissingError } from './errors'
 export { searchMovies } from './tmdb'
 
-/**
- * Games come from IGDB when the API gateway is configured (richer data: real
- * box art, screenshots, themes) and from RAWG otherwise. RAWG stays the
- * fallback if an IGDB query fails, so the row never goes empty.
- */
+/** Games come from IGDB, through the user's own Twitch app (settings.ts). */
 export async function searchGames(query: string): Promise<SearchResult[]> {
-  if (igdbAvailable()) {
-    try {
-      const r = await searchGamesIgdb(query)
-      if (r.length > 0) return r
-    } catch {
-      // fall through to RAWG
-    }
-  }
-  return searchGamesRawg(query)
+  if (!igdbAvailable()) throw new ApiKeyMissingError('igdb')
+  return searchGamesIgdb(query)
 }
 
 /**
@@ -222,7 +211,9 @@ function fetchDetails(
     case 'openlibrary':
       return bookDetails(providerId)
     case 'rawg':
-      return gameDetails(providerId).then(withGameLength)
+      // RAWG is retired (games are IGDB only): an old RAWG entry keeps the
+      // metadata it already has, getDetails serves its cached copy
+      return Promise.reject(new Error('rawg-retired'))
     case 'igdb':
       return igdbDetails(providerId).then(withGameLength)
     case 'comicvine':

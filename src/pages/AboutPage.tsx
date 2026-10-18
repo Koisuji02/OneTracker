@@ -12,12 +12,12 @@
  * image files: no binaries in the repo, no broken asset when a CDN moves.
  */
 import { App as CapApp } from '@capacitor/app'
-import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
 import { ArrowLeft, Code2, ExternalLink, ShieldCheck } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useT } from '../i18n'
+import { openExternal } from '../util'
 
 const REPO = 'https://github.com/Koisuji02/OneTracker'
 /** The web app, which is also OneTracker's home page and hosts the published
@@ -26,15 +26,6 @@ const REPO = 'https://github.com/Koisuji02/OneTracker'
  *  Note `/privacy`, not `/privacy.html`: Workers Assets redirects the latter. */
 const SITE = 'https://onetracker.onetracker.workers.dev'
 const PRIVACY = `${SITE}/privacy`
-
-/** Open outside the app — a custom tab on device, a new tab on the web. */
-async function openExternal(url: string): Promise<void> {
-  if (Capacitor.isNativePlatform()) {
-    await Browser.open({ url }).catch(() => {})
-    return
-  }
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
 
 /**
  * TMDB's mark: their wordmark on the official gradient. Their brand asset can
@@ -129,7 +120,6 @@ export default function AboutPage() {
     },
     { mark: <Mark label="IGDB" bg="#2A1B57" />, what: t('nav.games') },
     { mark: <Mark label="HLTB" bg="#12283C" fg="#5FA8E8" />, what: t('about.gameLengths') },
-    { mark: <Mark label="RAWG" bg="#151515" />, what: `${t('nav.games')}, ${t('about.artwork')}` },
     { mark: <Mark label="AniList" bg="#02A9FF" />, what: `${t('about.anime')}, ${t('nav.books')}` },
     { mark: <Mark label="MangaDex" bg="#FF6740" />, what: t('about.chapters') },
     { mark: <Mark label="MAL" bg="#2E51A2" />, what: `${t('about.anime')}, ${t('about.ratings')}` },

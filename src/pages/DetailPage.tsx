@@ -34,6 +34,8 @@ import {
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ApiKeyMissingError, getDetails, getEpisodes } from '../api'
+import KeyGuide from '../components/KeyGuide'
+import type { KeyService } from '../keys'
 import CheckButton from '../components/CheckButton'
 import Cover from '../components/Cover'
 import Gallery from '../components/Gallery'
@@ -407,6 +409,9 @@ export default function DetailPage() {
   const { language, detailLayout } = useSettings()
   const [details, setDetails] = useState<MediaDetails | null>(null)
   const [error, setError] = useState<'keymissing' | 'error' | null>(null)
+  /** the service whose key is missing, and a bump to retry once it is added */
+  const [missing, setMissing] = useState<KeyService>('tmdb')
+  const [retry, setRetry] = useState(0)
   const [unitDialog, setUnitDialog] = useState<UnitDialog>(null)
   const [singleDialog, setSingleDialog] = useState(false)
   const [gameDialog, setGameDialog] = useState(false)
@@ -442,12 +447,14 @@ export default function DetailPage() {
     getDetails(provider, mediaType, id, applyFresh)
       .then(applyFresh)
       .catch((err) => {
-        if (alive) setError(err instanceof ApiKeyMissingError ? 'keymissing' : 'error')
+        if (!alive) return
+        if (err instanceof ApiKeyMissingError) setMissing(err.provider)
+        setError(err instanceof ApiKeyMissingError ? 'keymissing' : 'error')
       })
     return () => {
       alive = false
     }
-  }, [provider, mediaType, id, language])
+  }, [provider, mediaType, id, language, retry])
 
   // ONE source of truth: fresh provider data layered over the stored snapshot,
   // so a provider that answers with holes can never blank what the DB knows
@@ -495,15 +502,12 @@ export default function DetailPage() {
       <div className="flex h-[70vh] flex-col items-center justify-center gap-4 px-6 text-center">
         {error === null && <Loader2 size={28} className="animate-spin text-accent" />}
         {error === 'keymissing' && (
-          <>
-            <p className="text-sm text-ink2">{t('search.tmdbKeyMissing')}</p>
-            <Link
-              to="/settings"
-              className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-black"
-            >
-              {t('settings.title')}
-            </Link>
-          </>
+          <KeyGuide
+            service={missing}
+            dismissable={false}
+            onSaved={() => setRetry((r) => r + 1)}
+            className="w-full max-w-md text-left"
+          />
         )}
         {error === 'error' && <p className="text-sm text-ink2">{t('common.error')}</p>}
         <button onClick={() => nav(-1)} className="text-sm font-semibold text-accent">
