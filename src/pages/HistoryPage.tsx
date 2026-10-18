@@ -14,7 +14,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, History, Play } from 'lucide-reac
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
-import MonthRecapStory, { monthTiles, shortTime } from '../components/MonthRecap'
+import MonthRecapStory, { monthTiles } from '../components/MonthRecap'
 import PosterCard from '../components/PosterCard'
 import PosterGrid from '../components/PosterGrid'
 import StatTiles from '../components/StatTiles'
@@ -37,22 +37,18 @@ import { useSettings } from '../settings'
 import { cn } from '../util'
 
 /**
- * What a cover says about its month, under the title: how much and how long.
- * Finishing something is the cover's flag (statusKind), the same mark the
- * rest of the app uses, so the line stays short enough for three columns.
+ * What a cover says about its month, under the title: how much, never how
+ * long (the month has no time, see MonthStats). Finishing something is also
+ * the cover's flag (statusKind), the same mark the rest of the app uses.
  */
 function useCaption() {
   const t = useT()
   return (e: HistoryEntry): string => {
-    const parts: string[] = []
-    if (e.units > 0) parts.push(`${e.units} ${t(e.kind === 'books' ? 'history.chaptersShort' : 'history.episodesShort')}`)
-    if (e.kind === 'games' && e.finished > 1) parts.push(`x${e.finished}`)
-    if (e.minutes > 0) parts.push(shortTime(e.minutes))
-    // a game being played has no time yet: say it is under way
-    if (parts.length === 0 && e.playing) parts.push(t('history.playing'))
-    // a book has no time: say it was read
-    if (parts.length === 0) parts.push(t(e.kind === 'books' ? 'history.read' : 'history.seen'))
-    return parts.join(' | ')
+    if (e.units > 0) return `${e.units} ${t(e.kind === 'books' ? 'history.chaptersShort' : 'history.episodesShort')}`
+    if (e.kind === 'games') {
+      return e.finished > 0 ? `${t('history.beaten')}${e.finished > 1 ? ` x${e.finished}` : ''}` : t('history.playing')
+    }
+    return t(e.kind === 'books' ? 'history.read' : 'history.seen')
   }
 }
 
@@ -96,7 +92,6 @@ export default function HistoryPage() {
     ...(show.showBooks ? {} : { chapters: 0, books: 0 }),
     ...(show.showGames ? {} : { games: 0, playing: 0 }),
   }
-  const totalMin = s.totalMin - (show.showGames ? 0 : s.gameMin)
 
   return (
     <div className="pb-8">
@@ -144,13 +139,7 @@ export default function HistoryPage() {
 
         {entries.length > 0 && (
           <div className="mt-4 border-t border-line pt-4 text-center">
-            {totalMin > 0 && (
-              <>
-                <div className="text-[11px] font-bold uppercase tracking-wider text-ink3">{t('history.time')}</div>
-                <div className="mt-0.5 text-3xl font-extrabold tracking-tight text-accent">{shortTime(totalMin)}</div>
-              </>
-            )}
-            <StatTiles tiles={monthTiles(shown, t, true)} className="mt-4" />
+            <StatTiles tiles={monthTiles(shown, t, true)} />
             <button
               onClick={() => {
                 setRecapOpen(true)

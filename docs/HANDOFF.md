@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.41** (versionCode 41) — `android/app/build.gradle` is the single source |
+| Version | **1.0.42** (versionCode 42) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.41/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.41 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.42/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.42 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -53,6 +53,14 @@ fails is skipped instead of leaving a hole.
 
 **1.0.41 (2026-10-17).** The Android widget uses Figtree too (`res/font`, styles in
 `values-v26/widget_text.xml`), the last item before the Play Store work.
+
+**1.0.42 (2026-10-18).** No time totals in the month any more (the user's call: a game
+only earns hours when beaten, so a month's total is misleading). Cronologia and the
+recap speak in COUNTS — the time slide became "Il tuo mese in numeri" (titles + tiles),
+covers have no minutes, the game slide says only Completato / In corso, the busiest day
+is the one with the most things marked, the share image has no time. Minutes remain
+only on the series-of-the-month and films slides; the all-time total stays in the
+profile. The closing card shows 8 covers in 4 columns so Chiudi fits on short phones.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
