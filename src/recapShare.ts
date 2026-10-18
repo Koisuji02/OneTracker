@@ -31,10 +31,6 @@ export interface RecapCard {
   lang: Language | null
   /** "Il tuo" / "Your" */
   lead: string
-  /** label over the time, e.g. "Tempo media" */
-  timeLabel: string
-  /** the month's time, already formatted ("38 h 20 min"), or null for none */
-  time: string | null
   tiles: Array<{ value: number; label: string }>
   /** cover URLs, biggest first — every title of the month, the card keeps the first 18 that load */
   covers: string[]
@@ -151,7 +147,7 @@ export async function renderRecapCard(card: RecapCard): Promise<Blob> {
   ctx.fillRect(0, 0, W, H)
 
   // the month, on the theme's colour — the recap's opening slide, in short
-  const top = card.time ? 720 : 560
+  const top = 560
   ctx.fillStyle = brand
   ctx.fillRect(0, 0, W, top)
   ctx.fillStyle = 'rgba(0,0,0,0.7)'
@@ -166,16 +162,6 @@ export async function renderRecapCard(card: RecapCard): Promise<Blob> {
   ctx.fillStyle = 'rgba(0,0,0,0.45)'
   ctx.font = `800 64px ${FONT}`
   ctx.fillText(card.ym.slice(0, 4), W / 2, 425)
-  if (card.time) {
-    ctx.fillStyle = 'rgba(0,0,0,0.7)'
-    ctx.font = `800 30px ${FONT}`
-    ctx.letterSpacing = '6px'
-    ctx.fillText(card.timeLabel.toUpperCase(), W / 2, 540)
-    ctx.letterSpacing = '0px'
-    ctx.fillStyle = '#000'
-    ctx.font = `900 ${fitFont(ctx, card.time, 900, 110, W - PAD * 2)}px ${FONT}`
-    ctx.fillText(card.time, W / 2, 650)
-  }
 
   // every cover of the month (up to 18, in a grid shaped by how many there
   // are) and the totals as the app's tiles, centred together under the month.

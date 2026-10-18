@@ -46,18 +46,21 @@ export interface HistoryEntry {
   completedHere: boolean
   /** a game being played during the month (started, not yet beaten in it) */
   playing: boolean
-  /** minutes the month counts for this title (books have no time) */
+  /** minutes the month counts for this title (books have no time) — orders the
+   * entries and feeds the series/films slides, never shown as a month total */
   minutes: number
   /** most recent activity in the month (ms) */
   last: number
 }
 
+/**
+ * A month in COUNTS. Time is deliberately left out of the month view: a game
+ * only earns its hours when it is beaten, so a month's total would swing with
+ * whatever happened to be finished in it. Time lives in the profile's
+ * all-time total; here only the films slide shows the minutes it adds up.
+ */
 export interface MonthStats {
-  /** series + movies + games, the same three the profile total adds up */
-  totalMin: number
-  seriesMin: number
   movieMin: number
-  gameMin: number
   /** tv + anime episodes */
   episodes: number
   /** manga/comic chapters */
@@ -257,10 +260,7 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
     (a, b) => b.minutes - a.minutes || b.units + b.finished - (a.units + a.finished) || b.last - a.last,
   )
   const stats: MonthStats = {
-    totalMin: 0,
-    seriesMin: 0,
     movieMin: 0,
-    gameMin: 0,
     episodes: 0,
     chapters: 0,
     movies: 0,
@@ -271,13 +271,11 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
   }
   for (const e of list) {
     if (e.kind === 'series') {
-      stats.seriesMin += e.minutes
       stats.episodes += e.units
     } else if (e.kind === 'movies') {
       stats.movieMin += e.minutes
       stats.movies += e.finished
     } else if (e.kind === 'games') {
-      stats.gameMin += e.minutes
       stats.games += e.finished
       if (e.playing && e.finished === 0) stats.playing++
     } else {
@@ -285,7 +283,6 @@ export function monthHistory(items: LibraryItem[], eps: WatchedEpisode[], ym: st
       stats.books += e.finished + (e.completedHere ? 1 : 0)
     }
   }
-  stats.totalMin = stats.seriesMin + stats.movieMin + stats.gameMin
   return { ym, entries: list, stats, days: [...days.values()].sort((a, b) => a.day - b.day) }
 }
 
@@ -324,6 +321,8 @@ export interface MonthRecap {
   topBook: HistoryEntry | null
   topGame: HistoryEntry | null
   busiest: DayActivity | null
+  /** titles with something marked in the month (what the numbers slide leads with) */
+  titles: number
   /** the genre most of the month's time went to, when one clearly leads */
   genre: string | null
   /** covers for the closing card, biggest first */
@@ -350,8 +349,9 @@ export function monthRecap(h: MonthHistory, show: { showBooks: boolean; showGame
   const backers = leader ? entries.filter((e) => e.item.genres?.includes(leader[0])).length : 0
   const genre = leader && backers >= 2 && (!ranked[1] || leader[1] > ranked[1][1]) ? leader[0] : null
 
+  // the day with the most things marked (time only breaks a tie)
   const busiest = h.days.reduce<DayActivity | null>(
-    (best, d) => (!best || d.minutes > best.minutes || (d.minutes === best.minutes && d.things > best.things) ? d : best),
+    (best, d) => (!best || d.things > best.things || (d.things === best.things && d.minutes > best.minutes) ? d : best),
     null,
   )
 
@@ -361,7 +361,7 @@ export function monthRecap(h: MonthHistory, show: { showBooks: boolean; showGame
       ...h.stats,
       // hidden media must not leak into the numbers either
       ...(show.showBooks ? {} : { chapters: 0, books: 0 }),
-      ...(show.showGames ? {} : { games: 0, playing: 0, gameMin: 0, totalMin: h.stats.totalMin - h.stats.gameMin }),
+      ...(show.showGames ? {} : { games: 0, playing: 0 }),
     },
     topSeries: series[0] ?? null,
     moreSeries: Math.max(0, series.length - 1),
@@ -370,6 +370,7 @@ export function monthRecap(h: MonthHistory, show: { showBooks: boolean; showGame
     topGame: games[0] ?? null,
     // a single busy day is not a "busiest day"
     busiest: h.days.length >= 2 ? busiest : null,
+    titles: entries.length,
     genre,
     covers: entries.filter((e) => e.item.poster).map((e) => e.item),
   }

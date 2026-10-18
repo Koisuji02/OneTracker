@@ -141,7 +141,7 @@ for (let i = 0; i < 9; i++) {
 const card = await page.evaluate(async (language) => {
   const { db } = await import('/src/db.ts')
   const h = await import('/src/history.ts')
-  const { monthTiles, shortTime } = await import('/src/components/MonthRecap.tsx')
+  const { monthTiles } = await import('/src/components/MonthRecap.tsx')
   const { renderRecapCard } = await import('/src/recapShare.ts')
   const { translate } = await import('/src/i18n.ts')
   const t = (k) => translate(language, k)
@@ -151,8 +151,6 @@ const card = await page.evaluate(async (language) => {
     ym: recap.ym,
     lang: language,
     lead: t('recap.your'),
-    timeLabel: t('history.time'),
-    time: recap.stats.totalMin > 0 ? shortTime(recap.stats.totalMin) : null,
     tiles: monthTiles(recap.stats, t).map((x) => ({ value: Number(x.value), label: String(x.label) })),
     covers: recap.covers.map((c) => c.poster).filter(Boolean),
   })

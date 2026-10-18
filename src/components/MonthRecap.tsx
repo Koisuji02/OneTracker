@@ -1,6 +1,6 @@
 /**
  * The end-of-month recap: a full-screen story, one slide per thing worth
- * telling (time spent, the series of the month, films, books, games, the
+ * telling (the month in numbers, the series of the month, films, books, games, the
  * busiest day, the genre), then a closing card with every cover.
  *
  * Story mechanics: each slide runs for SLIDE_MS with its progress bar
@@ -16,7 +16,7 @@
  */
 import { useLiveQuery } from 'dexie-react-hooks'
 import { Toast } from '@capacitor/toast'
-import { CalendarDays, Clapperboard, Gamepad2, History, Share2, Sparkles, Tv, X } from 'lucide-react'
+import { CalendarDays, History, Share2, Sparkles, X } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useBackInterceptor } from '../back'
@@ -141,42 +141,18 @@ function useSlides(
     ),
   })
 
-  if (s.totalMin > 0) {
-    const hours = Math.floor(s.totalMin / 60)
-    const parts = [
-      { icon: <Tv size={15} />, label: t('nav.series'), min: s.seriesMin },
-      { icon: <Clapperboard size={15} />, label: t('nav.movies'), min: s.movieMin },
-      { icon: <Gamepad2 size={15} />, label: t('nav.games'), min: s.gameMin },
-    ].filter((p) => p.min > 0)
+  // the month in numbers: what was watched, read and played, and what is
+  // still under way — counts only, the month has no time total (see MonthStats)
+  if (recap.titles > 0) {
     slides.push({
-      key: 'time',
+      key: 'numbers',
       bg: 'bg-gradient-to-br from-[#24127a] via-[#4c1d95] to-[#7c3aed]',
       body: (
         <Center>
-          <Lead>{t('recap.timeLead')}</Lead>
-          <div className="mt-4 text-8xl font-black leading-none tracking-tight tabular-nums">
-            {hours > 0 ? hours : s.totalMin}
-          </div>
-          <div className="mt-2 text-3xl font-extrabold">{hours > 0 ? t('recap.hours') : t('recap.minutes')}</div>
-          {hours > 0 && s.totalMin % 60 > 0 && (
-            <div className="mt-1 text-base font-semibold opacity-60">
-              {t('recap.and')} {s.totalMin % 60} min
-            </div>
-          )}
-          <div className="mt-10 w-full max-w-xs space-y-4 text-left">
-            {parts.map((p) => (
-              <div key={p.label}>
-                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
-                  {p.icon}
-                  <span className="flex-1">{p.label}</span>
-                  <span className="tabular-nums opacity-80">{shortTime(p.min)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-sm bg-white/15">
-                  <div className="recap-grow h-full rounded-sm bg-white" style={{ width: `${(p.min / s.totalMin) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <Lead>{t('recap.numbersLead')}</Lead>
+          <div className="mt-4 text-8xl font-black leading-none tracking-tight tabular-nums">{recap.titles}</div>
+          <div className="mt-2 text-3xl font-extrabold">{noun(recap.titles, 'recap.titles', t)}</div>
+          <StatTiles tiles={monthTiles(s, t)} tone="glass" className="mt-10 w-full max-w-xs" />
         </Center>
       ),
     })
@@ -274,19 +250,12 @@ function useSlides(
           <Poster item={e.item} className="mt-7 aspect-[2/3] w-44 shadow-2xl ring-1 ring-white/10" />
           <Title>{e.item.title}</Title>
           <div className="mt-2 text-lg font-semibold opacity-80">
-            {e.finished > 0 ? (
-              <>
-                {t('history.beaten')}
-                {e.finished > 1 ? ` x${e.finished}` : ''} | {shortTime(e.minutes)}
-              </>
-            ) : (
-              t('history.playing')
-            )}
+            {e.finished > 0 ? `${t('history.beaten')}${e.finished > 1 ? ` x${e.finished}` : ''}` : t('history.playing')}
           </div>
           {s.games + s.playing > 1 && (
             <div className="mt-6 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-semibold backdrop-blur-sm">
               {[
-                s.games > 0 ? `${counted(s.games, 'history.games', t)} | ${shortTime(s.gameMin)}` : null,
+                s.games > 0 ? counted(s.games, 'history.games', t) : null,
                 s.playing > 0 ? counted(s.playing, 'history.playingGames', t) : null,
               ]
                 .filter(Boolean)
@@ -313,7 +282,7 @@ function useSlides(
           </div>
           <div className="mt-4 text-5xl font-black leading-tight">{dayLabel(recap.ym, d.day, lang)}</div>
           <div className="mt-3 text-xl font-bold opacity-85">
-            {d.minutes > 0 ? shortTime(d.minutes) : counted(d.things, 'recap.things', t)}
+            {counted(d.things, 'recap.things', t)}
           </div>
           <div className="mt-8 rounded-lg bg-white/10 px-3 py-1.5 text-sm font-semibold backdrop-blur-sm">
             {counted(s.activeDays, 'history.activeDays', t)}
@@ -341,8 +310,8 @@ function useSlides(
     })
   }
 
-  // the closing card: the month, its time, every cover, the totals, the way out
-  const covers = recap.covers.slice(0, 9)
+  // the closing card: the month, its covers (two rows of four), the totals, the way out
+  const covers = recap.covers.slice(0, 8)
   slides.push({
     key: 'outro',
     bg: 'bg-surface',
@@ -350,11 +319,8 @@ function useSlides(
       <Center>
         <div className="w-full rounded-2xl border border-line bg-card p-4 text-ink">
           <div className="text-xl font-black">{monthLabel(recap.ym, lang)}</div>
-          {s.totalMin > 0 && (
-            <div className="mt-1 text-3xl font-extrabold tracking-tight text-accent">{shortTime(s.totalMin)}</div>
-          )}
           {covers.length > 0 && (
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-4 grid grid-cols-4 gap-2">
               {covers.map((c) => (
                 <Poster key={c.id} item={c} className="aspect-[2/3] w-full" />
               ))}
@@ -432,8 +398,6 @@ export default function MonthRecapStory({
         ym: recap.ym,
         lang: settings.language,
         lead: t('recap.your'),
-        timeLabel: t('history.time'),
-        time: s.totalMin > 0 ? shortTime(s.totalMin) : null,
         tiles: monthTiles(s, t).map((x) => ({ value: Number(x.value), label: String(x.label) })),
         covers: recap.covers.map((c) => c.poster).filter((u): u is string => !!u),
       })
