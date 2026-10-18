@@ -8,6 +8,7 @@ node scripts/stress/simulate.mjs                  # every tier, 2 days, report t
 node scripts/stress/simulate.mjs --burst 5000     # N users in the same 5 minutes
 node scripts/stress/simulate.mjs --colos 3        # users split over 3 edge caches
 node scripts/stress/simulate.mjs --cache 20000    # an edge cache capped at N entries
+node scripts/stress/simulate.mjs --arch snapshot  # current | direct | snapshot | byok (below)
 ```
 
 Results land in `builds/stress/*.json` (gitignored).
@@ -110,3 +111,43 @@ Caveats: one edge cache is assumed (users in Italy mostly hit one or two
 Cloudflare colos; `--colos 3` shows the cost of more), users are independent
 (real ones cluster even more on hits, which helps the cache), and the fakes
 answer instantly (real latency only makes bursts spread out).
+
+## Architectures compared (where each call goes)
+
+`--arch` routes every call of the same simulated users differently:
+
+- **current** — everything keyed through the gateway (1.0.44).
+- **direct** — the phone calls TMDB (the app's key inside the app), HowLongToBeat,
+  OMDb, Comic Vine and MangaDex itself; the gateway keeps IGDB and MangaDex for
+  the ~15% of users whose ISP blocks it.
+- **snapshot** — direct + a daily static snapshot of the ~20k most popular games
+  (their pages and a search index) built by a scheduled job and served as static
+  files, which Cloudflare serves free and unlimited; the gateway keeps IGDB for
+  the long tail.
+- **byok** — every quota-limited service on the user's own key (games on RAWG,
+  whose key is "sign in and copy"), no gateway for data.
+
+Gateway requests per user per day, plus ~1.5 for the Google Drive token (an
+access token lives an hour, in memory; ~half the users back up):
+
+| Architecture | Gateway req/user/day | Free plan carries | IGDB failed (normal day) | 20k-user burst: requests failed |
+|---|---|---|---|---|
+| current | 41.5 + 1.5 | **~2,300 users/day** | 0.03% at 50k | 66% of IGDB |
+| direct | 7.7 + 1.5 | **~11,000** | 0.04% at 10k → 0.42% at 250k | 47% of gateway requests |
+| snapshot | 2.9 + 1.5 | **~23,000** | 0.01% at 10k → 0.2% at 1M | 17% of gateway requests |
+| byok | ~2.2 (MangaDex for blocked ISPs) + 1.5 | ~27,000 — **unlimited** without those two | no IGDB | none (each user's own limits) |
+
+Past the free plan, Workers Paid is $5/month for 10M requests, then $0.30 per
+million: **snapshot** at 100k users/day ≈ $6/month, at 1M users/day ≈ $42/month;
+**current** at 100k users/day ≈ $40/month.
+
+IGDB is the only shared limit left in direct/snapshot: at 1M users/day it gets
+~143k calls (1.7/s average, capped at its 4/s), 0.2% fail on a normal day, and
+bursts of thousands of people searching games at once still fail partly. The
+ways round it are IGDB's partner programme (a higher limit), a user's own Twitch
+app (Settings), or byok with RAWG.
+
+RAWG (checked live): Metacritic out of 100 on the known games (Elden Ring 95,
+Zelda TotK 96) and its own score out of 5; a landscape background, a second
+image and 6 screenshots; NO portrait cover with the logo — those would come
+from Steam (PC games) and Wikipedia (console games), as before IGDB.
