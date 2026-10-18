@@ -7,8 +7,8 @@ The images are generated, not hand-made, so they can be redone after any UI
 change (real app, real library, real covers):
 
 ```
-# the app runs on the user's own keys: export OT_TMDB_KEY, OT_IGDB_ID,
-# OT_IGDB_SECRET (and optionally OT_COMICVINE_KEY, OT_OMDB_KEY) first
+# TMDB and IGDB answer through the gateway's own keys; optionally export
+# OT_COMICVINE_KEY / OT_OMDB_KEY to show comics and IMDb/RT ratings too
 npm run dev                                   # the dev server, port 5173
 node scripts/store/shoot.mjs seed it          # once per language: fills a library
 node scripts/store/shoot.mjs seed en          #   (real titles, through the gateway)
@@ -65,8 +65,7 @@ STATISTICHE E COLLEZIONI
 – Scontro: un torneo a eliminazione diretta tra i tuoi preferiti.
 
 I TUOI DATI RESTANO TUOI
-– La libreria sta sul telefono e si consulta anche offline.
-– Serie TV e film arrivano da TMDB e i giochi da IGDB: ti serve una loro chiave gratuita, e l'app ti guida passo passo a crearla.
+– Nessun account obbligatorio: la libreria sta sul telefono e si consulta anche offline.
 – Backup facoltativo sul tuo Google Drive, in una cartella privata dell'app, con la sincronizzazione tra più dispositivi.
 – Niente pubblicità, niente tracciamento.
 – Puoi importare la tua libreria da TV Time.
@@ -120,8 +119,7 @@ STATS AND COLLECTIONS
 – Clash: a knockout tournament between your favourites.
 
 YOUR DATA STAYS YOURS
-– Your library lives on your phone, and you can browse it offline.
-– Shows and movies come from TMDB and games from IGDB: you need a free key from them, and the app walks you through getting it.
+– No account needed: your library lives on your phone, and you can browse it offline.
 – Optional backup to your own Google Drive, in a private app folder, with sync across devices.
 – No ads, no tracking.
 – Import your library from TV Time.
@@ -152,7 +150,7 @@ Data and images from TMDB, IGDB, HowLongToBeat, AniList, MangaDex, Open Library,
 |---|---|
 | Privacy policy | the URL above |
 | Ads | **No**, the app contains no ads |
-| App access | **All or some functionality is restricted**: series, films and games need the user's own free TMDB / IGDB keys. Give the reviewer working test keys in the instructions (TMDB API key; IGDB Client ID + Secret) and say where to paste them: Settings → Chiavi dei servizi, or the guide on top of each tab |
+| App access | **All functionality is available without special access** (Google sign-in is optional and only enables the Drive backup; the Comic Vine and OMDb keys only add western comics and extra ratings) |
 | Content rating | see §5 |
 | Target audience | **13+** only (13–15, 16–17, 18+). Not for children: it avoids the Families policy, and the catalogue includes titles for adults |
 | News app | No |

@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import GameTimeDialog from '../components/GameTimeDialog'
 import GridCard from '../components/GridCard'
-import KeyGuide from '../components/KeyGuide'
 import PageHeader from '../components/PageHeader'
 import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
@@ -21,7 +20,6 @@ import {
   setGameStatus,
 } from '../db'
 import { useT } from '../i18n'
-import { guideDue } from '../keys'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
 import { formatDate } from '../util'
@@ -116,8 +114,7 @@ function SectionTitle({ text }: { text: string }) {
 
 export default function GamesPage() {
   const t = useT()
-  const settings = useSettings()
-  const { viewGames } = settings
+  const { viewGames } = useSettings()
   /** game whose ✓ was tapped, waiting for its played hours */
   const [closing, setClosing] = useState<LibraryItem | null>(null)
   const items = useLiveQuery(
@@ -158,8 +155,6 @@ export default function GamesPage() {
           <ViewToggle value={viewGames} onChange={(viewGames) => updateSettings({ viewGames })} />
         }
       />
-
-      {guideDue('igdb', settings) && <KeyGuide service="igdb" className="mx-4 mb-6" />}
 
       <section className="px-4">
         <SectionTitle text={t('games.playing')} />

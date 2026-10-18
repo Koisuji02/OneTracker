@@ -5,7 +5,7 @@
  * resolves first (search or detail) wins and everyone reuses it.
  *
  * - anime → the classic TMDB poster (with logo), fallback AniList art
- * - games → titled box art (Steam/Wikipedia), fallback RAWG promo art
+ * - games → IGDB's cover (logo included); titled box art (Wikipedia) when it has none
  */
 import { db } from '../db'
 import type { SearchResult } from '../types'
@@ -37,10 +37,16 @@ export async function rememberCover(key: string, url: string | null): Promise<vo
   await db.covers.put({ key, url, fetchedAt: Date.now() })
 }
 
-/** Game search rows: swap RAWG promo art for cached/titled box art. */
+/**
+ * Game search rows: titled box art for the results that have none. IGDB's
+ * covers already carry the logo (and are what the detail page shows), so they
+ * stay — the Wikipedia lookup was for RAWG's promo art, and cost a request per
+ * result.
+ */
 export function enrichGameCovers(results: SearchResult[]): Promise<SearchResult[]> {
   return Promise.all(
     results.map(async (r) => {
+      if (r.poster) return r
       const url = await cachedCover(gameCoverKey(r.providerId), () => wikipediaBoxArt(r.title))
       return url ? { ...r, poster: url } : r
     }),

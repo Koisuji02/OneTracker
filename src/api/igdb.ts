@@ -4,12 +4,12 @@
  * companies, per-platform release dates).
  *
  * It can only be reached through the API gateway: IGDB needs a server-to-server
- * Twitch token and sends no CORS headers, so the Worker mints the token from
- * the USER's own Twitch app (settings.igdbClientId/Secret) and forwards
- * APIcalypse queries (see worker/README.md).
+ * Twitch token and sends no CORS headers, so the Worker mints the token —
+ * from the app's own Twitch app, or the user's when they added one
+ * (settings.igdbClientId/Secret) — and forwards APIcalypse queries, answering
+ * from its shared cache first (see worker/README.md).
  */
 import type { GameAddon, GameKind, GameLength, MediaDetails, SearchResult } from '../types'
-import { getSettings } from '../settings'
 import { gatewayEnabled, igdbQuery } from './gateway'
 
 /**
@@ -28,11 +28,8 @@ const IMG = (
   size: 't_cover_big' | 't_cover_big_2x' | 't_720p' | 't_1080p' | 't_screenshot_med',
 ) => `https://images.igdb.com/igdb/image/upload/${size}/${hash}.jpg`
 
-/** True when IGDB can answer: a gateway, and the user's Twitch app. */
-export const igdbAvailable = (): boolean => {
-  const s = getSettings()
-  return gatewayEnabled() && !!s.igdbClientId.trim() && !!s.igdbClientSecret.trim()
-}
+/** True when IGDB can answer: it lives behind the gateway. */
+export const igdbAvailable = (): boolean => gatewayEnabled()
 
 /**
  * `game_type` (0 main game, 8 remake, 9 remaster, 10 expanded, 11 port) keeps
@@ -57,22 +54,30 @@ const toResult = (g: any): SearchResult => ({
  *
  * IGDB's `search` sorts by text relevance only, which buries famous titles
  * under obscure ones ("uncharted" → Uncharted Ocean, Uncharted World… while
- * Uncharted 4 never appears). So we run TWO queries in parallel:
+ * Uncharted 4 never appears). So there are TWO queries:
  * 1. name-contains sorted by `total_rating_count` — the popularity signal, and
  * 2. IGDB's own `search` — keeps typo tolerance and matches on subtitles.
  * Results merge with the popular ones first, then anything only `search` found.
+ *
+ * The second one only runs when the first comes back thin (a typo, words in
+ * another order): IGDB's limit is shared by every user of the app, and most
+ * searches are a famous title the first query already finds — one request.
+ * (`search` can't ride in a /multiquery: IGDB answers it with an empty list.)
  */
+const THIN = 5
+
 export async function searchGamesIgdb(query: string): Promise<SearchResult[]> {
   const escaped = query.replace(/"/g, '\\"')
-  const [popular, relevant] = await Promise.all([
-    igdbQuery(
-      'games',
-      `fields name,first_release_date,cover.image_id,total_rating_count;` +
-        ` where name ~ *"${escaped}"* & version_parent = null & game_type = (0,8,9,10,11);` +
-        ` sort total_rating_count desc; limit 14;`,
-    ).catch(() => [] as any[]),
-    igdbQuery('games', `search "${escaped}"; ${SEARCH_FIELDS} limit 14;`).catch(() => [] as any[]),
-  ])
+  const popular = await igdbQuery(
+    'games',
+    `fields name,first_release_date,cover.image_id,total_rating_count;` +
+      ` where name ~ *"${escaped}"* & version_parent = null & game_type = (0,8,9,10,11);` +
+      ` sort total_rating_count desc; limit 14;`,
+  ).catch(() => [] as any[])
+  const relevant =
+    popular.length >= THIN
+      ? []
+      : await igdbQuery('games', `search "${escaped}"; ${SEARCH_FIELDS} limit 14;`).catch(() => [] as any[])
 
   const seen = new Set<number>()
   const out: SearchResult[] = []
@@ -127,26 +132,16 @@ const DETAIL_FIELDS = [
  * stats. NOTE the endpoint is `game_time_to_beats` and its key is `game_id`,
  * not `id`.
  */
-export async function igdbTimeToBeat(id: string): Promise<GameLength | null> {
-  if (!igdbAvailable()) return null
+function timeToBeatOf(r: any): GameLength | null {
+  if (!r) return null
   const hours = (sec: unknown): number | null => {
     const n = Number(sec)
     return Number.isFinite(n) && n > 0 ? Math.max(1, Math.round(n / 3600)) : null
   }
-  try {
-    const rows = await igdbQuery(
-      'game_time_to_beats',
-      `fields hastily,normally,completely,count; where game_id = ${Number(id)};`,
-    )
-    const r = rows[0]
-    if (!r) return null
-    const main = hours(r.normally) ?? hours(r.hastily)
-    const full = hours(r.completely)
-    if (main == null && full == null) return null
-    return { main: main ?? full, plus: null, full, source: 'igdb', samples: r.count || null }
-  } catch {
-    return null // no gateway, no data, endpoint renamed — the caller degrades
-  }
+  const main = hours(r.normally) ?? hours(r.hastily)
+  const full = hours(r.completely)
+  if (main == null && full == null) return null
+  return { main: main ?? full, plus: null, full, source: 'igdb', samples: r.count || null }
 }
 
 /**
@@ -224,10 +219,23 @@ function addonsOf(g: any): GameAddon[] {
   ]
 }
 
+/**
+ * A game's page in ONE request: the game and its time-to-beat ride together
+ * in a /multiquery (IGDB's limit is shared by every user of the app). The
+ * time-to-beat travels as `timeToBeat`; HowLongToBeat, when it has a match,
+ * takes its place (api/index.ts withGameLength).
+ */
 export async function igdbDetails(id: string): Promise<MediaDetails> {
-  const rows = await igdbQuery('games', `fields ${DETAIL_FIELDS}; where id = ${Number(id)};`)
-  const g = rows[0]
+  const n = Number(id)
+  const parts = await igdbQuery(
+    'multiquery',
+    `query games "game" { fields ${DETAIL_FIELDS}; where id = ${n}; };` +
+      ` query game_time_to_beats "ttb" { fields hastily,normally,completely,count; where game_id = ${n}; };`,
+  )
+  const part = (name: string): any[] => parts.find((p: any) => p?.name === name)?.result ?? []
+  const g = part('game')[0]
   if (!g) throw new Error('IGDB game not found')
+  const timeToBeat = timeToBeatOf(part('ttb')[0])
 
   const developers = ((g.involved_companies ?? []) as any[])
     .filter((c) => c.developer)
@@ -278,6 +286,7 @@ export async function igdbDetails(id: string): Promise<MediaDetails> {
         ? { providerId: String(g.parent_game.id), title: g.parent_game.name as string }
         : null,
     addons: addonsOf(g),
+    timeToBeat,
     externalRatings:
       g.total_rating && (g.total_rating_count ?? 0) > 0
         ? [{ source: 'igdb', label: 'IGDB', score: `${Math.round(g.total_rating)}%` }]

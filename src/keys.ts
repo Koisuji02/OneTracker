@@ -1,16 +1,20 @@
 /**
- * The services that need the user's own key — what the key guides
- * (components/KeyGuide.tsx) are built from.
+ * The keyed services — what the key guides (components/KeyGuide.tsx) are
+ * built from.
  *
- * Every user brings their own, free key (bring your own key): nothing keyed
- * ships in the app, each user's limits are their own, and each user's use is
- * personal and non-commercial — which is what the providers' free terms ask.
- * Four keys at most, one per thing they unlock:
- * - TMDB       → Serie TV and Film (and anime). Required for those tabs.
- * - IGDB       → Giochi. A Twitch app: client id + secret.
- * - Comic Vine → western comics in Libri (books and manga need no key).
- * - OMDb       → optional IMDb / Rotten Tomatoes / Metacritic ratings.
+ * - TMDB       → Serie TV and Film (and anime). BUILT IN: the gateway holds
+ *                the app's one key behind a cache shared by everyone, so it
+ *                works with no setup; a user may add their own (Settings).
+ * - IGDB       → Giochi. Built in the same way (the app's one Twitch app);
+ *                a user's own Twitch app is the optional extra.
+ * - Comic Vine → western comics in Libri: the user's own key (books and
+ *                manga need none). Its guide sits on top of Libri.
+ * - OMDb       → optional IMDb / Rotten Tomatoes / Metacritic ratings, the
+ *                user's own key. Suggested once on top of Settings.
+ *
+ * Only the two whose key is a plain "sign in and copy it" are asked of users.
  */
+import { gatewayEnabled } from './api/gateway'
 import { getSettings, type Settings } from './settings'
 
 export type KeyService = 'tmdb' | 'igdb' | 'comicvine' | 'omdb'
@@ -34,6 +38,8 @@ export interface KeyServiceDef {
   steps: number
   /** the app works without it, so its guide can be put off ("Non ora") */
   optional: boolean
+  /** works out of the box through the gateway's own key; the user's is extra */
+  builtIn: boolean
 }
 
 export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
@@ -46,8 +52,9 @@ export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
     bg: 'linear-gradient(90deg, #90cea1, #01b4e4)',
     fg: '#0d253f',
     fields: [{ field: 'tmdbKey', label: 'keys.tmdb.field', placeholder: '0123abcd… / eyJhbGciOi…' }],
-    steps: 3,
-    optional: false,
+    steps: 2,
+    optional: true,
+    builtIn: true,
   },
   igdb: {
     id: 'igdb',
@@ -62,7 +69,8 @@ export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
       { field: 'igdbClientSecret', label: 'keys.igdb.fieldSecret', placeholder: 'Client Secret' },
     ],
     steps: 3,
-    optional: false,
+    optional: true,
+    builtIn: true,
   },
   comicvine: {
     id: 'comicvine',
@@ -72,8 +80,9 @@ export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
     bg: '#e3242b',
     fg: '#ffffff',
     fields: [{ field: 'comicvineKey', label: 'keys.comicvine.field', placeholder: '0123456789abcdef…' }],
-    steps: 2,
+    steps: 1,
     optional: true,
+    builtIn: false,
   },
   omdb: {
     id: 'omdb',
@@ -86,6 +95,7 @@ export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
     fields: [{ field: 'omdbKey', label: 'keys.omdb.field', placeholder: 'abc12345' }],
     steps: 2,
     optional: true,
+    builtIn: false,
   },
 }
 
@@ -94,7 +104,15 @@ export function hasKey(service: KeyService, s: Settings = getSettings()): boolea
   return KEY_SERVICES[service].fields.every((f) => s[f.field].trim().length > 0)
 }
 
-/** The guide is still worth showing: no key yet, and not put off by the user. */
+/** The service answers: the user's key, or (built in) the gateway's. */
+export function serviceReady(service: KeyService, s: Settings = getSettings()): boolean {
+  return hasKey(service, s) || (KEY_SERVICES[service].builtIn && gatewayEnabled())
+}
+
+/**
+ * The guide is still worth showing on its own (a tab, the top of Settings):
+ * the service doesn't answer yet and the user hasn't put it off.
+ */
 export function guideDue(service: KeyService, s: Settings = getSettings()): boolean {
-  return !hasKey(service, s) && !(KEY_SERVICES[service].optional && s.dismissedGuides.includes(service))
+  return !serviceReady(service, s) && !(KEY_SERVICES[service].optional && s.dismissedGuides.includes(service))
 }

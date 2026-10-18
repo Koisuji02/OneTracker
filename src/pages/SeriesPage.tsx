@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom'
 import { getEpisodes } from '../api'
 import EmptyState from '../components/EmptyState'
 import GridCard from '../components/GridCard'
-import KeyGuide from '../components/KeyGuide'
 import PageHeader from '../components/PageHeader'
 import PosterGrid from '../components/PosterGrid'
 import TrackCard from '../components/TrackCard'
@@ -25,7 +24,6 @@ import {
   unitAired,
 } from '../db'
 import { useT } from '../i18n'
-import { guideDue } from '../keys'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
 import { formatDate, seasonEpisodeLabel } from '../util'
@@ -212,8 +210,7 @@ function SectionTitle({ text }: { text: string }) {
 
 export default function SeriesPage() {
   const t = useT()
-  const settings = useSettings()
-  const { viewSeries } = settings
+  const { viewSeries } = useSettings()
   const items = useLiveQuery(() => db.items.where('mediaType').anyOf('tv', 'anime').toArray(), [])
   const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
@@ -311,8 +308,6 @@ export default function SeriesPage() {
           />
         }
       />
-
-      {guideDue('tmdb', settings) && <KeyGuide service="tmdb" className="mx-4 mb-6" />}
 
       <section className="px-4">
         <SectionTitle text={t('series.continue')} />

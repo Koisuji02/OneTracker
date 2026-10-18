@@ -3,6 +3,7 @@ import { getSettings } from '../settings'
 import type { CastMember, EpisodeInfo, ExternalRating, MediaDetails, SearchResult } from '../types'
 import { animeRatingsByTitle } from './anilist'
 import { ApiKeyMissingError } from './errors'
+import { gatewayEnabled } from './gateway'
 import { omdbRatings } from './ratings'
 import { CJK_RE, looseTitleKey, normalizeTitle } from './titleMatch'
 
@@ -14,9 +15,10 @@ export function tmdbImg(path: string | null | undefined, size = 'w342'): string 
 }
 
 async function tmdbFetch(path: string, params: Record<string, string> = {}): Promise<any> {
-  // the user's own key, straight from the device (see settings.tmdbKey)
+  // the user's own key when they added one; otherwise the gateway's built-in
+  // key answers (from its shared cache first), so none is needed here
   const key = getSettings().tmdbKey.trim()
-  if (!key) throw new ApiKeyMissingError('tmdb')
+  if (!key && !gatewayEnabled()) throw new ApiKeyMissingError('tmdb')
   const url = new URL(API + path)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   // a caller can pin the language (search rows force en-US for readable titles);

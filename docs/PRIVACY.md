@@ -49,9 +49,11 @@ catalogue data from these services:
 The Movie Database (TMDB), IGDB, HowLongToBeat, AniList, MangaDex,
 MyAnimeList (via Jikan), Open Library, Comic Vine, OMDb, Steam and Wikipedia.
 
-For TMDB, IGDB, Comic Vine and OMDb you use **keys of your own**, free, which
-the app helps you create on their sites. They are saved on your device only
-(they are not part of backups) and travel with the requests to those services.
+For western comics (Comic Vine) and IMDb / Rotten Tomatoes / Metacritic
+ratings (OMDb), and optionally for TMDB and IGDB too, you can use **keys of
+your own**, free, which the app helps you create on their sites. They are saved
+on your device only (they are not part of backups) and travel with the requests
+to those services. Without one, TMDB and IGDB answer with the app's own keys.
 
 Those requests contain **what you searched for or opened** (for example a title
 name or id). They do not contain your identity, your library, or any account

@@ -33,7 +33,7 @@ import { connectGoogle, disconnectGoogle, restoreFromDrive, syncDrive } from '..
 import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '../importTvTime'
 import { useT } from '../i18n'
 import { useOnline } from '../net'
-import { KEY_SERVICES, guideDue, hasKey, type KeyService } from '../keys'
+import { KEY_SERVICES, guideDue, hasKey, serviceReady, type KeyService } from '../keys'
 import { ENV_DEFAULTS, getSettings, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
 import { THEMES } from '../themes'
 import { cn } from '../util'
@@ -117,6 +117,14 @@ function KeyRow({ service }: { service: KeyService }) {
   const settings = useSettings()
   const [open, setOpen] = useState(false)
   const on = hasKey(service, settings)
+  // a built-in service already answers without one: say whose key it uses
+  const status = on
+    ? KEY_SERVICES[service].builtIn
+      ? 'keys.yours'
+      : 'keys.connected'
+    : KEY_SERVICES[service].builtIn
+      ? 'keys.builtIn'
+      : 'keys.notConnected'
   return (
     <div>
       <button
@@ -129,7 +137,7 @@ function KeyRow({ service }: { service: KeyService }) {
           <span className="block text-xs text-ink3">{t(`keys.${service}.what`)}</span>
         </span>
         <span className={cn('text-xs font-semibold', on ? 'text-accent' : 'text-ink3')}>
-          {t(on ? 'keys.connected' : 'keys.notConnected')}
+          {t(status)}
         </span>
         <ChevronDown size={16} className={cn('text-ink3 transition-transform', open && 'rotate-180')} />
       </button>
@@ -278,7 +286,7 @@ export default function SettingsPage() {
 
   const onTvTimeZip = async (file: File) => {
     // the import looks every title up on TMDB
-    if (!hasKey('tmdb', getSettings())) {
+    if (!serviceReady('tmdb', getSettings())) {
       setToast(t('tvtimport.needTmdb'))
       return
     }
@@ -416,10 +424,16 @@ export default function SettingsPage() {
 
       <Section title={t('keys.section')}>
         <p className="px-4 pt-3 text-xs text-ink3">{t('keys.sectionHint')}</p>
-        <KeyRow service="tmdb" />
-        {settings.showGames && <KeyRow service="igdb" />}
         {settings.showBooks && <KeyRow service="comicvine" />}
         <KeyRow service="omdb" />
+      </Section>
+
+      {/* TMDB and IGDB work out of the box (the gateway's own keys); a user's
+          own key is the way round a slow or busy shared one */}
+      <Section title={t('keys.ownSection')}>
+        <p className="px-4 pt-3 text-xs text-ink3">{t('keys.ownHint')}</p>
+        <KeyRow service="tmdb" />
+        {settings.showGames && <KeyRow service="igdb" />}
       </Section>
 
       <Section title={t('settings.apiKeys')}>

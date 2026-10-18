@@ -11,14 +11,15 @@ when a milestone lands, so the next session can start from it too.
 OneTracker is a TV Time–style tracker for series, anime, films, books, manga/comics and
 games: React + Vite + TypeScript + Dexie (IndexedDB) wrapped with Capacitor for Android
 and iOS, a web version on Cloudflare Workers, and a Cloudflare Worker gateway (`worker/`):
-a cache shared by all users in front of the providers. Every user brings their OWN free
-keys (TMDB, IGDB, optional Comic Vine / OMDb) through in-app guides. No backend database:
+a cache shared by all users in front of the providers (TMDB and IGDB on the app's own
+keys; Comic Vine and OMDb, both optional, on the user's own, via in-app guides). No backend database:
 the library lives on the device and backs up to the user's own Google Drive.
 
 Map of the docs:
 - [docs/HANDOFF.md](docs/HANDOFF.md) — where we are and what's next (start here)
 - [docs/CODEBASE.md](docs/CODEBASE.md) — every file, the layers, the invariants
 - [docs/PRODUCTION.md](docs/PRODUCTION.md) — costs, limits, store checklist, iOS without a Mac
+- [docs/LOAD_TEST.md](docs/LOAD_TEST.md) — what each action costs, the load simulation (`scripts/stress/`) and its results
 - [docs/STORE_LISTING.md](docs/STORE_LISTING.md) — Play listing texts IT/EN, console answers, how to regenerate the store images
 - [worker/README.md](worker/README.md) — the gateway: deploy, secrets, key pools, stale cache
 
