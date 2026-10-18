@@ -137,6 +137,59 @@ for (let i = 0; i < 9; i++) {
   await tapRight()
 }
 
+// the home screen with the widget (native, so rebuilt in widget-home.html):
+// its rows are the series "Continue" list, computed the way widget.ts does it
+const widget = await page.evaluate(async (language) => {
+  const m = await import('/src/db.ts')
+  const { seasonEpisodeLabel } = await import('/src/util.ts')
+  const { THEMES } = await import('/src/themes.ts')
+  const [items, eps] = await Promise.all([m.db.items.toArray(), m.db.episodes.toArray()])
+  const watched = new Set(eps.map((e) => e.id))
+  const activity = m.unitActivity(eps)
+  const rows = []
+  for (const item of items) {
+    if (item.archived || item.status !== 'watching' || m.isWaiting(item, watched)) continue
+    if (item.mediaType !== 'tv' && item.mediaType !== 'anime') continue
+    let next = null
+    for (const s of m.seasonsOf(item)) {
+      for (let e = 1; e <= s.episodeCount && !next; e++) {
+        if (!m.unitAired(item, s.number, e)) break
+        if (!watched.has(m.epKey(item.id, s.number, e))) next = seasonEpisodeLabel(s.number, e)
+      }
+      if (next) break
+    }
+    if (next) rows.push({ title: item.title, sub: next, poster: item.poster, order: m.lastActivity(item, activity) })
+  }
+  rows.sort((a, b) => b.order - a.order)
+  const { surface, card2, line, ink, ink2, ink3, accent } = THEMES.find((t) => t.id === 'amoled').vars
+  const day = new Date(2026, 9, 18).toLocaleDateString(language === 'it' ? 'it-IT' : 'en-US', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
+  return {
+    theme: { surface, card2, line, ink, ink2, ink3, accent },
+    rows: rows.slice(0, 4),
+    date: day.charAt(0).toUpperCase() + day.slice(1),
+    weather: language === 'it' ? '17°C | Sereno' : '63°F | Clear',
+    labels: language === 'it' ? ['Foto', 'Meteo', 'Note'] : ['Photos', 'Weather', 'Notes'],
+    appsTop: 514,
+  }
+}, lang)
+{
+  // its own browser: 348×778 dp at a higher density gives the same 1170 px
+  // as the other captures, with the widget a step larger (display size +1).
+  // 778 dp = the screen plus the strip the phone frame's status bar sits on.
+  const b = await chromium.launch()
+  const home = await b.newPage({ viewport: { width: 348, height: 778 }, deviceScaleFactor: 1170 / 348 })
+  await home.goto(`${BASE}scripts/store/widget-home.html`)
+  await home.evaluate(() => document.fonts.ready)
+  await home.evaluate((d) => window.render(d), widget)
+  await home.waitForTimeout(800)
+  await home.screenshot({ path: `${dir}/14-widget-home.png` })
+  await b.close()
+}
+
 // the image the share button sends, built exactly as MonthRecap builds it
 const card = await page.evaluate(async (language) => {
   const { db } = await import('/src/db.ts')
