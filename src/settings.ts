@@ -33,10 +33,20 @@ export interface Settings {
   profileName: string
   showBooks: boolean
   showGames: boolean
+  /**
+   * The user's OWN provider keys (bring your own key): every user gets theirs
+   * for free through the in-app guides (components/KeyGuide.tsx), so no key
+   * ships in the app and no quota is shared. TMDB = series + films, IGDB =
+   * games (a Twitch app: id + secret), Comic Vine = western comics, OMDb =
+   * the optional IMDb / Rotten Tomatoes / Metacritic ratings.
+   */
   tmdbKey: string
-  rawgKey: string
+  igdbClientId: string
+  igdbClientSecret: string
   omdbKey: string
   comicvineKey: string
+  /** key guides the user waved away ("Non ora"): only the optional ones can be */
+  dismissedGuides: string[]
   /** avatar: null = default icon · `emoji:<char>:<bg>` preset · otherwise an image URL/dataURL */
   avatar: string | null
   /** optional API gateway (Cloudflare Worker) — empty = call providers directly */
@@ -89,10 +99,12 @@ const defaults: Settings = {
   profileName: '',
   showBooks: false,
   showGames: false,
-  tmdbKey: (import.meta.env.VITE_TMDB_KEY as string) ?? '',
-  rawgKey: (import.meta.env.VITE_RAWG_KEY as string) ?? '',
-  omdbKey: (import.meta.env.VITE_OMDB_KEY as string) ?? '',
-  comicvineKey: (import.meta.env.VITE_COMICVINE_KEY as string) ?? '',
+  tmdbKey: '',
+  igdbClientId: '',
+  igdbClientSecret: '',
+  omdbKey: '',
+  comicvineKey: '',
+  dismissedGuides: [],
   avatar: null,
   gatewayUrl: (import.meta.env.VITE_GATEWAY_URL as string) ?? '',
   gatewayToken: (import.meta.env.VITE_GATEWAY_TOKEN as string) ?? '',
@@ -113,10 +125,6 @@ const defaults: Settings = {
 
 /** API-key fields where a baked-in .env value acts as fallback default. */
 const KEY_FIELDS = [
-  'tmdbKey',
-  'rawgKey',
-  'omdbKey',
-  'comicvineKey',
   'gatewayUrl',
   'gatewayToken',
   'googleClientId',
@@ -130,10 +138,6 @@ const KEY_FIELDS = [
  * typed value overrides it.
  */
 export const ENV_DEFAULTS = {
-  tmdbKey: defaults.tmdbKey,
-  rawgKey: defaults.rawgKey,
-  omdbKey: defaults.omdbKey,
-  comicvineKey: defaults.comicvineKey,
   gatewayUrl: defaults.gatewayUrl,
   gatewayToken: defaults.gatewayToken,
   googleClientId: defaults.googleClientId,

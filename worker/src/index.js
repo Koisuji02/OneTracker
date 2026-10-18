@@ -6,8 +6,14 @@
  *    ISPs DNS-block MangaDex). The app can't fix DNS from a WebView, but it CAN
  *    talk to one host it always reaches — this Worker — which fetches upstream
  *    from Cloudflare's network instead.
- * 2. API keys stop shipping inside the APK: they live in Worker secrets and are
- *    injected here, server side.
+ * 2. A cache SHARED by every user, in front of the providers. Each user calls
+ *    with their OWN key (`X-OT-Key`, IGDB: `X-IGDB-Client-Id/-Secret`); an
+ *    answer someone already fetched is served from the edge, a miss goes
+ *    upstream with the caller's key and fills the cache for everyone. The
+ *    Cache API is free and evicts old entries by itself; when the Worker's
+ *    free daily requests run out the app calls the providers directly.
+ *    Keys sent by users are never stored. Provider secrets set on the Worker
+ *    are only a fallback for app builds older than 1.0.43.
  * 3. IGDB (the database Stash uses) needs a server-to-server OAuth token and
  *    sends no CORS headers, so it's only usable behind a proxy like this.
  *
@@ -75,6 +81,9 @@ const isSearch = (pathname, body = '') =>
 
 /** Stable cache key: POST bodies (IGDB/AniList queries) are folded into the URL. */
 async function cacheKeyFor(request, url, body) {
+  // the cache is shared: whoever's key fetched an answer, it is the same answer
+  url = new URL(url.toString())
+  for (const p of ['api_key', 'apikey', 'key', 't']) url.searchParams.delete(p)
   if (!body) return new Request(url.toString(), { method: 'GET' })
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body))
   const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')
@@ -86,7 +95,8 @@ async function cacheKeyFor(request, url, body) {
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-OT-Token',
+  'Access-Control-Allow-Headers':
+    'Content-Type,Authorization,X-OT-Token,X-OT-Key,X-OT-Verify,X-IGDB-Client-Id,X-IGDB-Client-Secret',
   'Access-Control-Max-Age': '86400',
 }
 
@@ -137,7 +147,43 @@ async function igdbAccessToken(clientId, secret) {
   return data.access_token
 }
 
-async function handleIgdb(body, env, endpoint, cache, origin) {
+function igdbFetch(endpoint, clientId, token, body) {
+  return fetch(`https://api.igdb.com/v4/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Client-ID': clientId,
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+      'Content-Type': 'text/plain',
+    },
+    body,
+  })
+}
+
+/** The caller's own Twitch app, if the request carries one. */
+function ownIgdb(request) {
+  const id = request.headers.get('X-IGDB-Client-Id')?.trim()
+  const secret = request.headers.get('X-IGDB-Client-Secret')?.trim()
+  return id && secret ? { id, secret } : null
+}
+
+async function handleIgdb(body, env, endpoint, cache, origin, own) {
+  // the user's own Twitch app: one client, no pool — a refused credential is
+  // theirs to fix, and is never cached
+  if (own) {
+    let token
+    try {
+      token = await igdbAccessToken(own.id, own.secret)
+    } catch {
+      return json({ error: 'igdb-bad-credentials' }, 401)
+    }
+    let res = await igdbFetch(endpoint, own.id, token, body)
+    if (res.status === 401) {
+      igdbTokens.delete(own.id)
+      res = await igdbFetch(endpoint, own.id, await igdbAccessToken(own.id, own.secret), body)
+    }
+    return passThrough(res)
+  }
   const ids = keysOf(env, 'IGDB_CLIENT_ID')
   const secrets = keysOf(env, 'IGDB_CLIENT_SECRET')
   if (ids.length === 0 || secrets.length !== ids.length) throw new Error('igdb-not-configured')
@@ -148,16 +194,7 @@ async function handleIgdb(body, env, endpoint, cache, origin) {
     keys: ids,
     attempt: async (clientId, i) => {
       const token = await igdbAccessToken(clientId, secrets[i])
-      const res = await fetch(`https://api.igdb.com/v4/${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Client-ID': clientId,
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-          'Content-Type': 'text/plain',
-        },
-        body,
-      })
+      const res = await igdbFetch(endpoint, clientId, token, body)
       const c = await classify('igdb', res)
       // a refused token is re-minted on the next attempt, not kept
       if (c.reason === 'token') igdbTokens.delete(clientId)
@@ -474,9 +511,17 @@ export default {
 
       if (section === 'igdb') {
         const body = await request.text()
+        const own = ownIgdb(request)
+        // a key check must reach Twitch, not the shared cache
+        if (request.headers.get('X-OT-Verify')) {
+          if (!own) return json({ error: 'igdb-bad-credentials' }, 401)
+          return await handleIgdb(body, env, provider ?? 'games', cache, url.origin, own)
+        }
         const key = await cacheKeyFor(request, url, body)
         const policy = isSearch(url.pathname, body) ? POLICY.search : POLICY.detail
-        return await cached(cache, ctx, key, policy, () => handleIgdb(body, env, provider ?? 'games', cache, url.origin))
+        return await cached(cache, ctx, key, policy, () =>
+          handleIgdb(body, env, provider ?? 'games', cache, url.origin, own),
+        )
       }
 
       if (section === 'img') {
@@ -515,8 +560,21 @@ export default {
           : provider === 'omdb'
             ? POLICY.static
             : POLICY.detail
-        const keys = KEYED[provider] ? keysOf(env, KEYED[provider]) : []
+        // the caller's own key first; the Worker's pool only for old builds
+        const own = request.headers.get('X-OT-Key')?.trim() ?? ''
+        const keys = own ? [] : KEYED[provider] ? keysOf(env, KEYED[provider]) : []
         return await cached(cache, ctx, key, policy, async () => {
+          if (own) {
+            const t = new URL(target.toString())
+            const h = new Headers(headers)
+            cfg.auth?.(t, own, h)
+            const res = await fetch(t.toString(), { method: request.method, headers: h, body: body || undefined })
+            const c = await classify(provider, res)
+            // a refused key or a spent quota is the caller's, and never cached
+            if (c.reason === 'badkey' || c.reason === 'rejected') return json({ error: 'bad-key' }, 401)
+            if (c.reason) return json({ error: c.reason }, 429)
+            return passThrough(c.res)
+          }
           const r = await withKeys({
             cache,
             origin: url.origin,

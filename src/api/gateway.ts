@@ -12,10 +12,13 @@
  * providers directly, exactly as before — the app must never DEPEND on it.
  */
 import { getSettings } from '../settings'
+import { ApiKeyMissingError } from './errors'
 
 /**
- * Hosts routed through the gateway — ONLY those that need it, i.e. that hold an
- * API key or are blocked by some ISPs.
+ * Hosts routed through the gateway: the keyed providers, whose answers the
+ * Worker caches for EVERY user (each call carries the user's own key, see
+ * http.ts — a miss goes upstream with it and fills the shared cache), and
+ * MangaDex, which some ISPs block. IGDB goes through it too (igdbQuery).
  *
  * AniList, Jikan and Open Library are deliberately NOT here: they're keyless and
  * reachable everywhere, and AniList actively 403s traffic coming from datacenter
@@ -25,7 +28,6 @@ import { getSettings } from '../settings'
  */
 const API_HOSTS: Record<string, string> = {
   'api.themoviedb.org': 'tmdb',
-  'api.rawg.io': 'rawg',
   'www.omdbapi.com': 'omdb',
   'comicvine.gamespot.com': 'comicvine',
   'api.mangadex.org': 'mangadex',
@@ -114,13 +116,28 @@ export function proxyImage(rawUrl: string | null | undefined): string | null {
   return `${base}/img/${provider}${u.pathname}${suffix}`
 }
 
-/** POST an APIcalypse query to IGDB through the gateway. */
+/** The user's Twitch app, as the headers the gateway's IGDB route reads. */
+export function igdbCredentialHeaders(id: string, secret: string): Record<string, string> {
+  return { 'X-IGDB-Client-Id': id.trim(), 'X-IGDB-Client-Secret': secret.trim() }
+}
+
+/**
+ * POST an APIcalypse query to IGDB through the gateway, with the user's own
+ * Twitch app. IGDB sends no CORS headers and only takes an app token minted
+ * with the secret, so the Worker mints it (never storing the secret) and
+ * forwards the query; its cache of the answers is shared by everyone.
+ */
 export async function igdbQuery(endpoint: string, query: string): Promise<any[]> {
   const base = gatewayUrl()
-  if (!base) throw new Error('gateway-required')
+  const { igdbClientId, igdbClientSecret } = getSettings()
+  if (!base || !igdbClientId.trim() || !igdbClientSecret.trim()) throw new ApiKeyMissingError('igdb')
   const res = await fetch(`${base}/igdb/${endpoint}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain', ...gatewayHeaders() },
+    headers: {
+      'Content-Type': 'text/plain',
+      ...gatewayHeaders(),
+      ...igdbCredentialHeaders(igdbClientId, igdbClientSecret),
+    },
     body: query,
   })
   if (!res.ok) throw new Error(`IGDB error ${res.status}`)

@@ -1,9 +1,8 @@
 import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
-import type { CastMember, EpisodeInfo, MediaDetails, SearchResult } from '../types'
+import type { CastMember, EpisodeInfo, ExternalRating, MediaDetails, SearchResult } from '../types'
 import { animeRatingsByTitle } from './anilist'
 import { ApiKeyMissingError } from './errors'
-import { gatewayEnabled } from './gateway'
 import { omdbRatings } from './ratings'
 import { CJK_RE, looseTitleKey, normalizeTitle } from './titleMatch'
 
@@ -15,9 +14,9 @@ export function tmdbImg(path: string | null | undefined, size = 'w342'): string 
 }
 
 async function tmdbFetch(path: string, params: Record<string, string> = {}): Promise<any> {
+  // the user's own key, straight from the device (see settings.tmdbKey)
   const key = getSettings().tmdbKey.trim()
-  // with the gateway on, the key lives in the Worker — none is needed here
-  if (!key && !gatewayEnabled()) throw new ApiKeyMissingError('tmdb')
+  if (!key) throw new ApiKeyMissingError('tmdb')
   const url = new URL(API + path)
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v)
   // a caller can pin the language (search rows force en-US for readable titles);
@@ -32,6 +31,19 @@ async function tmdbFetch(path: string, params: Record<string, string> = {}): Pro
   const res = await fetchTimeout(url.toString(), init)
   if (!res.ok) throw new Error(`TMDB error ${res.status}`)
   return res.json()
+}
+
+/**
+ * Ratings for a film or a series: IMDb / Rotten Tomatoes / Metacritic when the
+ * user added the optional OMDb key, otherwise TMDB's own user score — the one
+ * every title already carries, so the page never goes without a rating.
+ */
+async function filmRatings(imdbId: string | null | undefined, d: any): Promise<ExternalRating[]> {
+  const omdb = await omdbRatings(imdbId)
+  if (omdb.length > 0) return omdb
+  return d.vote_average && (d.vote_count ?? 0) > 0
+    ? [{ source: 'tmdb', label: 'TMDB', score: `${Math.round(d.vote_average * 10)}%` }]
+    : []
 }
 
 function yearOf(date: string | null | undefined): number | null {
@@ -337,7 +349,7 @@ export async function tvDetails(id: string, skipAnimeScores = false): Promise<Me
     // imports (AniList throttles at ~30 req/min; scores arrive with the first
     // detail-page SWR refresh instead)
     externalRatings: [
-      ...(await omdbRatings(d.external_ids?.imdb_id)),
+      ...(await filmRatings(d.external_ids?.imdb_id, d)),
       ...(isAnime && !skipAnimeScores ? await animeRatingsByTitle(d.original_name || d.name) : []),
     ],
   }
@@ -348,7 +360,7 @@ export async function movieDetails(id: string): Promise<MediaDetails> {
     append_to_response: 'credits,translations,images,keywords',
     include_image_language: 'en,null',
   })
-  const externalRatings = await omdbRatings(d.imdb_id)
+  const externalRatings = await filmRatings(d.imdb_id, d)
   const { title, overview } = readableText(d, 'title')
   return {
     id: `tmdb:${id}`,

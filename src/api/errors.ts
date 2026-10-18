@@ -1,4 +1,4 @@
-export type KeyedProvider = 'tmdb' | 'rawg' | 'omdb' | 'comicvine'
+export type KeyedProvider = 'tmdb' | 'igdb' | 'omdb' | 'comicvine'
 
 export class ApiKeyMissingError extends Error {
   provider: KeyedProvider

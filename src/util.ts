@@ -1,3 +1,6 @@
+import { Browser } from '@capacitor/browser'
+import { Capacitor } from '@capacitor/core'
+
 /** Format minutes as "2 months 13 days 5 hours" using translated unit labels. */
 export function formatWatchTime(totalMin: number, t: (k: string) => string): string {
   const min = Math.max(0, Math.round(totalMin))
@@ -47,4 +50,13 @@ export function formatDate(iso: string, language: 'en' | 'it' | null): string {
     month: 'short',
     year: 'numeric',
   })
+}
+
+/** Open outside the app — a custom tab on device, a new tab on the web. */
+export async function openExternal(url: string): Promise<void> {
+  if (Capacitor.isNativePlatform()) {
+    await Browser.open({ url }).catch(() => {})
+    return
+  }
+  window.open(url, '_blank', 'noopener,noreferrer')
 }

@@ -4,11 +4,12 @@
  * companies, per-platform release dates).
  *
  * It can only be reached through the API gateway: IGDB needs a server-to-server
- * Twitch token and sends no CORS headers, so the Worker holds the credentials
- * and forwards APIcalypse queries (see worker/README.md). Without a gateway the
- * app keeps using RAWG.
+ * Twitch token and sends no CORS headers, so the Worker mints the token from
+ * the USER's own Twitch app (settings.igdbClientId/Secret) and forwards
+ * APIcalypse queries (see worker/README.md).
  */
 import type { GameAddon, GameKind, GameLength, MediaDetails, SearchResult } from '../types'
+import { getSettings } from '../settings'
 import { gatewayEnabled, igdbQuery } from './gateway'
 
 /**
@@ -27,8 +28,11 @@ const IMG = (
   size: 't_cover_big' | 't_cover_big_2x' | 't_720p' | 't_1080p' | 't_screenshot_med',
 ) => `https://images.igdb.com/igdb/image/upload/${size}/${hash}.jpg`
 
-/** True when games should come from IGDB (gateway configured). */
-export const igdbAvailable = (): boolean => gatewayEnabled()
+/** True when IGDB can answer: a gateway, and the user's Twitch app. */
+export const igdbAvailable = (): boolean => {
+  const s = getSettings()
+  return gatewayEnabled() && !!s.igdbClientId.trim() && !!s.igdbClientSecret.trim()
+}
 
 /**
  * `game_type` (0 main game, 8 remake, 9 remaster, 10 expanded, 11 port) keeps

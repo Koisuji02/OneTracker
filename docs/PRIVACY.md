@@ -5,7 +5,7 @@ the URL given to Google and to Play, served from `public/privacy.html` by the
 same Worker that serves the web app. This file is the same text kept readable
 in the repo; change one and change the other.
 
-_Last updated: 14 September 2026_
+_Last updated: 18 October 2026_
 
 OneTracker is a personal media tracker for series, films, books, comics and
 games. It is developed by an individual, is free, contains no advertising and
@@ -46,17 +46,23 @@ your library to **your own Google Drive**.
 To show titles, artwork, episode lists and ratings, the app requests public
 catalogue data from these services:
 
-The Movie Database (TMDB), IGDB, RAWG, HowLongToBeat, AniList, MangaDex,
+The Movie Database (TMDB), IGDB, HowLongToBeat, AniList, MangaDex,
 MyAnimeList (via Jikan), Open Library, Comic Vine, OMDb, Steam and Wikipedia.
+
+For TMDB, IGDB, Comic Vine and OMDb you use **keys of your own**, free, which
+the app helps you create on their sites. They are saved on your device only
+(they are not part of backups) and travel with the requests to those services.
 
 Those requests contain **what you searched for or opened** (for example a title
 name or id). They do not contain your identity, your library, or any account
 information. Most of them go through an intermediary server (a Cloudflare
-Worker) operated by the developer, whose only purpose is to keep the API keys
-out of the installed app and to reach services that browsers cannot call
-directly. **That server stores nothing**: it forwards the request, returns the
-answer, and keeps only a short-lived cache of the public catalogue responses —
-never anything that identifies you.
+Worker) operated by the developer, which acts as a shared cache of the public
+catalogue answers (a title someone already looked up comes back at once) and
+reaches services that browsers cannot call directly. **That server stores
+nothing about you**: it uses your key only to forward the request, without
+keeping it, and your IP address only to limit the number of requests, without
+logging it. All it keeps is the short-lived cache of public answers — never
+anything that identifies you.
 
 Each of those services has its own privacy policy, which applies to the request
 they receive.

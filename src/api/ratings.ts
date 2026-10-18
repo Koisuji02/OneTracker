@@ -4,12 +4,12 @@
  * doesn't render the banner.
  *
  * Sources per media type:
- * - movies & TV  → OMDb (IMDb rating + Rotten Tomatoes + Metacritic), needs a free key
+ * - movies & TV  → OMDb (IMDb rating + Rotten Tomatoes + Metacritic) with the
+ *                  user's optional key, else TMDB's own score (api/tmdb.ts)
  * - anime & manga → AniList averageScore + MyAnimeList via Jikan (both keyless)
  * - books        → Open Library community rating (keyless)
- * - games        → Metacritic + RAWG rating (already in the RAWG payload)
+ * - games        → IGDB's total rating (already in the IGDB payload)
  */
-import { gatewayEnabled } from './gateway'
 import { fetchTimeout } from './http'
 import { getSettings } from '../settings'
 import type { ExternalRating } from '../types'
@@ -17,10 +17,9 @@ import type { ExternalRating } from '../types'
 /** OMDb (omdbapi.com) by IMDb id — returns IMDb / Rotten Tomatoes / Metacritic. */
 export async function omdbRatings(imdbId: string | null | undefined): Promise<ExternalRating[]> {
   const key = getSettings().omdbKey.trim()
-  // the gateway injects the key server-side, so a local one is optional there
-  if ((!key && !gatewayEnabled()) || !imdbId) return []
+  if (!key || !imdbId) return []
   try {
-    const res = await fetchTimeout(`https://www.omdbapi.com/?apikey=${key}&i=${imdbId}`)
+    const res = await fetchTimeout(`https://www.omdbapi.com/?apikey=${encodeURIComponent(key)}&i=${imdbId}`)
     if (!res.ok) return []
     const d = await res.json()
     const out: ExternalRating[] = []
@@ -74,11 +73,4 @@ export async function openLibraryRating(workId: string): Promise<ExternalRating[
   } catch {
     return []
   }
-}
-
-export function rawgRatings(metacritic: number | null, rawgScore: number | null): ExternalRating[] {
-  const out: ExternalRating[] = []
-  if (metacritic) out.push({ source: 'metacritic', label: 'Metacritic', score: String(metacritic) })
-  if (rawgScore) out.push({ source: 'rawg', label: 'RAWG', score: `${rawgScore}/5` })
-  return out
 }
