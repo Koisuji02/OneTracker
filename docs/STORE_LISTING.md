@@ -212,6 +212,15 @@ can contest.)
 
 ## 8. Note on the screenshots
 
+Order: 1 Continue list · 2 the home-screen widget · 3 a series page · 4 a game
+page · 5 books/manga · 6 History · 7 the recap and its share image · 8 themes
+(Play takes 8 at most; the profile/stats screen made way for the widget).
+
+The widget is native, so it can't be captured in a browser: screenshot 2 is a
+faithful rebuild (`scripts/store/widget-home.html`) of `widget_root.xml` /
+`widget_row.xml` — same dp sizes, Figtree, AMOLED colours, icons and ✓ — filled
+with the rows `widget.ts` would push, on an abstract home-screen wallpaper.
+
 They show real posters and box art (TMDB, IGDB…), as every tracker on the store
 does. If a reviewer ever objects to third-party artwork, the fix is cheap:
 re-run the scripts with a library of public-domain or self-made covers.

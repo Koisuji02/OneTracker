@@ -26,22 +26,22 @@ const raw = (name) => url(`${RAW}/${name}.png`)
 const T = {
   it: [
     { shot: '01-series', h: 'Serie, film, libri e giochi. <b>Un’unica app.</b>', s: 'Riprendi da dove eri rimasto, con un tocco.' },
+    { shot: '14-widget-home', home: true, h: 'Segna dalla home, <b>senza aprire l’app.</b>', s: 'Con il widget Android basta un tocco sul ✓ per passare all’episodio dopo.' },
     { shot: '05-detail', h: 'Ogni episodio, <b>ogni stagione.</b>', s: 'Segna, vota e salva tra i preferiti.' },
     { shot: '06-detail-game', h: 'I tuoi giochi, <b>con le ore vere.</b>', s: 'Durate da HowLongToBeat e il tempo di ogni partita.' },
     { shot: '03-books', h: 'Libri, manga e fumetti, <b>capitolo per capitolo.</b>', s: 'Sai sempre a che punto sei arrivato.' },
     { shot: '08-history', h: 'La tua cronologia, <b>mese per mese.</b>', s: 'Tutto quello che hai visto, letto e giocato.' },
     { share: ['11-recap-1', '13-share-card'], h: 'Il tuo recap del mese, <b>da condividere.</b>', s: 'Una storia a fine mese, pronta per Instagram.' },
-    { shot: '07-account', h: 'Le tue statistiche, <b>a colpo d’occhio.</b>', s: 'Tempo totale, preferiti, liste e obiettivi.' },
     { trio: ['12-theme-amoled-blue', '12-theme-light', '12-theme-amoled-pink'], light: 1, h: 'Il tuo stile, <b>i tuoi colori.</b>', s: 'Temi AMOLED e chiari. I tuoi dati restano sul telefono.' },
   ],
   en: [
     { shot: '01-series', h: 'Shows, movies, books and games. <b>One app.</b>', s: 'Pick up where you left off, in one tap.' },
+    { shot: '14-widget-home', home: true, h: 'Track it right from <b>your home screen.</b>', s: 'One tap on ✓ in the Android widget and you’re on the next episode.' },
     { shot: '05-detail', h: 'Every episode, <b>every season.</b>', s: 'Mark it, rate it, add it to your favourites.' },
     { shot: '06-detail-game', h: 'Your games, <b>with real hours.</b>', s: 'HowLongToBeat lengths and the time of every playthrough.' },
     { shot: '03-books', h: 'Books, manga and comics, <b>chapter by chapter.</b>', s: 'Always know exactly where you are.' },
     { shot: '08-history', h: 'Your history, <b>month by month.</b>', s: 'Everything you watched, read and played.' },
     { share: ['11-recap-1', '13-share-card'], h: 'Your monthly recap, <b>made to share.</b>', s: 'A story at the end of every month, ready for Instagram.' },
-    { shot: '07-account', h: 'Your stats, <b>at a glance.</b>', s: 'Total time, favourites, lists and achievements.' },
     { trio: ['12-theme-amoled-blue', '12-theme-light', '12-theme-amoled-pink'], light: 1, h: 'Your style, <b>your colours.</b>', s: 'AMOLED and light themes. Your data stays on your phone.' },
   ],
 }
@@ -65,9 +65,10 @@ p { margin-top: 26px; font-size: 34px; line-height: 1.3; font-weight: 500; color
 `
 
 // Android status bar: time on the left, signal / wifi / battery on the right
-const status = (light) => {
+const status = (light, overlay = false) => {
   const c = light ? '#17171a' : '#f4f4f5'
-  return `<div class="status" style="background:${light ? '#f6f6f3' : '#000'};color:${c}">
+  const bg = overlay ? 'transparent;position:absolute;top:0;left:0;right:0;z-index:2' : light ? '#f6f6f3' : '#000'
+  return `<div class="status" style="background:${bg};color:${c}">
   <span>9:41</span><span class="cam"></span>
   <span style="display:flex;gap:9px;align-items:center">
     <svg width="22" height="18" viewBox="0 0 22 18"><path d="M1 17h3v-4H1zM7 17h3V9H7zM13 17h3V5h-3zM19 17h3V1h-3z" fill="${c}"/></svg>
@@ -77,9 +78,9 @@ const status = (light) => {
 }
 
 /** A phone `w` px wide at (x, y), showing `shot`. */
-const phone = (shot, x, y, w, { light = false, z = 1 } = {}) =>
+const phone = (shot, x, y, w, { light = false, z = 1, overlay = false } = {}) =>
   `<div class="phone" style="left:${x}px;top:${y}px;width:${w}px;z-index:${z}">
-     <div class="screen">${status(light)}<img src="${raw(shot)}"></div>
+     <div class="screen">${status(light, overlay)}<img src="${raw(shot)}"></div>
    </div>`
 
 function page(slide) {
@@ -88,7 +89,7 @@ function page(slide) {
     // one phone, whole, under the headline
     // sized so the whole phone fits, bottom bar included
     const w = 636
-    body += phone(slide.shot, (1080 - w) / 2, 452, w)
+    body += phone(slide.shot, (1080 - w) / 2, 452, w, { overlay: !!slide.home })
   } else if (slide.share) {
     // the recap on the phone, and the story image it shares, like a post
     const [shot, card] = slide.share
