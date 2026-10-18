@@ -8,6 +8,13 @@
 //   node scripts/stress/simulate.mjs --burst 5000    N users at once (an episode drop)
 //   node scripts/stress/simulate.mjs --colos 3       users split over 3 edge caches
 //   node scripts/stress/simulate.mjs --cache 20000   cap the edge cache (LRU entries)
+//   node scripts/stress/simulate.mjs --arch direct   where each call goes:
+//     current   everything keyed goes through the gateway (1.0.44)
+//     direct    the phone calls TMDB / HLTB / OMDb / Comic Vine itself, MangaDex
+//               too except where the ISP blocks it; the gateway keeps IGDB
+//     snapshot  direct + a daily static snapshot of the popular games (their
+//               pages and a search index), served as free static files
+//     byok      no gateway at all: every user's own keys, IGDB included
 //
 // What one user does in a day comes from the app itself, measured in the
 // browser with a fetch logger (docs/LOAD_TEST.md): which calls a search, each
@@ -34,6 +41,10 @@ const COLOS = Number(arg('colos', 1))
 const CACHE_CAP = Number(arg('cache', 0)) // 0 = unbounded
 const BURST = Number(arg('burst', 0))
 const SEED = Number(arg('seed', 7))
+const ARCH = arg('arch', 'current')
+const SNAPSHOT_GAMES = Number(arg('snapshot-games', 20_000)) // games in the static snapshot
+const LOCAL_QUERIES = Number(arg('local-queries', 10_000)) // queries its search index answers
+const BLOCKED = Number(arg('blocked', 0.15)) // users whose ISP blocks MangaDex
 
 // ------------------------------------------------------- the measured app
 // Calls per action THROUGH THE GATEWAY (the ones that cost Worker requests),
@@ -202,13 +213,14 @@ const GW = 'https://gw.test'
 const TOKEN = 'app-token'
 /** One gateway request: [path, method, body, ownKey?] */
 function callsFor(action, u) {
-  const q = () => `q${pick.query()}`
   const c = []
-  const get = (p, key) => c.push([p, 'GET', '', key])
-  const post = (p, b, key) => c.push([p, 'POST', b, key])
+  const meta = {}
+  const get = (p, key) => c.push([p, 'GET', '', key, meta])
+  const post = (p, b, key) => c.push([p, 'POST', b, key, meta])
   switch (action) {
     case 'search': {
-      const query = q()
+      meta.q = pick.query()
+      const query = `q${meta.q}`
       get(`/p/tmdb/search/tv?query=${query}&include_adult=false&language=it-IT`)
       get(`/p/tmdb/search/movie?query=${query}&include_adult=false&language=it-IT`)
       post('/igdb/games', `fields name; where name ~ *"${query}"* & version_parent = null; sort total_rating_count desc; limit 14;`)
@@ -235,6 +247,7 @@ function callsFor(action, u) {
       break
     case 'game': {
       const id = pick.game()
+      meta.g = id
       post('/igdb/multiquery', `query games "game" { fields name; where id = ${id}; }; query game_time_to_beats "ttb" { fields normally; where game_id = ${id}; };`)
       post('/hltb/search', JSON.stringify({ query: `game ${id}` }))
       break
@@ -265,6 +278,7 @@ function dayOfTraffic(n, dayStart) {
     const u = {
       ip: `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`,
       colo: i % COLOS,
+      blocked: rand() < BLOCKED,
       series: Array.from({ length: DAY.watchingSeries }, () => pick.tv()),
       manga: Array.from({ length: Math.max(1, Math.round(DAY.readingManga)) }, () => pick.manga()),
       cv: rand() < DAY.ownComicVine ? `cv-key-${i}` : '',
@@ -273,7 +287,11 @@ function dayOfTraffic(n, dayStart) {
     const sessions = Math.max(1, poisson(DAY.sessions))
     const times = Array.from({ length: sessions }, () => dayStart + hourOf() * 3_600_000 + Math.floor(rand() * 3_600_000)).sort((a, b) => a - b)
     const push = (t, action) => {
-      for (const [path, method, body, key] of callsFor(action, u)) ev.push([t, u, path, method, body, key])
+      for (const [path, method, body, key, meta] of callsFor(action, u)) {
+        const where = routeOf(path, u, meta)
+        if (where === 'gateway') ev.push([t, u, path, method, body, key])
+        else tally[where][providerOf(path)] = (tally[where][providerOf(path)] ?? 0) + 1
+      }
     }
     // background sync: a pass per session ≥ 30 min apart; an item asks the
     // network only when its device copy is older than 6 h
@@ -311,6 +329,30 @@ function dayOfTraffic(n, dayStart) {
   }
   return ev.sort((a, b) => a[0] - b[0])
 }
+
+/** Which provider a gateway path belongs to. */
+function providerOf(path) {
+  if (path.startsWith('/igdb')) return 'igdb'
+  if (path.startsWith('/hltb')) return 'hltb'
+  return path.split('/')[2]
+}
+
+/** Where a call goes in the architecture under test: gateway, direct, static. */
+function routeOf(path, u, meta) {
+  const p = providerOf(path)
+  if (ARCH === 'current') return 'gateway'
+  if (ARCH === 'byok') return 'direct'
+  if (p === 'mangadex') return u.blocked ? 'gateway' : 'direct'
+  if (p !== 'igdb') return 'direct'
+  if (ARCH === 'snapshot') {
+    if (meta.g && meta.g <= SNAPSHOT_GAMES) return 'static'
+    if (meta.q && meta.q <= LOCAL_QUERIES) return 'static'
+  }
+  return 'gateway'
+}
+
+/** Calls that never reach the gateway: made by each phone, or static files. */
+let tally = { direct: {}, static: {} }
 
 // -------------------------------------------------------------- the runner
 async function runDay(events, caches, env, stats) {
@@ -363,18 +405,24 @@ async function simulate(n, events = null) {
   const days = events ? 1 : DAYS
   for (let d = 0; d < days; d++) {
     up = { perSecond: new Map() } // report the last (warm) day only
+    tally = { direct: {}, static: {} }
     stats = { requests: 0, failed: 0, byKind: {}, failedByKind: {}, cache: {}, perSecond: new Map() }
     const ev = events ?? dayOfTraffic(n, Date.UTC(2026, 9, 20 + d))
     await runDay(ev, caches, env, stats)
   }
   const hits = (stats.cache.HIT ?? 0) + (stats.cache.STALE ?? 0)
+  const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0)
   const upstreamTotal = ['tmdb', 'igdb', 'hltb', 'mangadex', 'comicvine', 'omdb'].reduce((s, p) => s + (up[p] ?? 0), 0)
   return {
+    arch: ARCH,
     users: n,
+    direct: tally.direct,
+    directPerUser: +(sum(tally.direct) / Math.max(1, n)).toFixed(1),
+    staticRequests: sum(tally.static),
     workerRequests: stats.requests,
     perUser: +(stats.requests / Math.max(1, n)).toFixed(1),
     freePlanUse: +((stats.requests / FREE_WORKER_REQUESTS) * 100).toFixed(1),
-    cacheHitPct: +((hits / stats.requests) * 100).toFixed(1),
+    cacheHitPct: stats.requests ? +((hits / stats.requests) * 100).toFixed(1) : 0,
     peakWorkerRps: peak(stats.perSecond),
     upstream: {
       total: upstreamTotal,
@@ -387,7 +435,7 @@ async function simulate(n, events = null) {
     },
     peakRps: { tmdb: peak(up.perSecond, 'tmdb@'), igdb: peak(up.perSecond, 'igdb@'), hltb: peak(up.perSecond, 'hltb@') },
     igdb429: up.igdb429 ?? 0,
-    failedPct: +((stats.failed / stats.requests) * 100).toFixed(2),
+    failedPct: stats.requests ? +((stats.failed / stats.requests) * 100).toFixed(2) : 0,
     failedByKind: stats.failedByKind,
     byKind: stats.byKind,
   }
@@ -395,6 +443,15 @@ async function simulate(n, events = null) {
 
 /** N users opening the app in the same 5 minutes (a big episode drop):
  *  each syncs, half search, everyone opens the new episode's series. */
+/** Route a batch of calls: gateway ones become events, the rest are tallied. */
+function addCalls(ev, t, u, calls) {
+  for (const [path, method, body, key, meta] of calls) {
+    const where = routeOf(path, u, meta)
+    if (where === 'gateway') ev.push([t, u, path, method, body, key])
+    else tally[where][providerOf(path)] = (tally[where][providerOf(path)] ?? 0) + 1
+  }
+}
+
 function burstTraffic(n) {
   const ev = []
   const t0 = Date.UTC(2026, 9, 22, 19, 0, 0)
@@ -406,13 +463,14 @@ function burstTraffic(n) {
       series: [hot, ...Array.from({ length: DAY.watchingSeries - 1 }, () => pick.tv())],
       manga: [pick.manga()],
       cv: '',
+      blocked: rand() < BLOCKED,
       omdb: rand() < DAY.ownOmdb ? `omdb-key-${i}` : '',
     }
     const t = t0 + Math.floor(rand() * 5 * 60_000)
-    for (const a of ['sync-tv', 'sync-tv', 'sync-manga']) for (const [p, m, b, k] of callsFor(a, u)) ev.push([t, u, p, m, b, k])
-    for (const [p, m, b, k] of [[`/p/tmdb/tv/${hot}?append_to_response=credits,external_ids&language=it-IT`, 'GET', '', ''], [`/p/tmdb/tv/${hot}/season/1?language=it-IT`, 'GET', '', '']]) ev.push([t + 3000, u, p, m, b, k])
-    if (rand() < 0.5) for (const [p, m, b, k] of callsFor('search', u)) ev.push([t + 8000, u, p, m, b, k])
-    if (rand() < 0.3) for (const [p, m, b, k] of callsFor('game', u)) ev.push([t + 12000, u, p, m, b, k])
+    for (const a of ['sync-tv', 'sync-tv', 'sync-manga']) addCalls(ev, t, u, callsFor(a, u))
+    addCalls(ev, t + 3000, u, [[`/p/tmdb/tv/${hot}?append_to_response=credits,external_ids&language=it-IT`, 'GET', '', '', {}], [`/p/tmdb/tv/${hot}/season/1?language=it-IT`, 'GET', '', '', {}]])
+    if (rand() < 0.5) addCalls(ev, t + 8000, u, callsFor('search', u))
+    if (rand() < 0.3) addCalls(ev, t + 12000, u, callsFor('game', u))
   }
   return ev.sort((a, b) => a[0] - b[0])
 }
@@ -431,13 +489,13 @@ if (BURST) {
     r.scenario = `${n} users/day`
     results.push(r)
     console.log(
-      `${String(n).padStart(6)} users | worker ${String(r.workerRequests).padStart(8)}/day (${String(r.freePlanUse).padStart(5)}% of free) | cache hit ${r.cacheHitPct}% | ` +
+      `[${ARCH}] ${String(n).padStart(7)} users | direct ${r.directPerUser}/user | static ${r.staticRequests} | worker ${String(r.workerRequests).padStart(8)}/day (${String(r.freePlanUse).padStart(5)}% of free) | cache hit ${r.cacheHitPct}% | ` +
         `upstream tmdb ${r.upstream.tmdb} igdb ${r.upstream.igdb} hltb ${r.upstream.hltb} | peak igdb ${r.peakRps.igdb}/s | igdb 429 ${r.igdb429} | failed ${r.failedPct}%`,
     )
   }
 }
 if (BURST) console.log(JSON.stringify(results[0], null, 1))
 mkdirSync('builds/stress', { recursive: true })
-const file = `builds/stress/${BURST ? `burst-${BURST}` : 'tiers'}${COLOS > 1 ? `-colos${COLOS}` : ''}${CACHE_CAP ? `-cache${CACHE_CAP}` : ''}.json`
+const file = `builds/stress/${ARCH}-${BURST ? `burst-${BURST}` : 'tiers'}${COLOS > 1 ? `-colos${COLOS}` : ''}${CACHE_CAP ? `-cache${CACHE_CAP}` : ''}.json`
 writeFileSync(file, JSON.stringify({ options: { TIERS, DAYS, COLOS, CACHE_CAP, BURST, DAY, CATALOG }, results }, null, 1))
 console.log(`\n${((Date.now() - started) / 1000).toFixed(0)} s → ${file}`)
