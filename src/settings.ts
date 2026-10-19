@@ -132,19 +132,6 @@ const KEY_FIELDS = [
   'googleClientIdIos',
 ] as const
 
-/**
- * Build-time defaults, exported so the Settings UI can HIDE the baked keys:
- * the form shows an empty field while a default is silently in use, and a
- * typed value overrides it.
- */
-export const ENV_DEFAULTS = {
-  gatewayUrl: defaults.gatewayUrl,
-  gatewayToken: defaults.gatewayToken,
-  googleClientId: defaults.googleClientId,
-  googleClientIdAndroid: defaults.googleClientIdAndroid,
-  googleClientIdIos: defaults.googleClientIdIos,
-} as const
-
 function load(): Settings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)

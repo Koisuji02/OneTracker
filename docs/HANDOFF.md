@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.45** (versionCode 45) — `android/app/build.gradle` is the single source |
+| Version | **1.0.46** (versionCode 46) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.45/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.45 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.46/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.46 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -97,6 +97,16 @@ free plan (~1,500 daily users): TMDB direct from the phone with an obfuscated,
 remotely swappable app key, MangaDex direct-first, a nightly static snapshot of
 popular games. Beyond ~25k daily users: Workers Paid ($5) or a higher IGDB limit.
 The all-BYOK/RAWG scenario is plan C (docs/LOAD_TEST.md).
+
+**1.0.46 (2026-10-19) — fixes from the phone test.** Comic Vine's /api/ page is cached
+by their CDN for 20 min as the logged-OUT page (CF-Cache-Status HIT), so after signing
+in the key never showed: the guide opens it with a fresh `?ot=<time>` every time and
+says "come back and tap Riapri Comic Vine" (`keys.ts` `bustCache`/`keyPageUrl`).
+Jikan (MAL) goes down for hours at times and pages awaited it 10 s per call: every
+Jikan call now goes through `jikanFetch` (4 s timeout, then Jikan is skipped for
+10 min). Settings slimmed for users: the gateway URL/token and the Google client id
+fields are gone (build-time values stay); keys, provider check, Drive, TV Time, data
+and About remain.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its

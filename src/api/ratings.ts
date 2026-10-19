@@ -11,6 +11,7 @@
  * - games        → IGDB's total rating (already in the IGDB payload)
  */
 import { fetchTimeout } from './http'
+import { jikanFetch } from './jikan'
 import { getSettings } from '../settings'
 import type { ExternalRating } from '../types'
 
@@ -44,8 +45,8 @@ export async function malRating(
 ): Promise<ExternalRating[]> {
   if (!malId) return []
   try {
-    const res = await fetchTimeout(`https://api.jikan.moe/v4/${kind}/${malId}`)
-    if (!res.ok) return []
+    const res = await jikanFetch(`/${kind}/${malId}`)
+    if (!res?.ok) return []
     const d = await res.json()
     const score = d.data?.score
     return score ? [{ source: 'mal', label: 'MyAnimeList', score: String(score) }] : []
