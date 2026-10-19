@@ -75,6 +75,9 @@ const FRESH_HEADER = 'X-OT-Fresh-Until'
 /** The only clock in this file — tests move it instead of patching Date. */
 export const clock = { now: () => Date.now() }
 
+/** Waiting, swappable the same way (the load simulation runs on virtual time). */
+export const timers = { sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)) }
+
 /** Same response, with `X-OT-Cache` saying how it was served. */
 function tag(res, state) {
   const headers = new Headers(res.headers)
@@ -182,12 +185,15 @@ export async function restingKeys(cache, origin, provider, n) {
  *   whose `status_code` is 100.
  * - IGDB allows 4 requests a second per Twitch client and answers 429 — a
  *   second client gets past that instantly, so the rest is two seconds.
+ * - TMDB's 429 is a per-second burst limit too (~40/s): with ONE key, the
+ *   default minute of rest would stop every uncached TMDB answer for a minute,
+ *   so it rests two seconds as well.
  */
 export async function classify(provider, res) {
   const s = res.status
   const keyed = provider in KEYED || provider === 'igdb'
   if (s === 429) {
-    if (provider === 'igdb') return { res, reason: 'rate-limited', cooldown: 2 }
+    if (provider === 'igdb' || provider === 'tmdb') return { res, reason: 'rate-limited', cooldown: 2 }
     return { res, reason: keyed ? (provider === 'comicvine' ? 'quota' : 'rate-limited') : '' }
   }
   if (s === 420 && provider === 'comicvine') return { res, reason: 'quota' }
@@ -241,4 +247,44 @@ export async function withKeys({ cache, origin, provider, keys, attempt }) {
     last = r
   }
   return { res: last?.res ?? null, outcome: 'quota' }
+}
+
+// --------------------------------------------------------------- usage
+
+/**
+ * Roughly how many requests this edge served today — the number that decides
+ * when the free plan (100k requests a day) runs out (docs/LOAD_TEST.md).
+ *
+ * Counting every request would cost a cache write each; one in USAGE_SAMPLE is
+ * counted instead and the total scaled back up, which is plenty to tell 20k
+ * from 80k. Per datacenter, like everything in the Cache API — users in one
+ * country mostly share one or two — and it starts over at midnight UTC, when
+ * Cloudflare's daily count does.
+ */
+export const USAGE_SAMPLE = 50
+export const FREE_DAILY_REQUESTS = 100_000
+
+const usageKey = (origin) => new Request(`${origin}/__ot/usage`, { method: 'GET' })
+const utcDay = () => new Date(clock.now()).toISOString().slice(0, 10)
+
+export async function countRequest(cache, origin, roll = Math.random()) {
+  if (roll >= 1 / USAGE_SAMPLE) return
+  const hit = await cache.match(usageKey(origin))
+  const prev = hit ? await hit.json().catch(() => null) : null
+  const day = utcDay()
+  const n = prev?.day === day ? prev.n + 1 : 1
+  await cache.put(
+    usageKey(origin),
+    new Response(JSON.stringify({ day, n }), {
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=172800' },
+    }),
+  )
+}
+
+/** Today's estimate for this edge: requests, and the share of the free plan. */
+export async function usageToday(cache, origin) {
+  const hit = await cache.match(usageKey(origin))
+  const u = hit ? await hit.json().catch(() => null) : null
+  const requests = u?.day === utcDay() ? u.n * USAGE_SAMPLE : 0
+  return { requests, freeDaily: FREE_DAILY_REQUESTS, pct: Math.round((requests / FREE_DAILY_REQUESTS) * 100) }
 }

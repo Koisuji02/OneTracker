@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.44** (versionCode 44) — `android/app/build.gradle` is the single source |
+| Version | **1.0.45** (versionCode 45) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.44/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.44 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.45/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.45 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -89,6 +89,15 @@ test: `scripts/stress/simulate.mjs`, results and levers in `docs/LOAD_TEST.md` �
 ~41 gateway requests/user/day, so the free Worker plan carries ~2,400 daily users;
 IGDB holds normal days up to 50k users but not bursts.
 
+**Scaling decision (2026-10-19).** The user chose the HYBRID path, in steps: ship
+as is (no keys required — only Comic Vine and OMDb, optional); 1.0.45 adds the
+no-downside fixes (TMDB 2 s rest on 429, IGDB wait-and-retry, a usage alarm in
+/health and the provider check). Next step only when the alarm says ~70% of the
+free plan (~1,500 daily users): TMDB direct from the phone with an obfuscated,
+remotely swappable app key, MangaDex direct-first, a nightly static snapshot of
+popular games. Beyond ~25k daily users: Workers Paid ($5) or a higher IGDB limit.
+The all-BYOK/RAWG scenario is plan C (docs/LOAD_TEST.md).
+
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
 own OAuth client). **Multi-device sync**: `drive.syncDrive()` pulls, MERGES
@@ -156,10 +165,9 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
 
 ### 3b. Claude's next tasks
 
-0. **Load levers** (docs/LOAD_TEST.md): the user picks among MangaDex direct-first,
-   TMDB direct with the app key, IGDB wait-and-retry on 429, TMDB short rest on 429,
-   Workers Paid. Then, once phones run 1.0.44: delete RAWG_KEY, OMDB_KEY,
-   COMICVINE_KEY from the Worker (ask first); TMDB_KEY and IGDB_* stay.
+0. **Play Store publication** — in progress (docs/STORE_LISTING.md). Once phones
+   run 1.0.45: delete RAWG_KEY, OMDB_KEY, COMICVINE_KEY from the Worker (ask
+   first); TMDB_KEY and IGDB_* stay.
 
 1. **Get feedback on 1.0.38–1.0.39** (Cronologia, recap, no zoom, share on Instagram,
    the new font, games in progress) and fix whatever comes up. Sharing and "Save image"

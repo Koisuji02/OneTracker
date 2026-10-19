@@ -27,7 +27,7 @@
 // for the users who added their own key. The Worker's per-IP rate limits run
 // for real, on a virtual clock.
 import worker from '../../worker/src/index.js'
-import { clock } from '../../worker/src/edge.js'
+import { clock, timers } from '../../worker/src/edge.js'
 import { mkdirSync, writeFileSync } from 'node:fs'
 
 // ------------------------------------------------------------------ options
@@ -166,7 +166,7 @@ const limiter = (limit) => {
 const json = (o, status = 200) => new Response(JSON.stringify(o), { status, headers: { 'Content-Type': 'application/json' } })
 
 let up // upstream counters, per provider, reset per run
-let igdbSecond = { s: -1, n: 0 }
+const igdbSeconds = new Map()
 const upstream = async (input, init) => {
   const url = new URL(String(input?.url ?? input))
   const t = clock.now()
@@ -181,8 +181,11 @@ const upstream = async (input, init) => {
       return json({ access_token: 'tok', expires_in: 5_000_000 })
     case 'api.igdb.com': {
       count('igdb')
-      if (igdbSecond.s !== sec) igdbSecond = { s: sec, n: 0 }
-      if (++igdbSecond.n > IGDB_RPS) {
+      // per virtual second, exact even when retries move time back and forth
+      const used = (igdbSeconds.get(sec) ?? 0) + 1
+      igdbSeconds.set(sec, used)
+      if (igdbSeconds.size > 100_000) igdbSeconds.clear()
+      if (used > IGDB_RPS) {
         up.igdb429 = (up.igdb429 ?? 0) + 1
         return new Response('Too Many Requests', { status: 429 })
       }
@@ -357,7 +360,12 @@ let tally = { direct: {}, static: {} }
 // -------------------------------------------------------------- the runner
 async function runDay(events, caches, env, stats) {
   for (const [t, u, path, method, body, key] of events) {
-    clock.now = () => t
+    // the gateway's own waits (IGDB retries) pass on the virtual clock
+    let waited = 0
+    clock.now = () => t + waited
+    timers.sleep = async (ms) => {
+      waited += ms
+    }
     globalThis.caches = { default: caches[u.colo] }
     const headers = { 'X-OT-Token': TOKEN, 'CF-Connecting-IP': u.ip }
     if (key) headers['X-OT-Key'] = key

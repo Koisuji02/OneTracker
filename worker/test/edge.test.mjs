@@ -2,7 +2,18 @@
 // takes the cache as a parameter, and Node 22 has Request/Response/Headers.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cached, classify, clock as edgeClock, keysOf, POLICY, restingKeys, withKeys } from '../src/edge.js'
+import {
+  cached,
+  classify,
+  clock as edgeClock,
+  countRequest,
+  keysOf,
+  POLICY,
+  restingKeys,
+  USAGE_SAMPLE,
+  usageToday,
+  withKeys,
+} from '../src/edge.js'
 
 /** Just enough of the Cache API: keyed by URL, honours max-age. */
 class FakeCache {
@@ -208,6 +219,32 @@ test('cached: the stale copy outlives freshness by KEEP, not forever', async () 
     const r = await cached(cache, c, key(), POLICY.static, async () => new Response('', { status: 503 }))
     assert.equal(r.status, 503)
     assert.equal(r.headers.get('X-OT-Cache'), 'MISS')
+  } finally {
+    t.restore()
+  }
+})
+
+test('classify: a TMDB 429 rests seconds, not a minute (one key must not stop TMDB)', async () => {
+  const r = await classify('tmdb', new Response('', { status: 429 }))
+  assert.equal(r.reason, 'rate-limited')
+  assert.equal(r.cooldown, 2)
+})
+
+test('usage: sampled requests add up to the estimate for today, and start over the next day', async () => {
+  const t = clock()
+  try {
+    const cache = new FakeCache()
+    assert.equal((await usageToday(cache, origin)).requests, 0)
+    await countRequest(cache, origin, 0) // counted (roll below 1/USAGE_SAMPLE)
+    await countRequest(cache, origin, 0.99) // not sampled
+    await countRequest(cache, origin, 0)
+    const u = await usageToday(cache, origin)
+    assert.equal(u.requests, 2 * USAGE_SAMPLE)
+    assert.equal(u.pct, Math.round((2 * USAGE_SAMPLE * 100) / u.freeDaily))
+    t.tick(24 * 3600)
+    assert.equal((await usageToday(cache, origin)).requests, 0, 'yesterday is not today')
+    await countRequest(cache, origin, 0)
+    assert.equal((await usageToday(cache, origin)).requests, USAGE_SAMPLE)
   } finally {
     t.restore()
   }

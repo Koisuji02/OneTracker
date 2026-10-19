@@ -29,7 +29,18 @@
  * How it stays up with nobody watching — key pools, stale answers — is edge.js.
  */
 
-import { cached, classify, KEYED, keysOf, POLICY, restingKeys, withKeys } from './edge.js'
+import {
+  cached,
+  classify,
+  countRequest,
+  KEYED,
+  keysOf,
+  POLICY,
+  restingKeys,
+  timers,
+  usageToday,
+  withKeys,
+} from './edge.js'
 
 const JSON_PROVIDERS = {
   // provider → { base, auth(url, key, headers) } — `key` is the ONE key picked
@@ -160,6 +171,20 @@ function igdbFetch(endpoint, clientId, token, body) {
   })
 }
 
+/**
+ * IGDB answers 429 above 4 requests a second for the WHOLE app. In a burst,
+ * wait a moment (growing, with jitter so the waiting requests don't all come
+ * back together) and try again — up to ~2.5 s — instead of failing at once.
+ */
+async function igdbWithRetry(endpoint, clientId, token, body) {
+  let res = await igdbFetch(endpoint, clientId, token, body)
+  for (let i = 0; res.status === 429 && i < 3; i++) {
+    await timers.sleep(250 * 2 ** i + Math.random() * 250)
+    res = await igdbFetch(endpoint, clientId, token, body)
+  }
+  return res
+}
+
 /** The caller's own Twitch app, if the request carries one. */
 function ownIgdb(request) {
   const id = request.headers.get('X-IGDB-Client-Id')?.trim()
@@ -177,10 +202,10 @@ async function handleIgdb(body, env, endpoint, cache, origin, own) {
     } catch {
       return json({ error: 'igdb-bad-credentials' }, 401)
     }
-    let res = await igdbFetch(endpoint, own.id, token, body)
+    let res = await igdbWithRetry(endpoint, own.id, token, body)
     if (res.status === 401) {
       igdbTokens.delete(own.id)
-      res = await igdbFetch(endpoint, own.id, await igdbAccessToken(own.id, own.secret), body)
+      res = await igdbWithRetry(endpoint, own.id, await igdbAccessToken(own.id, own.secret), body)
     }
     return passThrough(res)
   }
@@ -194,7 +219,7 @@ async function handleIgdb(body, env, endpoint, cache, origin, own) {
     keys: ids,
     attempt: async (clientId, i) => {
       const token = await igdbAccessToken(clientId, secrets[i])
-      const res = await igdbFetch(endpoint, clientId, token, body)
+      const res = await igdbWithRetry(endpoint, clientId, token, body)
       const c = await classify('igdb', res)
       // a refused token is re-minted on the next attempt, not kept
       if (c.reason === 'token') igdbTokens.delete(clientId)
@@ -420,8 +445,16 @@ async function health(env, request, cache, origin) {
         : `${provider}: ${p.resting.length}/${p.keys} keys resting (${why})`,
     )
   }
+  // the free plan is the limit that costs money: say when it is near
+  const usage = await usageToday(cache, origin)
+  if (usage.pct >= 70) {
+    advice.push(
+      `gateway: ~${usage.requests} requests today on this edge (${usage.pct}% of the free ${usage.freeDaily}/day) — time for the next step in docs/LOAD_TEST.md`,
+    )
+  }
   return json({
     ok: true,
+    usage,
     configured: {
       tmdb: pools.tmdb.keys > 0,
       rawg: pools.rawg.keys > 0,
@@ -476,6 +509,8 @@ export default {
       const heavy = section === 'hltb'
       const ok = await withinLimit(heavy ? env.RL_HEAVY : env.RL_API, ip)
       if (!ok) return json({ error: 'rate-limited' }, 429)
+      // how close today is to the free plan's daily requests (sampled)
+      ctx.waitUntil(countRequest(cache, url.origin).catch(() => {}))
     }
 
     // optional shared token: keeps casual strangers from using this as an open

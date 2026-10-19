@@ -10,7 +10,7 @@
  * - `badkey`      the service rejected our credentials (401/403)
  * - `nokey`       nothing configured, so the feature is simply off
  */
-import { hasKey, type KeyService } from '../keys'
+import { KEY_SERVICES, hasKey, type KeyService } from '../keys'
 import { getSettings } from '../settings'
 import { gatewayHeaders, gatewayUrl } from './gateway'
 import { fetchTimeout } from './http'
@@ -68,10 +68,30 @@ function fromStatus(res: Response): { state: HealthState; detail?: string } {
   return { state: 'down', detail: `HTTP ${res.status}` }
 }
 
-/** A keyed provider, probed with the user's own key (api/keys.ts). */
+/** The built-in key of TMDB / IGDB, through the gateway that holds it. */
+async function builtIn(service: KeyService): Promise<{ state: HealthState; detail?: string }> {
+  const res =
+    service === 'tmdb'
+      ? await fetchTimeout('https://api.themoviedb.org/3/configuration', {}, TIMEOUT)
+      : await fetchTimeout(
+          `${gatewayUrl()}/igdb/games`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain', ...gatewayHeaders() },
+            body: 'fields id; where id = 1942; limit 1;',
+          },
+          TIMEOUT,
+        )
+  const r = fromStatus(res)
+  return { ...r, detail: r.detail ?? "app's key" }
+}
+
+/** A keyed provider: the user's own key when there is one, else the app's. */
 function keyed(service: KeyService, label: string, roleKey: string, values: string[]): Promise<ProviderHealth> {
   return probe(service, label, roleKey, async () => {
-    if (!hasKey(service)) return { state: 'nokey' }
+    if (!hasKey(service)) {
+      return KEY_SERVICES[service].builtIn && gatewayUrl() ? builtIn(service) : { state: 'nokey' }
+    }
     const state = await verifyKey(service, values)
     return { state: state === 'ok' ? 'ok' : state === 'badkey' ? 'badkey' : 'down' }
   })
@@ -81,15 +101,20 @@ export function checkProviders(): Promise<ProviderHealth[]> {
   const s = getSettings()
 
   return Promise.all([
-    // the gateway first: when it's up, everything below is proxied through it,
-    // so its state explains the others
+    // the gateway first: TMDB, IGDB, MangaDex and game lengths go through it,
+    // so its state explains theirs
     probe('gateway', 'Gateway', 'health.roleGateway', async () => {
       const base = gatewayUrl()
       if (!base) return { state: 'nokey' }
       const res = await fetchTimeout(`${base}/health`, { headers: gatewayHeaders() }, TIMEOUT)
       if (!res.ok) return fromStatus(res)
-      // provider keys are the user's own now: the Worker only proxies
-      return { state: 'ok' }
+      // today's requests against the free plan (sampled, this edge), and the
+      // Worker's advice — the line that says when to take the next step
+      const data = await res.json().catch(() => null)
+      const advice: string[] = Array.isArray(data?.advice) ? data.advice : []
+      const u = data?.usage
+      const usage = u ? `~${u.requests} requests today (${u.pct}% of the free ${u.freeDaily}/day)` : ''
+      return { state: 'ok', detail: [usage, ...advice].filter(Boolean).join(' | ') || undefined }
     }),
 
     keyed('tmdb', 'TMDB', 'health.roleTmdb', [s.tmdbKey]),
