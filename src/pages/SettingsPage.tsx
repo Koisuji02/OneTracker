@@ -34,7 +34,7 @@ import { importTvTimeZip, type ImportProgress, type TvTimeImportResult } from '.
 import { useT } from '../i18n'
 import { useOnline } from '../net'
 import { KEY_SERVICES, guideDue, hasKey, serviceReady, type KeyService } from '../keys'
-import { ENV_DEFAULTS, getSettings, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
+import { getSettings, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
 import { THEMES } from '../themes'
 import { cn } from '../util'
 
@@ -79,34 +79,6 @@ function ToggleRow({
           )}
         />
       </button>
-    </div>
-  )
-}
-
-function InputRow({
-  label,
-  hint,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string
-  hint?: string
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-}) {
-  return (
-    <div className="px-4 py-3.5">
-      <div className="text-sm font-medium">{label}</div>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        spellCheck={false}
-        className="mt-1.5 w-full rounded-xl border border-line bg-surface px-3 py-2 font-mono text-xs outline-none transition-colors placeholder:text-ink4 focus:border-accent"
-      />
-      {hint && <div className="mt-1.5 text-[11px] text-ink4">{hint}</div>}
     </div>
   )
 }
@@ -264,14 +236,6 @@ export default function SettingsPage() {
       setBusy(null)
     }
   }
-
-  /** Baked default keys stay hidden: empty field = default in use, typing overrides. */
-  const keyProps = (field: keyof typeof ENV_DEFAULTS, ph: string) => ({
-    value:
-      ENV_DEFAULTS[field] && settings[field] === ENV_DEFAULTS[field] ? '' : settings[field],
-    onChange: (v: string) => updateSettings({ [field]: v.trim() || ENV_DEFAULTS[field] }),
-    placeholder: ENV_DEFAULTS[field] ? t('settings.defaultKeyActive') : ph,
-  })
 
   const onImportFile = async (file: File) => {
     const text = await file.text()
@@ -436,21 +400,6 @@ export default function SettingsPage() {
         {settings.showGames && <KeyRow service="igdb" />}
       </Section>
 
-      <Section title={t('settings.apiKeys')}>
-        {/* the gateway: the shared cache in front of the providers, MangaDex
-            for blocked networks, IGDB and game lengths */}
-        <InputRow
-          label={t('settings.gatewayUrl')}
-          hint={t('settings.gatewayHint')}
-          {...keyProps('gatewayUrl', 'https://onetracker-api.xxx.workers.dev')}
-        />
-        <InputRow
-          label={t('settings.gatewayToken')}
-          hint={t('settings.gatewayTokenHint')}
-          {...keyProps('gatewayToken', 'APP_TOKEN')}
-        />
-      </Section>
-
       {/* diagnostics: which providers answer right now, and why they don't */}
       <Section title={t('settings.diagnostics')}>
         {/* every check below needs the network — say so instead of reporting
@@ -482,11 +431,6 @@ export default function SettingsPage() {
             <OfflineChip text={t('offline.driveHint')} />
           </div>
         )}
-        <InputRow
-          label={t('settings.clientId')}
-          hint={t('settings.clientIdHint')}
-          {...keyProps('googleClientId', '1234567890-xxxx.apps.googleusercontent.com')}
-        />
         {settings.googleEmail ? (
           <>
             <div className="flex items-center gap-3 px-4 py-3.5">

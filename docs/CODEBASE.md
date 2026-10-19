@@ -136,7 +136,7 @@ every 10 minutes, and when the app goes to the background.
 | `igdb.ts` | Games (primary). Needs the gateway: server-to-server Twitch token, no CORS. Also `igdbTimeToBeat`, the fallback game length. The backdrop is chosen by IGDB `artwork_type` (key art first — logos, icons and covers never) and a game carries its DLCs/expansions (`addons`, page-only) while an add-on carries `gameKind` + `parentGame`, the link back |
 | `hltb.ts` | HowLongToBeat lengths. No public API: goes through the gateway and matches by title + year, dropping anything it isn't sure about — a wrong match would silently corrupt the time stats |
 | `ratings.ts` | The critic banners (OMDb with the user's optional key — else TMDB's score, see `tmdb.ts` `filmRatings` — Jikan/MAL, AniList, Open Library; games use IGDB's rating). All best-effort |
-| `jikan.ts` | Keyless MAL mirror for real anime episode titles |
+| `jikan.ts` | Keyless MAL mirror for real anime episode titles, MAL scores, fallback chapter counts. All calls go through `jikanFetch`: 4 s timeout and a 10-minute pause after a failure, so a Jikan outage never holds a page |
 | `covers.ts` | Shared cover cache so a title looks the same in search and on its page |
 | `tmdbPoster.ts` | TMDB poster lookup for anime, in its own module to avoid a circular import |
 | `wikipedia.ts` | Infobox image fallback for game box art |

@@ -18,7 +18,7 @@ import { useMemo, useState } from 'react'
 import { renderSVG } from 'uqr'
 import { verifyKey } from '../api/keys'
 import { useT } from '../i18n'
-import { KEY_SERVICES, hasKey, type KeyService } from '../keys'
+import { KEY_SERVICES, hasKey, keyPageUrl, type KeyService } from '../keys'
 import { getSettings, updateSettings, useSettings } from '../settings'
 import { cn, openExternal } from '../util'
 
@@ -75,7 +75,9 @@ export default function KeyGuide({ service, editing = false, onSaved, dismissabl
   const [state, setState] = useState<'idle' | 'checking' | 'bad' | 'unverified' | 'saved'>('idle')
   const [desk, setDesk] = useState(false)
   const [copied, setCopied] = useState(false)
-  const qr = useMemo(() => (desk ? renderSVG(def.url, { border: 1 }) : ''), [desk, def.url])
+  // the address for the computer: fresh each time the panel opens (Comic Vine)
+  const link = useMemo(() => (desk ? keyPageUrl(service) : def.url), [desk, service, def.url])
+  const qr = useMemo(() => (desk ? renderSVG(link, { border: 1 }) : ''), [desk, link])
 
   const filled = values.every((v) => v.trim().length > 0)
 
@@ -96,12 +98,12 @@ export default function KeyGuide({ service, editing = false, onSaved, dismissabl
   const open = () => {
     markOpened(service)
     setEntering(true)
-    void openExternal(def.url)
+    void openExternal(keyPageUrl(service))
   }
 
   const shareLink = async () => {
     try {
-      await Share.share({ url: def.url })
+      await Share.share({ url: link })
     } catch {
       // closed the sheet, or no share target: copying is right next to it
     }
@@ -109,7 +111,7 @@ export default function KeyGuide({ service, editing = false, onSaved, dismissabl
 
   const copyLink = async () => {
     try {
-      await navigator.clipboard.writeText(def.url)
+      await navigator.clipboard.writeText(link)
       setCopied(true)
       setTimeout(() => setCopied(false), 1600)
     } catch {
@@ -249,7 +251,7 @@ export default function KeyGuide({ service, editing = false, onSaved, dismissabl
           <div className="h-28 w-28 shrink-0 rounded-lg bg-white p-1.5" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0 flex-1">
             <p className="text-xs leading-snug text-ink2">{t('keys.desktopHint')}</p>
-            <p className="mt-1.5 break-all font-mono text-[11px] text-ink3">{def.url}</p>
+            <p className="mt-1.5 break-all font-mono text-[11px] text-ink3">{link}</p>
             <div className="mt-2 flex gap-3">
               <button onClick={() => void copyLink()} className={linkBtn}>
                 {copied ? <Check size={14} /> : <Copy size={14} />} {t(copied ? 'keys.copied' : 'keys.copy')}

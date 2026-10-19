@@ -30,6 +30,11 @@ export interface KeyServiceDef {
   name: string
   /** where the key is made — the page the guide's button opens */
   url: string
+  /**
+   * The page is cached by the site for everyone (logged-in or not), so it
+   * must be opened with a fresh query each time to show the user's own key.
+   */
+  bustCache?: boolean
   /** the service's own colours, so the button says where it is going */
   bg: string
   fg: string
@@ -77,10 +82,14 @@ export const KEY_SERVICES: Record<KeyService, KeyServiceDef> = {
     label: 'Comic Vine',
     name: 'Comic Vine',
     url: 'https://comicvine.gamespot.com/api/',
+    // Comic Vine's CDN keeps /api/ for 20 min as the logged-OUT page, even
+    // right after the user signs in: a fresh query each time skips it
+    bustCache: true,
     bg: '#e3242b',
     fg: '#ffffff',
     fields: [{ field: 'comicvineKey', label: 'keys.comicvine.field', placeholder: '0123456789abcdef…' }],
-    steps: 1,
+    // signing in lands on the cached page: the key shows on the NEXT open
+    steps: 2,
     optional: true,
     builtIn: false,
   },
@@ -115,4 +124,10 @@ export function serviceReady(service: KeyService, s: Settings = getSettings()): 
  */
 export function guideDue(service: KeyService, s: Settings = getSettings()): boolean {
   return !serviceReady(service, s) && !(KEY_SERVICES[service].optional && s.dismissedGuides.includes(service))
+}
+
+/** The address the guide opens: a fresh one each time where the site caches it. */
+export function keyPageUrl(service: KeyService): string {
+  const def = KEY_SERVICES[service]
+  return def.bustCache ? `${def.url}?ot=${Date.now()}` : def.url
 }
