@@ -151,3 +151,18 @@ RAWG (checked live): Metacritic out of 100 on the known games (Elden Ring 95,
 Zelda TotK 96) and its own score out of 5; a landscape background, a second
 image and 6 screenshots; NO portrait cover with the logo — those would come
 from Steam (PC games) and Wikipedia (console games), as before IGDB.
+
+## Applied in 1.0.45 (the "no downside" step)
+
+- **TMDB rests 2 s after a 429**, not 60 (`edge.js` `classify`): with one key,
+  a burst can no longer stop TMDB for a minute.
+- **IGDB waits and retries on a 429** (up to 3 times, ~2.5 s in all, with jitter)
+  instead of failing at once. Measured with the simulator (exact per-second
+  accounting): a 5,000-user burst goes from 58% to 44% of IGDB requests failed,
+  a 20,000-user burst from 66% to 60%; a normal day stays at 0%. It smooths short
+  spikes; a sustained burst above 4/s is still beyond IGDB's limit.
+- **Usage alarm**: the gateway counts one request in 50 (Cache API, per edge,
+  resets at midnight UTC) and `/health` reports `usage` — requests today and the
+  share of the free 100k — with an `advice` line from 70%. The app shows both in
+  Settings → provider check → Gateway. That line is the signal for the next step
+  (TMDB direct + MangaDex direct + the games snapshot).
