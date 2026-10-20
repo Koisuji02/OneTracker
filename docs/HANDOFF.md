@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.46** (versionCode 46) — `android/app/build.gradle` is the single source |
+| Version | **1.0.47** (versionCode 47) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.46/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.46 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.47/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.47 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -107,6 +107,11 @@ Jikan call now goes through `jikanFetch` (4 s timeout, then Jikan is skipped for
 10 min). Settings slimmed for users: the gateway URL/token and the Google client id
 fields are gone (build-time values stay); keys, provider check, Drive, TV Time, data
 and About remain.
+
+**1.0.47 (2026-10-20).** Comic Vine stopped honouring JSONP (plain JSON, 401 for a bad
+key), so the key check always said "offline": it now goes through the gateway with
+`X-OT-Key` + `X-OT-Verify`, which skips the shared cache and answers 401 for a refused
+key (works on the web too).
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
