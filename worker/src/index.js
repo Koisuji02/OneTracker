@@ -598,7 +598,7 @@ export default {
         // the caller's own key first; the Worker's pool only for old builds
         const own = request.headers.get('X-OT-Key')?.trim() ?? ''
         const keys = own ? [] : KEYED[provider] ? keysOf(env, KEYED[provider]) : []
-        return await cached(cache, ctx, key, policy, async () => {
+        const produce = async () => {
           if (own) {
             const t = new URL(target.toString())
             const h = new Headers(headers)
@@ -624,7 +624,11 @@ export default {
             },
           })
           return r.outcome === 'quota' ? quota(provider) : passThrough(r.res)
-        })
+        }
+        // a key check must reach the provider: the shared cache would answer
+        // whatever the key
+        if (own && request.headers.get('X-OT-Verify')) return await produce()
+        return await cached(cache, ctx, key, policy, produce)
       }
 
       return json({ error: 'not found', routes: ['/health', '/p/{provider}/…', '/img/{provider}/…', '/igdb/{endpoint}'] }, 404)

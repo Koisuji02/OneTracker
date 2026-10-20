@@ -11,8 +11,8 @@
 import { getSettings } from '../settings'
 import type { MediaDetails, SearchResult } from '../types'
 import { ApiKeyMissingError } from './errors'
-import { gatewayEnabled } from './gateway'
-import { fetchTimeout } from './http'
+import { gatewayEnabled, gatewayHeaders, gatewayUrl } from './gateway'
+import { fetchDirect, fetchTimeout } from './http'
 
 const API = 'https://comicvine.gamespot.com/api'
 
@@ -68,9 +68,28 @@ function jsonp(url: string, timeoutMs = 12000): Promise<any> {
  * `status_code` (1 = OK, 100/102 = bad/missing key). Throws when the script
  * never loads — which JSONP can't tell apart from a network block.
  */
-/** Comic Vine's own status code for a key: 1 = fine, 100 = invalid key. */
+/**
+ * Comic Vine's own status code for a key: 1 = fine, 100 = invalid key.
+ *
+ * Comic Vine stopped honouring JSONP (it answers plain JSON whatever
+ * `format=jsonp` says, so the <script> never calls back): the check goes
+ * through the gateway, which talks JSON and — told `X-OT-Verify` — asks Comic
+ * Vine itself instead of answering from its shared cache. A refused key comes
+ * back as 401 there.
+ */
 export async function comicvinePing(apiKey: string = key()): Promise<number> {
-  // straight to Comic Vine: a key check must not be answered by the shared cache
+  const base = gatewayUrl()
+  if (base) {
+    const res = await fetchDirect(
+      `${base}/p/comicvine/search/?resources=volume&limit=1&query=batman&field_list=id`,
+      { headers: { ...gatewayHeaders(), 'X-OT-Key': apiKey, 'X-OT-Verify': '1' } },
+      8000,
+    )
+    if (res.status === 401) return 100
+    if (!res.ok) return -1
+    const data = await res.json().catch(() => null)
+    return Number(data?.status_code ?? -1)
+  }
   const data = await jsonp(
     `${API}/search/?api_key=${encodeURIComponent(apiKey)}&resources=volume&limit=1&query=batman&field_list=id`,
   )
