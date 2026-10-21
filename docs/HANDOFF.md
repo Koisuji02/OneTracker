@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.48** (versionCode 48) — `android/app/build.gradle` is the single source |
+| Version | **1.0.49** (versionCode 49) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.48/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.48 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.49/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.49 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -122,6 +122,14 @@ adds a CSP (scripts only from the app + Google's sign-in), no framing, nosniff,
 referrer policy, permissions policy, HSTS — checked live, no CSP violations. Seen the
 same day: AniList disabled its API ("severe stability issues") and MangaDex was in
 maintenance (503) — external outages, manga pages fail until they're back.
+
+**1.0.49 (2026-10-21) — new Android package.** `com.onetracker.app` was already taken
+on Google Play (reserved by someone, not public), so the Android `applicationId` is now
+**`io.github.koisuji02.onetracker`** (the Java namespace stays `com.onetracker.app`;
+iOS keeps `com.onetracker.app`). Needs NEW Android OAuth clients in Google Cloud for the
+debug and upload SHA-1 (and later the Play App Signing one). On a phone it installs as a
+separate app: move the library with Drive backup → restore. The app is licensed
+MPL-2.0 (LICENSE).
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its

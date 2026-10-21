@@ -2,7 +2,7 @@
 <resources>
     <string name="app_name">OneTracker</string>
     <string name="title_activity_main">OneTracker</string>
-    <string name="package_name">com.onetracker.app</string>
+    <string name="package_name">io.github.koisuji02.onetracker</string>
     <string name="custom_url_scheme">com.onetracker.app</string>
     <string name="widget_description">OneTracker — continua a guardare</string>
     <string name="widget_empty">Niente da continuare</string>
