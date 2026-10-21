@@ -150,3 +150,7 @@ Backups live in the app-private `appDataFolder` (invisible in your Drive UI, doe
 ## Stack
 
 React 19 + TypeScript + Vite + Tailwind CSS v4 · Dexie (IndexedDB) · React Router (hash) · Capacitor 7 · lucide-react · Playwright (smoke tests).
+
+## License
+
+OneTracker is open source under the [Mozilla Public License 2.0](LICENSE): use it, study it, change it; modified files of OneTracker must stay open under the same licence. The data it shows belongs to its providers (TMDB, IGDB, HowLongToBeat, AniList, MangaDex, Open Library, Comic Vine, OMDb…) under their own terms.
