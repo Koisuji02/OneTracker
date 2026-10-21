@@ -48,7 +48,7 @@ Se trovi bug o hai idee, scrivimi: ogni feedback mi aiuta. Grazie!
 
 ---
 
-## 3. Launch — ex TV Time users, r/androidapps, r/SideProject, AlternativeTo (English)
+## 3. Launch — ex TV Time users, r/droidappshowcase, r/SideProject, AlternativeTo (English)
 
 **Title:** TV Time is gone, so I built a free tracker for shows, anime, movies, books, manga and games — and it imports your TV Time export
 
