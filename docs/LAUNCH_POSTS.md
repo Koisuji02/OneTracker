@@ -94,15 +94,23 @@ Sono uno sviluppatore indipendente: feedback e segnalazioni di bug sono benvenut
 
 ---
 
-## Where to post
+## Where to post (links checked 2026-10-21)
 
-| Where | For | Notes |
-|---|---|---|
-| r/AndroidClosedTesting (~5k members, very active) | testers | tester swaps: test theirs back, or they drop out |
-| r/TestersCommunity (~2k) | testers | same |
-| friends, family, colleagues, WhatsApp/Telegram groups | testers | the most reliable: they stay 14 days |
-| ex TV Time users (the TV Time subreddit, threads about alternatives) | testers + launch | the best audience: they need an alternative and OneTracker imports their export |
-| AlternativeTo — add OneTracker as an alternative to TV Time | launch | the TV Time shutdown news there gets a lot of traffic |
-| r/androidapps, r/SideProject | launch | dev/launch posts allowed with the right flair; check the sidebar first |
-| Italian Discord servers for anime/manga/series/games (e.g. Viridia, Pendragon) | testers + launch | ask the mods or use the self-promo channel |
-| r/anime, r/manga, r/books, r/television | — | strict no self-promotion: only in their weekly/monthly threads, if any |
+| Where | Link | For | Notes |
+|---|---|---|---|
+| r/AndroidClosedTesting (~5k, very active) | https://www.reddit.com/r/AndroidClosedTesting/ | testers | swaps: test theirs back, or they drop out |
+| r/TestersCommunity (~2k) | https://www.reddit.com/r/TestersCommunity/ | testers | same |
+| r/droidappshowcase | https://www.reddit.com/r/droidappshowcase/ | testers + launch | where r/androidapps sends ALL dev posts since May 2026 (r/androidapps itself bans them) |
+| r/SideProject (100k+) | https://www.reddit.com/r/SideProject/ | launch | project posts are the point; read the rules, answer comments |
+| Reddit threads on TV Time alternatives | https://www.reddit.com/search/?q=tv%20time%20alternative | testers + launch | reply where people ask for an alternative — the best audience |
+| AlternativeTo — TV Time | https://alternativeto.net/software/tvshow-time/ | launch | "Suggest alternative" (free account) to list OneTracker |
+| r/ItalyInformatica | https://www.reddit.com/r/ItalyInformatica/ | launch (IT) | Italian tech sub; check the self-promo rule first |
+| r/CasualIT (~120k) | https://www.reddit.com/r/CasualIT/ | testers (IT) | casual Italian sub; ask for testers as a person, not an ad |
+| Pendragon (Discord, ~1.8k, IT) | https://discord.com/servers/pendragon-1257744295167918211 | testers + launch | anime, manga, series, films, games |
+| Viridia (Discord, ~1.5k, IT) | https://discord.com/servers/viridia-1436137548958138442 | testers + launch | games, anime, manga, films, series |
+| Disboard — Italian servers | https://disboard.org/it/servers?fl=it | more IT servers | filter by anime / serie tv; ask the mods or use #self-promo |
+| friends, family, colleagues, WhatsApp/Telegram groups | — | testers | the most reliable: they stay the 14 days |
+| r/anime, r/manga, r/books, r/television | — | — | no self-promotion: only in their weekly/monthly threads |
+
+No English Discord server for tester swaps could be verified: Reddit is the
+channel for that.
