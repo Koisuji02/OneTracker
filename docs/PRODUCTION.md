@@ -203,8 +203,9 @@ restricts in-app donation links for non-charities).
 
 - [ ] **One Android OAuth client per signing certificate.** A Google Cloud
       Android client holds package name + exactly ONE SHA-1 (unlike Firebase,
-      where you pile fingerprints onto one app), so `com.onetracker.app` needs
-      one client per key. The app never names an Android client id — it always
+      where you pile fingerprints onto one app), so the Android package —
+      `io.github.koisuji02.onetracker` since 1.0.49 (`com.onetracker.app` was
+      taken on Play) — needs one client per key. The app never names an Android client id — it always
       passes the WEB one and Google matches the Android client implicitly by
       package + SHA-1 — so adding clients needs no app change.
       - debug (local builds): `82:C9:0E:82:FE:4D:54:A7:62:69:58:12:C8:8A:86:4C:B4:55:FE:10`

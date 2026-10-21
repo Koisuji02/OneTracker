@@ -16,11 +16,13 @@ android {
     namespace "com.onetracker.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.onetracker.app"
+        // the Play Store id (com.onetracker.app was already taken on Play);
+        // the Java namespace above stays, iOS keeps its own bundle id
+        applicationId "io.github.koisuji02.onetracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 48
-        versionName "1.0.48"
+        versionCode 49
+        versionName "1.0.49"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
