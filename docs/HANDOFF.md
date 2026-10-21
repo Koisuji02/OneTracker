@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.47** (versionCode 47) — `android/app/build.gradle` is the single source |
+| Version | **1.0.48** (versionCode 48) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.47/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.47 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.48/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.48 handed over, no feedback yet** |
 
 ## 2. What has been done (in order)
 
@@ -112,6 +112,16 @@ and About remain.
 key), so the key check always said "offline": it now goes through the gateway with
 `X-OT-Key` + `X-OT-Verify`, which skips the shared cache and answers 401 for a refused
 key (works on the web too).
+
+**1.0.48 (2026-10-21) — security pass before the store.** No secret in the public repo
+or its history; Android: allowBackup=false, INTERNET only, release WebView not
+debuggable; iOS: no ATS exceptions, PrivacyInfo.xcprivacy present. Fixed: Capacitor
+7.6.7 → 7.6.9 (critical advisory: remote content at the app origin via the HTTP proxy
+path) and react-router-dom 7.18.4 (`npm audit --omit=dev` = 0). Web: `public/_headers`
+adds a CSP (scripts only from the app + Google's sign-in), no framing, nosniff,
+referrer policy, permissions policy, HSTS — checked live, no CSP violations. Seen the
+same day: AniList disabled its API ("severe stability issues") and MangaDex was in
+maintenance (503) — external outages, manga pages fail until they're back.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its
