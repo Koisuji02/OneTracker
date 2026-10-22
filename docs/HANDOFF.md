@@ -177,11 +177,16 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
      after 7 days and only listed test users can sign in). Non-sensitive scopes only →
      no review, no 100-user cap.
 2. **Play Store** ($25 once):
+   - **Status 2026-10-22**: account, app (`io.github.koisuji02.onetracker`), listing, app
+     content and Data safety done; **internal test live with 1.0.50**, installed on the
+     user's phone from Play, Google sign-in works (Play App Signing client created).
+     Next: the closed test (Google Group, all countries, then the review) and the 12
+     testers (`docs/LAUNCH_POSTS.md`).
    - developer account (identity check), create the app (free).
    - store listing: icon 512², feature graphic 1024×500, phone screenshots, short/long
      description (Claude can write the texts IT/EN and make the graphics from the logo),
      privacy URL `/privacy`, content rating questionnaire, target audience 13+, **Data
-     safety: no data collected, none shared**.
+     safety: in-app search history, collected, not shared** (STORE_LISTING §6).
    - **closed test with ≥12 testers for 14 consecutive days** (the long pole: start it as
      soon as the account exists), uploading the latest `builds/<v>/OneTracker-<v>-release.aab`.
    - after the upload: add the **Play App Signing SHA-1** (Play Console → App integrity)
