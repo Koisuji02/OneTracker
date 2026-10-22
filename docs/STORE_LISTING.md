@@ -150,6 +150,7 @@ Data and images from TMDB, IGDB, HowLongToBeat, AniList, MangaDex, Open Library,
 |---|---|
 | Privacy policy | the URL above |
 | Ads | **No**, the app contains no ads |
+| Advertising ID | **No** (from 1.0.51 the manifest has no `AD_ID` permission: Facebook's SDK is off, see `capacitor.config.ts`) |
 | App access | **All functionality is available without special access** (Google sign-in is optional and only enables the Drive backup; the Comic Vine and OMDb keys only add western comics and extra ratings) |
 | Content rating | see §5 |
 | Target audience | **13+** only (13–15, 16–17, 18+). Not for children: it avoids the Families policy, and the catalogue includes titles for adults |

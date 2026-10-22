@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.50** (versionCode 50) — `android/app/build.gradle` is the single source |
+| Version | **1.0.51** (versionCode 51) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.50/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 handed over, no feedback yet** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.51/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.51 handed over** |
 
 ## 2. What has been done (in order)
 
@@ -134,6 +134,14 @@ MPL-2.0 (LICENSE).
 **1.0.50 (2026-10-22) — minSdk 24.** Play's automatic protection (App integrity) needs
 minSdk 24 and refused the 1.0.49 bundle (minSdk 23): Android 7.0+ now
 (`android/variables.gradle`). Nothing else changed.
+
+**1.0.51 (2026-10-22) — no Facebook SDK on Android.** The social-login plugin bundled
+Facebook's SDK, which added `com.google.android.gms.permission.AD_ID` and the
+`ACCESS_ADSERVICES_*` permissions, so Play asked for the advertising-ID declaration.
+`capacitor.config.ts` → `plugins.SocialLogin.providers.facebook = false` (the plugin's
+`cap sync` hook turns it into `compileOnly`); the Play answer is now **No**. iOS still
+links the Facebook package through the plugin's `Package.swift` (unused, never
+initialised) — check it before the App Store privacy form.
 
 **Accounts and sync.** Google sign-in on Android (offline mode → refresh token minted by
 the gateway, so the Drive backup runs in the background forever), web (GIS) and iOS (its

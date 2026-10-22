@@ -14,6 +14,13 @@ const config: CapacitorConfig = {
     // (Android gets the system button, handled in App.tsx).
     allowsBackForwardNavigationGestures: true,
   },
+  plugins: {
+    // Google sign-in is the only provider used. Left on, the plugin bundles
+    // Facebook's SDK, which adds the advertising-ID permission (Play's AD_ID
+    // declaration) to the Android app. Read by the plugin's hook on `cap sync`;
+    // iOS links it through SPM regardless.
+    SocialLogin: { providers: { facebook: false } },
+  },
 };
 
 export default config;
