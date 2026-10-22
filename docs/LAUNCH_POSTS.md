@@ -4,8 +4,9 @@ Replace the placeholders before posting:
 
 - `[GROUP]` — the Google Group testers join (Play Console → Closed testing → Testers)
 - `[OPT_IN]` — the closed test's opt-in link (same page, "Join on the web")
-- `[DONATE]` — a donations page (Ko-fi or GitHub Sponsors), linked from posts and
-  the website, never from inside the app (Play's payments policy)
+- No donations for now: the launch posts only ask whether people want an iPhone
+  version. If enough do, a donations page (Ko-fi) pays the App Store's $99/year —
+  linked from posts and the website, never from inside the app (Play's payments policy)
 - Web version: https://onetracker.onetracker.workers.dev
 
 Read each community's rules first, use the flair they ask for, and answer the
@@ -64,7 +65,7 @@ When TV Time shut down in July I didn't want to lose years of history, so I buil
 
 It's on Android (Play Store: [OPT_IN] while in testing) and on the web: https://onetracker.onetracker.workers.dev
 
-iOS is built and ready, but publishing on the App Store costs $99/year. The app is and will stay free, so if people want it on iPhone, donations will pay for that: [DONATE]
+iOS is built and ready, but publishing on the App Store costs $99/year. The app is and will stay free: if you'd like it on iPhone, say so in the comments, and if enough people ask I'll find a way to cover it.
 
 I'm a solo dev: feedback and bug reports are very welcome.
 ```
@@ -87,7 +88,7 @@ Quando a luglio TV Time ha chiuso non volevo perdere anni di cronologia, così h
 
 È su Android (Play Store: [OPT_IN] durante il test) e sul web: https://onetracker.onetracker.workers.dev
 
-La versione iPhone è pronta, ma pubblicarla sull'App Store costa 99 € l'anno. L'app è e resterà gratuita: se volete portarla su iPhone, le donazioni serviranno a questo: [DONATE]
+La versione iPhone è pronta, ma pubblicarla sull'App Store costa 99 € l'anno. L'app è e resterà gratuita: se la vorreste su iPhone scrivetelo nei commenti, e se in tanti la chiedete troverò un modo per coprire il costo.
 
 Sono uno sviluppatore indipendente: feedback e segnalazioni di bug sono benvenuti!
 ```
