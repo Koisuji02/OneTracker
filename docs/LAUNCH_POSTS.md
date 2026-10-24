@@ -4,6 +4,11 @@ Replace the placeholders before posting:
 
 - `[GROUP]` — the Google Group testers join (Play Console → Closed testing → Testers)
 - `[OPT_IN]` — the closed test's opt-in link (same page, "Join on the web")
+
+Live since 2026-10-23: `[GROUP]` = https://groups.google.com/g/onetracker-testers,
+`[OPT_IN]` = https://play.google.com/apps/testing/io.github.koisuji02.onetracker
+(the Android link `…/store/apps/details?id=…` only works once someone has opted in).
+
 - No donations for now: the launch posts only ask whether people want an iPhone
   version. If enough do, a donations page (Ko-fi) pays the App Store's $99/year —
   linked from posts and the website, never from inside the app (Play's payments policy)
