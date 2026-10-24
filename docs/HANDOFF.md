@@ -189,8 +189,11 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
      content and Data safety done; **internal test live with 1.0.51**, installed on the
      user's phone from Play, Google sign-in + Drive work (Play App Signing client
      created). **Closed test (1.0.51, Google Group, all countries) sent for review on
-     2026-10-22.** Next: once approved, the group + opt-in links go into
-     `docs/LAUNCH_POSTS.md` and the 12+ testers are recruited.
+     2026-10-22**, approved 2026-10-23; **12 testers opted in on 2026-10-24** (Play's
+     first two production checks ticked). The 14 days run on their own: "Richiedi per
+     la produzione" unlocks around **2026-11-07** if the count never drops below 12.
+     Meanwhile: collect feedback, ship at least one update to the closed track, then
+     draft the answers to Play's production questions.
    - developer account (identity check), create the app (free).
    - store listing: icon 512², feature graphic 1024×500, phone screenshots, short/long
      description (Claude can write the texts IT/EN and make the graphics from the logo),
