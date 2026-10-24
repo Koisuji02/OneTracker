@@ -21,6 +21,7 @@ Map of the docs:
 - [docs/PRODUCTION.md](docs/PRODUCTION.md) — costs, limits, store checklist, iOS without a Mac
 - [docs/LOAD_TEST.md](docs/LOAD_TEST.md) — what each action costs, the load simulation (`scripts/stress/`) and its results
 - [docs/LAUNCH_POSTS.md](docs/LAUNCH_POSTS.md) — tester-recruiting and launch posts (IT/EN), where to post
+- [docs/TUTORIAL_PLAN.md](docs/TUTORIAL_PLAN.md) — the planned first-visit tutorials, Help page and README rewrite
 - [docs/STORE_LISTING.md](docs/STORE_LISTING.md) — Play listing texts IT/EN, console answers, how to regenerate the store images
 - [worker/README.md](worker/README.md) — the gateway: deploy, secrets, key pools, stale cache
 

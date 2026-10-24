@@ -219,6 +219,20 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
 
 ### 3b. Claude's next tasks
 
+**Next up (planned for 2026-10-25): first-visit tutorials + Help page + README** — a
+tester's request; the full plan is in [TUTORIAL_PLAN.md](TUTORIAL_PLAN.md) (driver.js,
+`tours.ts` + `useTour`, one tour per screen, widget preview + pin, `/help`, a
+user-first README). Ship it as 1.0.52 on the closed track.
+
+**After that: the learning rebuild.** The user wants to rebuild OneTracker from scratch
+in a **separate, didactic-only project**, incrementally, to understand every part.
+**The user writes all the code; Claude explains, gives the next step and reviews —
+never creates or edits files there on its own.** Plan the milestones with the user
+(e.g. Vite + React + TS → Tailwind and the theme → routing → Dexie → a provider API →
+the library pages → detail → episodes → Cronologia / recap → backup + Drive →
+Capacitor + the widget → the gateway Worker → iOS CI), using `docs/CODEBASE.md` as the
+map. It supersedes the file-by-file walkthrough below (item 4).
+
 0. **Play Store publication** — in progress (docs/STORE_LISTING.md). Once phones
    run 1.0.45: delete RAWG_KEY, OMDB_KEY, COMICVINE_KEY from the Worker (ask
    first); TMDB_KEY and IGDB_* stay.
