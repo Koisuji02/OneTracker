@@ -3,14 +3,15 @@
 //
 //   node scripts/store/youtube.mjs trailer it|en   -> builds/store/youtube/OneTracker-trailer-<lang>.webm
 //   node scripts/store/youtube.mjs art it|en       -> builds/store/youtube/banner-<lang>.png, avatar.png
+//   node scripts/store/youtube.mjs music          -> the soundtrack alone (WebM + WAV)
 //   node scripts/store/youtube.mjs preview en 2 7  -> stills at those seconds, to check a layout
 //
 // The trailer is motion design in a web page whose scenes are a pure function
 // of the time (`render(t)`): every frame is set, screenshotted and piped into
 // the ffmpeg Playwright already installs for its own screen recordings (VP8 in
 // WebM, which YouTube takes as is). The same frames every run, nothing to
-// download. No audio: add a track from YouTube Studio's Audio Library after
-// uploading.
+// download. The music is composed in code on the same cue sheet
+// (trailer-music.js), so the cuts land on the beat.
 import { chromium } from 'playwright'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
@@ -32,39 +33,35 @@ const FONT_EXT = url(resolve('node_modules/@fontsource-variable/figtree/files/fi
 
 const T = {
   en: {
-    tagline: 'Your shows, movies, books and games.<br><b>One app.</b>',
     words: ['Shows', 'Anime', 'Movies', 'Books', 'Manga', 'Comics', 'Games'],
     oneApp: 'One app.',
-    series: ['Pick up where <b>you left off.</b>', 'Tap ✓ and you’re on the next episode.'],
-    detail: ['Every episode, <b>every season.</b>', 'Mark it, rate it, add it to your favourites.'],
-    games: ['Your games, <b>with real hours.</b>', 'HowLongToBeat lengths and the time of every playthrough.'],
-    books: ['Books, manga and comics, <b>chapter by chapter.</b>', 'Always know exactly where you are.'],
-    month: ['Your month, <b>made to share.</b>', 'Your history month by month, and a recap ready for Instagram.'],
-    widget: ['Right from <b>your home screen.</b>', 'The Android widget: one tap on ✓, next episode.'],
+    series: 'Pick up where <b>you left off.</b>',
+    detail: 'Every episode, <b>every season.</b>',
+    games: 'Your games, <b>with real hours.</b>',
+    books: 'Books, manga and comics, <b>chapter by chapter.</b>',
+    month: 'Your month, <b>made to share.</b>',
+    widget: 'Right from <b>your home screen.</b>',
     themes: 'Your style, <b>your colours.</b>',
-    tvtime: ['Coming from <b>TV Time?</b>', 'Bring your whole history with you.'],
-    kinds: 'Shows | Anime | Movies | Books | Manga | Games',
-    pitch: 'Free | No ads | No account',
-    where: 'Android | Web',
-    soon: 'Coming soon to Google Play',
+    tvtime: 'Coming from <b>TV Time?</b>',
+    kinds: ['Shows', 'Anime', 'Movies', 'Books', 'Manga', 'Games'],
+    pitch: ['Free', 'No ads', 'No account'],
+    soon: 'Coming soon to',
     banner: 'Shows, movies, books and games. <b>One app.</b>',
   },
   it: {
-    tagline: 'Le tue serie, i film, i libri e i giochi.<br><b>Un’unica app.</b>',
     words: ['Serie', 'Anime', 'Film', 'Libri', 'Manga', 'Fumetti', 'Giochi'],
     oneApp: 'Un’unica app.',
-    series: ['Riprendi da dove <b>eri rimasto.</b>', 'Tocca ✓ e passi all’episodio dopo.'],
-    detail: ['Ogni episodio, <b>ogni stagione.</b>', 'Segna, vota e salva tra i preferiti.'],
-    games: ['I tuoi giochi, <b>con le ore vere.</b>', 'Durate da HowLongToBeat e il tempo di ogni partita.'],
-    books: ['Libri, manga e fumetti, <b>capitolo per capitolo.</b>', 'Sai sempre a che punto sei arrivato.'],
-    month: ['Il tuo mese, <b>da condividere.</b>', 'La cronologia mese per mese e un recap pronto per Instagram.'],
-    widget: ['Direttamente <b>dalla Home.</b>', 'Il widget Android: un tocco su ✓, episodio successivo.'],
+    series: 'Riprendi da dove <b>eri rimasto.</b>',
+    detail: 'Ogni episodio, <b>ogni stagione.</b>',
+    games: 'I tuoi giochi, <b>con le ore vere.</b>',
+    books: 'Libri, manga e fumetti, <b>capitolo per capitolo.</b>',
+    month: 'Il tuo mese, <b>da condividere.</b>',
+    widget: 'Direttamente <b>dalla Home.</b>',
     themes: 'Il tuo stile, <b>i tuoi colori.</b>',
-    tvtime: ['Arrivi da <b>TV Time?</b>', 'Porta con te tutta la tua cronologia.'],
-    kinds: 'Serie | Anime | Film | Libri | Manga | Giochi',
-    pitch: 'Gratis | Senza pubblicità | Senza account',
-    where: 'Android | Web',
-    soon: 'Presto su Google Play',
+    tvtime: 'Arrivi da <b>TV Time?</b>',
+    kinds: ['Serie', 'Anime', 'Film', 'Libri', 'Manga', 'Giochi'],
+    pitch: ['Gratis', 'Senza pubblicità', 'Senza account'],
+    soon: 'Presto su',
     banner: 'Serie, film, libri e giochi. <b>Un’unica app.</b>',
   },
 }[lang]
@@ -76,9 +73,8 @@ const CSS = `
 body { position: relative; overflow: hidden; background: #0b0b0e; font-family: Figtree, sans-serif; color: #f4f4f5; -webkit-font-smoothing: antialiased; }
 b { color: #ffd60a; font-weight: 900; }
 .el { position: absolute; will-change: transform, opacity; }
-.mark { width: 64px; height: 9px; background: #ffd60a; margin-bottom: 36px; }
-.h { font-size: 92px; line-height: 1.02; font-weight: 900; letter-spacing: -0.03em; text-wrap: balance; }
-.s { margin-top: 28px; font-size: 38px; line-height: 1.3; font-weight: 500; color: #a1a1aa; text-wrap: balance; }
+.h { font-size: 96px; line-height: 1.02; font-weight: 900; letter-spacing: -0.03em; text-wrap: balance; }
+.chips { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 40px; }
 .phone { position: absolute; left: 0; top: 0; width: 636px; background: #1b1b21; border-radius: 68px; padding: 14px; box-shadow: 0 0 0 2px #2c2c35, 0 40px 90px rgba(0,0,0,.6); transform-origin: 0 0; }
 .screen { border-radius: 54px; overflow: hidden; background: #000; position: relative; }
 .status { height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; font-size: 21px; font-weight: 700; position: relative; background: #000; }
@@ -103,10 +99,61 @@ function phone(shot, w, { light = false, overlay = false } = {}) {
     <div class="phone" style="transform:scale(${w / 636})"><div class="screen">${STATUS(light, overlay)}<img src="${raw(shot)}"></div></div></div>`
 }
 
-const text = ([h, s], align = 'left') =>
-  `<div style="width:780px;text-align:${align}"><div class="mark" style="${align === 'center' ? 'margin:0 auto 36px' : ''}"></div><div class="h">${h}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`
+/** A scene's title; the services behind it go under it as their own marks. */
+const title = (h, services = []) =>
+  `<div style="width:870px"><div class="h">${h}</div>${services.length ? `<div class="chips">${services.map((k) => MARKS[k]).join('')}</div>` : ''}</div>`
+
+// The services' marks, as the app draws them (RatingsBanners, About): their
+// colours and simplified logos, no image files.
+const chip = (bg, fg, inner) =>
+  `<span style="display:inline-flex;align-items:center;gap:14px;height:66px;padding:0 22px;border-radius:12px;background:${bg};color:${fg};border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 30px rgba(0,0,0,.45);font-size:27px;font-weight:800;white-space:nowrap">${inner}</span>`
+const word = (t) => `<span style="font-size:34px;font-weight:900;font-style:italic;letter-spacing:-0.02em">${t}</span>`
+const MARKS = {
+  tmdb: chip('linear-gradient(90deg,#90CEA1,#01B4E4)', '#0D253F', '<span style="font-size:32px;font-weight:900">TMDB</span>'),
+  imdb: chip('#F5C518', '#000', word('IMDb')),
+  rt: chip('#2A0A03', '#fff', `<svg viewBox="0 0 24 24" width="38" height="38"><circle cx="12" cy="13.5" r="8.5" fill="#FA320A" stroke="#fff" stroke-width="1.2"/><path d="M12 5.5 C10 3 7.5 3.5 7.5 3.5 c1 1.8 2.6 2.4 2.6 2.4 C7 5.6 5.8 7.2 5.8 7.2 c2.8 1 4.8-.3 6.2-.3 1.4 0 3.4 1.3 6.2.3 0 0-1.2-1.6-4.3-1.3 0 0 1.6-.6 2.6-2.4 0 0-2.5-.5-4.5 2z" fill="#00912D"/></svg>Rotten Tomatoes`),
+  metacritic: chip('#0F2B41', '#fff', `<svg viewBox="0 0 24 24" width="38" height="38"><defs><linearGradient id="mcg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#FFCC33"/><stop offset="50%" stop-color="#66CC33"/><stop offset="100%" stop-color="#00AEEF"/></linearGradient></defs><circle cx="12" cy="12" r="10" fill="url(#mcg)"/><text x="12" y="16.5" text-anchor="middle" font-size="13" font-weight="900" fill="#0F1B2A" font-family="Figtree">m</text></svg>Metacritic`),
+  mal: chip('#2E51A2', '#fff', `<svg viewBox="0 0 24 24" width="38" height="38"><rect width="24" height="24" rx="4" fill="#fff"/><text x="12" y="16" text-anchor="middle" font-size="9" font-weight="900" fill="#2E51A2" font-family="Figtree">MAL</text></svg>MyAnimeList`),
+  anilist: chip('#0B1622', '#fff', `<svg viewBox="0 0 24 24" width="38" height="38"><rect width="24" height="24" rx="5" fill="#02A9FF"/><path d="M13.4 5.5 h3.2 v10 H21 v3 h-7.6 z" fill="#fff"/><path d="M9.4 5.5 L4 18.5 h3.4 l.9-2.5 h3.4 l.9 2.5 H16 L10.9 5.5 z M9.2 13.2 l1-3 1 3 z" fill="#152232" opacity=".85"/></svg>AniList`),
+  mangadex: chip('#191A1C', '#fff', `<svg viewBox="0 0 24 24" width="38" height="38"><rect width="24" height="24" rx="5" fill="#fff"/><path d="M5 19 V9 l3-4 2.5 3.5 h3 L16 5 l3 4 v10 z" fill="#FF6740"/><circle cx="9.5" cy="13.5" r="1.3" fill="#fff"/><circle cx="14.5" cy="13.5" r="1.3" fill="#fff"/></svg>MangaDex`),
+  openlibrary: chip('#5B4636', '#fff', `<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 6 C10 4.5 7 4.5 4 5.5 v13 c3-1 6-1 8 .5 2-1.5 5-1.5 8-.5 v-13 c-3-1-6-1-8 .5 z"/><path d="M12 6 v13"/></svg>Open Library`),
+  comicvine: chip('#1F1F1F', '#fff', word('Comic Vine')),
+  igdb: chip('#2A1B57', '#fff', word('IGDB')),
+  hltb: chip('#12283C', '#5FA8E8', '<span style="font-size:29px;font-weight:900">HowLongToBeat</span>'),
+}
+
+/** Google Play's mark: the four-colour play triangle. */
+const PLAY = `<svg viewBox="0 0 100 110" width="58" height="64"><polygon points="12,6 55,55 12,104" fill="#4285F4"/><polygon points="12,6 68,40.3 55,55" fill="#34A853"/><polygon points="68,40.3 92,55 68,69.7 55,55" fill="#FBBC04"/><polygon points="55,55 68,69.7 12,104" fill="#EA4335"/></svg>`
 
 // ---------------------------------------------------------------- the trailer
+
+/**
+ * Each element: html, position, the window it lives in [in, out], how it
+ * enters (`from`: offset, scale, rotation it eases out of) and a slow `drift`
+ * over its life. Scenes are just elements sharing a window.
+ */
+const BEAT = 0.6
+const BAR = 4 * BEAT
+/** when each scene starts: two bars each, so every cut lands on a downbeat */
+const CUE = {
+  logoAt: 0.3,
+  nameAt: 1.2,
+  words: [0, 1, 2, 3, 4, 5, 6].map((i) => 2 * BAR + i * (BEAT / 2)),
+  hit: 3 * BAR,
+  scenes: [
+    { t: 4 * BAR, chord: 'Am', level: 1 },
+    { t: 6 * BAR, chord: 'F', level: 1 },
+    { t: 8 * BAR, chord: 'C', level: 2 },
+    { t: 10 * BAR, chord: 'G', level: 2 },
+    { t: 12 * BAR, chord: 'Am', level: 3 },
+    { t: 14 * BAR, chord: 'F', level: 3 },
+    { t: 16 * BAR, chord: 'C', level: 4 },
+    { t: 18 * BAR, chord: 'G', level: 0 },
+  ],
+  end: 20 * BAR,
+  duration: 23 * BAR,
+  bar: BAR,
+}
 
 /**
  * Each element: html, position, the window it lives in [in, out], how it
@@ -117,62 +164,64 @@ function scenes() {
   const els = []
   const add = (o) => els.push(o)
   const P = 412 // phone width: ~900 px tall in the 1080 frame
-  const scene = (t0, t1, left, right) => {
-    // left/right: { html, x, y, from, drift, delay }
-    for (const part of [left, right].flat().filter(Boolean)) {
-      add({ in: t0 + (part.delay ?? 0), out: t1, ...part })
-    }
+  const at = CUE.scenes.map((x) => x.t).concat(CUE.end)
+  const scene = (n, left, right) => {
+    for (const part of [left, right].flat().filter(Boolean)) add({ in: at[n] + (part.delay ?? 0), out: at[n + 1], ...part })
   }
+  const big = (txt, size, color = '#f4f4f5') =>
+    `<div style="width:1920px;text-align:center;font-size:${size}px;font-weight:900;letter-spacing:-0.035em;color:${color}">${txt}</div>`
 
   // 0 — the logo
-  add({ html: `<img src="${LOGO}" style="width:220px;height:220px;border-radius:44px;box-shadow:0 0 0 3px #2c2c35,0 30px 80px rgba(255,214,10,.18)">`, x: 850, y: 250, in: 0.2, out: 3.4, from: { s: 0.6 }, enter: 0.7 })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:120px;font-weight:900;letter-spacing:-0.035em">OneTracker</div>`, x: 0, y: 520, in: 0.8, out: 3.4, from: { y: 50 } })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:44px;font-weight:600;color:#a1a1aa;line-height:1.3">${T.tagline}</div>`, x: 0, y: 690, in: 1.4, out: 3.4, from: { y: 30 } })
+  add({ html: `<img src="${LOGO}" style="width:220px;height:220px;border-radius:44px;box-shadow:0 0 0 3px #2c2c35,0 30px 80px rgba(255,214,10,.18)">`, x: 850, y: 300, in: CUE.logoAt, out: CUE.words[0], from: { s: 0.6 }, enter: 0.9 })
+  add({ html: big('OneTracker', 120), x: 0, y: 580, in: CUE.nameAt, out: CUE.words[0], from: { y: 50 } })
 
-  // 1 — what it tracks, one word at a time
+  // 1 — what it tracks, one word per eighth note, then the hit
   T.words.forEach((w, i) => {
-    const t0 = 3.4 + i * 0.45
-    add({ html: `<div style="width:1920px;text-align:center;font-size:220px;font-weight:900;letter-spacing:-0.04em">${w}</div>`, x: 0, y: 380, in: t0, out: t0 + 0.45, from: { s: 1.18 }, enter: 0.25, cut: true })
+    add({ html: big(w, 220), x: 0, y: 380, in: CUE.words[i], out: i < 6 ? CUE.words[i + 1] : CUE.hit, from: { s: 1.18 }, enter: 0.25, cut: true })
   })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:220px;font-weight:900;letter-spacing:-0.04em;color:#ffd60a">${T.oneApp}</div>`, x: 0, y: 380, in: 6.55, out: 7.6, from: { s: 0.85 }, enter: 0.3 })
+  add({ html: big(T.oneApp, 220, '#ffd60a'), x: 0, y: 380, in: CUE.hit, out: at[0], from: { s: 0.85 }, enter: 0.3 })
 
-  // 2 — Continue
-  scene(7.6, 12.0, { html: text(T.series), x: 150, y: 330, from: { x: -60 }, delay: 0.25 }, { html: phone('01-series', P), x: 1180, y: 90, from: { y: 260, r: 6 }, drift: { y: -30 } })
-  // 3 — a show's page, then its episodes
-  scene(12.0, 16.4, [
-    { html: phone('05-detail', P), x: 170, y: 90, from: { y: 260, r: -5 }, drift: { y: -24 } },
-    { html: phone('05b-detail-episodes', P), x: 470, y: 150, from: { x: 220, r: 6 }, drift: { y: -36 }, delay: 0.7, z: 2, rot: 4 },
-  ], { html: text(T.detail), x: 1000, y: 340, from: { x: 60 }, delay: 0.25 })
-  // 4 — games
-  scene(16.4, 20.6, { html: text(T.games), x: 150, y: 330, from: { x: -60 }, delay: 0.25 }, { html: phone('06-detail-game', P), x: 1180, y: 90, from: { y: 260, r: 6 }, drift: { y: -30 } })
-  // 5 — books
-  scene(20.6, 24.8, { html: phone('03-books', P), x: 320, y: 90, from: { y: 260, r: -6 }, drift: { y: -30 } }, { html: text(T.books), x: 1000, y: 330, from: { x: 60 }, delay: 0.25 })
-  // 6 — the month: history, then the recap story on top
-  scene(24.8, 29.6, { html: text(T.month), x: 150, y: 330, from: { x: -60 }, delay: 0.25 }, [
-    { html: phone('08-history', P), x: 1010, y: 90, from: { y: 260, r: 5 }, drift: { y: -24 } },
-    { html: phone('11-recap-1', P), x: 1370, y: 140, from: { x: 240, r: 10 }, drift: { y: -36 }, delay: 0.8, z: 2, rot: 5 },
+  const left = (h, svc, y = 380) => ({ html: title(h, svc), x: 150, y, from: { x: -60 }, delay: BEAT / 2 })
+  const right = (h, svc, y = 380) => ({ html: title(h, svc), x: 1000, y, from: { x: 60 }, delay: BEAT / 2 })
+  const rising = (shot, x, r, extra = {}) => ({ html: phone(shot, P), x, y: 90, from: { y: 260, r }, drift: { y: -30 }, ...extra })
+
+  scene(0, left(T.series, ['tmdb', 'imdb', 'rt', 'metacritic'], 340), rising('01-series', 1180, 6))
+  scene(1, [
+    rising('05-detail', 170, -5),
+    { ...rising('05b-detail-episodes', 470, 6), y: 150, from: { x: 220, r: 6 }, drift: { y: -36 }, delay: 2 * BEAT, z: 2, rot: 4 },
+  ], right(T.detail, ['tmdb', 'anilist', 'mal'], 360))
+  scene(2, left(T.games, ['igdb', 'hltb'], 360), rising('06-detail-game', 1180, 6))
+  scene(3, rising('03-books', 320, -6), right(T.books, ['openlibrary', 'mangadex', 'comicvine'], 300))
+  scene(4, left(T.month, [], 420), [
+    rising('08-history', 1010, 5),
+    { ...rising('11-recap-1', 1370, 10), y: 140, from: { x: 240, r: 10 }, drift: { y: -36 }, delay: 2 * BEAT, z: 2, rot: 5 },
   ])
-  // 7 — the widget
-  scene(29.6, 34.0, { html: text(T.widget), x: 150, y: 330, from: { x: -60 }, delay: 0.25 }, { html: phone('14-widget-home', 400, { overlay: true }), x: 1190, y: 80, from: { y: 260, r: 6 }, drift: { y: -26 } })
-  // 8 — themes: four phones rising one after the other
-  add({ html: `<div style="width:1920px;text-align:center"><div class="h">${T.themes}</div></div>`, x: 0, y: 70, in: 34.0, out: 38.6, from: { y: -40 } })
+  scene(5, left(T.widget, [], 420), { html: phone('14-widget-home', 400, { overlay: true }), x: 1190, y: 80, from: { y: 260, r: 6 }, drift: { y: -26 } })
+  // themes: four phones rising one per eighth note
+  add({ html: `<div style="width:1920px;text-align:center"><div class="h">${T.themes}</div></div>`, x: 0, y: 70, in: at[6], out: at[7], from: { y: -40 } })
   ;['12-theme-amoled-blue', '12-theme-light', '12-theme-amoled-pink', '12-theme-amoled-green'].forEach((shot, i) => {
-    add({ html: phone(shot, 330, { light: shot === '12-theme-light' }), x: 240 + i * 370, y: 250, in: 34.25 + i * 0.18, out: 38.6, from: { y: 420 }, drift: { y: -20 } })
+    add({ html: phone(shot, 330, { light: shot === '12-theme-light' }), x: 240 + i * 370, y: 250, in: at[6] + BEAT / 2 + (i * BEAT) / 2, out: at[7], from: { y: 420 }, drift: { y: -20 } })
   })
-  // 9 — TV Time
-  add({ html: `<div style="width:1920px;text-align:center;font-size:140px;font-weight:900;letter-spacing:-0.035em">${T.tvtime[0]}</div>`, x: 0, y: 360, in: 38.6, out: 42.2, from: { s: 0.9 } })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:52px;font-weight:600;color:#a1a1aa">${T.tvtime[1]}</div>`, x: 0, y: 560, in: 39.3, out: 42.2, from: { y: 30 } })
-  // 10 — the end card
-  add({ html: `<img src="${LOGO}" style="width:170px;height:170px;border-radius:34px;box-shadow:0 0 0 3px #2c2c35">`, x: 875, y: 150, in: 42.2, out: 48.0, from: { s: 0.7 }, exit: 0.8 })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:110px;font-weight:900;letter-spacing:-0.035em">OneTracker</div>`, x: 0, y: 350, in: 42.5, out: 48.0, from: { y: 40 }, exit: 0.8 })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:40px;font-weight:700;color:#ffd60a">${T.kinds}</div>`, x: 0, y: 505, in: 42.9, out: 48.0, from: { y: 30 }, exit: 0.8 })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:40px;font-weight:600;color:#a1a1aa">${T.pitch}</div>`, x: 0, y: 580, in: 43.2, out: 48.0, from: { y: 30 }, exit: 0.8 })
-  add({ html: `<div style="width:1920px;text-align:center"><span style="display:inline-block;padding:22px 44px;border-radius:14px;background:#ffd60a;color:#000;font-size:40px;font-weight:900">${T.soon}</span></div>`, x: 0, y: 700, in: 43.6, out: 48.0, from: { y: 30 }, exit: 0.8 })
-  add({ html: `<div style="width:1920px;text-align:center;font-size:34px;font-weight:600;color:#a1a1aa">${T.where} | onetracker.onetracker.workers.dev</div>`, x: 0, y: 850, in: 43.9, out: 48.0, from: { y: 30 }, exit: 0.8 })
+  // TV Time, over the breakdown
+  add({ html: big(T.tvtime, 150), x: 0, y: 440, in: at[7], out: at[8], from: { s: 0.9 }, enter: 0.9 })
+
+  // the end card, on the last hit
+  const E = CUE.end
+  const row = (items, size, color, weight = 800) =>
+    `<div style="width:1920px;display:flex;justify-content:center;gap:42px;font-size:${size}px;font-weight:${weight};color:${color}">${items.map((x) => `<span>${x}</span>`).join('')}</div>`
+  const ends = (o) => add({ out: CUE.duration, exit: 1.2, ...o })
+  ends({ html: `<img src="${LOGO}" style="width:170px;height:170px;border-radius:34px;box-shadow:0 0 0 3px #2c2c35">`, x: 875, y: 150, in: E, from: { s: 0.7 } })
+  ends({ html: big('OneTracker', 110), x: 0, y: 350, in: E + BEAT / 2, from: { y: 40 } })
+  ends({ html: row(T.kinds, 40, '#ffd60a'), x: 0, y: 505, in: E + BEAT, from: { y: 30 } })
+  ends({ html: row(T.pitch, 36, '#f4f4f5', 600), x: 0, y: 580, in: E + 2 * BEAT, from: { y: 30 } })
+  ends({
+    html: `<div style="width:1920px;text-align:center"><span style="display:inline-flex;align-items:center;gap:22px;padding:22px 40px;border-radius:16px;background:#000;border:2px solid #3a3a44;font-size:40px;font-weight:700">${T.soon}${PLAY}<span style="font-weight:800">Google Play</span></span></div>`,
+    x: 0, y: 700, in: E + 3 * BEAT, from: { y: 30 },
+  })
   return els
 }
 
-const DURATION = 48
+const DURATION = CUE.duration
 const FPS = 30
 
 function trailerPage() {
@@ -196,7 +245,7 @@ function trailerPage() {
     const g = document.getElementById('glow')
     g.style.transform = 'translate(' + (260 + 420 * Math.sin(t / 7)) + 'px,' + (-300 + 160 * Math.cos(t / 5)) + 'px)'
     // fade from black at the start, to black at the end
-    document.getElementById('fade').style.opacity = String(Math.max(1 - t / 0.4, clamp((t - (${DURATION} - 0.7)) / 0.7)))
+    document.getElementById('fade').style.opacity = String(Math.max(1 - t / 0.4, clamp((t - (${DURATION} - 1)) / 1)))
     SPEC.forEach((e, i) => {
       const n = nodes[i]
       if (t < e.in || t >= e.out) { n.style.visibility = 'hidden'; return }
@@ -250,7 +299,7 @@ async function trailer() {
     await Promise.all([...document.images].map((i) => (i.complete ? null : new Promise((r) => (i.onload = i.onerror = r)))))
   })
 
-  const file = `${OUT}/OneTracker-trailer-${lang}.webm`
+  const silent = `${TMP}/trailer-${lang}-video.webm`
   // JPEG frames in, VP8 out: constrained quality at a generous bitrate, so text
   // and covers stay sharp before YouTube re-encodes it
   const ff = spawn(playwrightFfmpeg(), [
@@ -259,11 +308,11 @@ async function trailer() {
     '-f', 'image2pipe', '-framerate', String(FPS), '-c:v', 'mjpeg', '-i', 'pipe:0',
     '-c:v', 'libvpx', '-b:v', '20M', '-crf', '6', '-qmin', '0', '-qmax', '28',
     '-deadline', 'good', '-cpu-used', '1', '-auto-alt-ref', '0', '-g', String(FPS * 2),
-    '-pix_fmt', 'yuv420p', file,
+    '-pix_fmt', 'yuv420p', silent,
   ], { stdio: ['pipe', 'inherit', 'inherit'] })
   const done = new Promise((ok, fail) => ff.on('close', (code) => (code === 0 ? ok() : fail(new Error(`ffmpeg exit ${code}`)))))
 
-  const total = DURATION * FPS
+  const total = Math.round(DURATION * FPS)
   for (let i = 0; i < total; i++) {
     await page.evaluate((t) => window.render(t), i / FPS)
     const frame = await page.screenshot({ type: 'jpeg', quality: 95 })
@@ -273,10 +322,93 @@ async function trailer() {
   ff.stdin.end()
   await done
   // a still of the end card, handy as the YouTube thumbnail
-  await page.evaluate((t) => window.render(t), 45.5)
+  await page.evaluate((t) => window.render(t), CUE.end + 3)
   await page.screenshot({ path: `${OUT}/thumbnail-${lang}.png` })
   await browser.close()
-  console.log(`${file} (${DURATION}s, ${FPS} fps)`)
+
+  // the soundtrack (the same for both languages), then pictures + sound, both
+  // streams copied as they are
+  const sound = `${OUT}/OneTracker-trailer-music.webm`
+  if (!existsSync(sound)) await music()
+  const file = `${OUT}/OneTracker-trailer-${lang}.webm`
+  await run(['-y', '-loglevel', 'error', '-i', silent, '-i', sound, '-map', '0:v:0', '-map', '1:a:0', '-c', 'copy', file])
+  console.log(`${file} (${DURATION.toFixed(1)}s, ${FPS} fps, with music)`)
+}
+
+const run = (args) =>
+  new Promise((ok, fail) =>
+    spawn(playwrightFfmpeg(), args, { stdio: 'inherit' }).on('close', (code) => (code === 0 ? ok() : fail(new Error(`ffmpeg exit ${code}`)))),
+  )
+
+/**
+ * The soundtrack (trailer-music.js): rendered offline on the trailer's cue
+ * sheet, encoded to Opus with WebCodecs and muxed into WebM (webm-muxer), plus
+ * a WAV of the same take.
+ */
+async function music() {
+  const TMP = resolve('builds/store/compose')
+  mkdirSync(TMP, { recursive: true })
+  const blank = `${TMP}/music.html`
+  // a file:// page is a secure context: WebCodecs needs one
+  writeFileSync(blank, '<!doctype html><meta charset="utf-8"><title>music</title>')
+  const browser = await chromium.launch()
+  const page = await browser.newPage()
+  await page.goto(url(blank))
+  await page.addScriptTag({ path: resolve('node_modules/webm-muxer/build/webm-muxer.js') })
+  await page.addScriptTag({ path: resolve('scripts/store/trailer-music.js') })
+  const sizes = await page.evaluate(async (cue) => {
+    const buf = await window.composeTrailerMusic(cue)
+    const SR = buf.sampleRate
+    const L = buf.getChannelData(0)
+    const R = buf.getChannelData(1)
+    // Opus in WebM, for the video
+    const { Muxer, ArrayBufferTarget } = window.WebMMuxer
+    const muxer = new Muxer({ target: new ArrayBufferTarget(), audio: { codec: 'A_OPUS', numberOfChannels: 2, sampleRate: SR } })
+    let failure = null
+    const enc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => (failure = String(e)) })
+    enc.configure({ codec: 'opus', sampleRate: SR, numberOfChannels: 2, bitrate: 192000 })
+    const STEP = 4800
+    for (let i = 0; i < buf.length; i += STEP) {
+      const n = Math.min(STEP, buf.length - i)
+      const data = new Float32Array(n * 2)
+      data.set(L.subarray(i, i + n), 0)
+      data.set(R.subarray(i, i + n), n)
+      enc.encode(new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((i / SR) * 1e6), data }))
+    }
+    await enc.flush()
+    if (failure) throw new Error(failure)
+    muxer.finalize()
+    window.webm = new Uint8Array(muxer.target.buffer)
+    // 16-bit WAV, for anything else
+    const wav = new DataView(new ArrayBuffer(44 + buf.length * 4))
+    const str = (o, t) => [...t].forEach((c, k) => wav.setUint8(o + k, c.charCodeAt(0)))
+    str(0, 'RIFF'); wav.setUint32(4, 36 + buf.length * 4, true); str(8, 'WAVEfmt ')
+    wav.setUint32(16, 16, true); wav.setUint16(20, 1, true); wav.setUint16(22, 2, true)
+    wav.setUint32(24, SR, true); wav.setUint32(28, SR * 4, true); wav.setUint16(32, 4, true); wav.setUint16(34, 16, true)
+    str(36, 'data'); wav.setUint32(40, buf.length * 4, true)
+    for (let i = 0, o = 44; i < buf.length; i++, o += 4) {
+      wav.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true)
+      wav.setInt16(o + 2, Math.max(-1, Math.min(1, R[i])) * 32767, true)
+    }
+    window.wav = new Uint8Array(wav.buffer)
+    window.slice = (name, from, to) =>
+      new Promise((r) => {
+        const fr = new FileReader()
+        fr.onload = () => r(String(fr.result).split(',')[1])
+        fr.readAsDataURL(new Blob([window[name].subarray(from, to)]))
+      })
+    return { webm: window.webm.length, wav: window.wav.length }
+  }, CUE)
+  for (const [name, ext] of [['webm', 'webm'], ['wav', 'wav']]) {
+    const parts = []
+    const STEP = 4 * 1024 * 1024
+    for (let from = 0; from < sizes[name]; from += STEP) {
+      parts.push(Buffer.from(await page.evaluate(([n, a, b]) => window.slice(n, a, b), [name, from, Math.min(sizes[name], from + STEP)]), 'base64'))
+    }
+    writeFileSync(`${OUT}/OneTracker-trailer-music.${ext}`, Buffer.concat(parts))
+  }
+  await browser.close()
+  console.log(`${OUT}/OneTracker-trailer-music.webm / .wav`)
 }
 
 // ---------------------------------------------------------- the channel art
@@ -346,6 +478,7 @@ async function preview(times) {
 }
 
 if (mode === 'trailer') await trailer()
+else if (mode === 'music') await music()
 else if (mode === 'art') await art()
 else if (mode === 'preview') await preview(process.argv.slice(4).map(Number))
-else throw new Error('usage: youtube.mjs trailer|art|preview it|en [seconds…]')
+else throw new Error('usage: youtube.mjs trailer|music|art|preview it|en [seconds…]')

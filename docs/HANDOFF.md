@@ -238,9 +238,10 @@ dates unchanged) and the three branches force-pushed; GitHub now lists one contr
 Local backups of the old history: tags `backup/pre-rewrite/<branch>` and
 `refs/original/` (never pushed; delete when no longer wanted).
 
-**YouTube material (2026-10-25).** `scripts/store/youtube.mjs`: a 48 s trailer (motion
+**YouTube material (2026-10-25).** `scripts/store/youtube.mjs`: a 55 s trailer (motion
 design in a page, recorded frame by frame, piped into Playwright's own ffmpeg → 1080p
-VP8 WebM, no audio — music from YouTube Studio's Audio Library), the channel banner
+VP8 WebM; titles + service marks only; original music composed in code on the same
+100 BPM cue sheet, `trailer-music.js`, Opus via WebCodecs + webm-muxer), the channel banner
 (2560×1440, logo in the 1546×423 safe area, English for the channel) and the 800×800
 channel picture, all in `builds/store/youtube/`.
 
