@@ -17,7 +17,13 @@ node scripts/store/shoot.mjs shots en
 node scripts/store/compose.mjs it             # Play images  -> builds/store/play/<lang>/
 node scripts/store/compose.mjs en
 node scripts/store/docs-images.mjs            # README images -> docs/img/, widget preview -> public/help/
+node scripts/store/youtube.mjs art en         # YouTube banner 2560×1440 + channel picture -> builds/store/youtube/
+node scripts/store/youtube.mjs trailer en     # 48 s trailer, 1080p WebM (motion design recorded frame by frame)
 ```
+
+YouTube: banner safe area is the central 1546×423 (logo and name sit there);
+the trailer has no audio on purpose — add a track from YouTube Studio → Editor →
+Audio (the free Audio Library) after uploading.
 
 | Asset | File | Play requirement |
 |---|---|---|

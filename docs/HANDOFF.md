@@ -238,6 +238,12 @@ dates unchanged) and the three branches force-pushed; GitHub now lists one contr
 Local backups of the old history: tags `backup/pre-rewrite/<branch>` and
 `refs/original/` (never pushed; delete when no longer wanted).
 
+**YouTube material (2026-10-25).** `scripts/store/youtube.mjs`: a 48 s trailer (motion
+design in a page, recorded frame by frame, piped into Playwright's own ffmpeg → 1080p
+VP8 WebM, no audio — music from YouTube Studio's Audio Library), the channel banner
+(2560×1440, logo in the 1546×423 safe area, English for the channel) and the 800×800
+channel picture, all in `builds/store/youtube/`.
+
 **Next: the learning rebuild.** The user wants to rebuild OneTracker from scratch
 in a **separate, didactic-only project**, incrementally, to understand every part.
 **The user writes all the code; Claude explains, gives the next step and reviews —
