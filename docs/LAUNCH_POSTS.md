@@ -120,3 +120,123 @@ Sono uno sviluppatore indipendente: feedback e segnalazioni di bug sono benvenut
 
 No English Discord server for tester swaps could be verified: Reddit is the
 channel for that.
+
+---
+
+## 5. YouTube — the trailer (EN and IT, two uploads)
+
+Files in `builds/store/youtube/` (from `scripts/store/youtube.mjs`):
+`OneTracker-trailer-en.webm` / `-it.webm`, thumbnail `thumbnail-banner-en.jpg` /
+`-it.jpg` (the channel banner at 1280×720 — custom thumbnails need a verified
+channel: YouTube Studio → Settings → Channel → Feature eligibility, phone check).
+
+### English
+
+**Title**
+
+```
+OneTracker: track shows, anime, movies, books and games in one app (Trailer)
+```
+
+**Description**
+
+```
+OneTracker is a free app to keep track of everything you watch, read and play: TV shows, anime, movies, books, manga, comics and video games, all in one place.
+
+The app is in testing on Android right now. Want to try it before launch?
+1. Join the testers group: https://groups.google.com/g/onetracker-testers
+2. Become a tester and install it from Google Play: https://play.google.com/apps/testing/io.github.koisuji02.onetracker
+Or try it straight away on the web: https://onetracker.onetracker.workers.dev
+
+What it does
+– Pick up where you left off: tap ✓ and you're on the next episode
+– Every episode and every season, with scores from the main rating sites
+– Games with real lengths from HowLongToBeat and the hours of each playthrough
+– Books, manga and comics, chapter by chapter
+– Your history month by month, and a monthly recap ready to share
+– An Android home screen widget, AMOLED and light themes
+– Coming from TV Time? Import your export and keep your whole history
+
+Free, no ads, no account needed. Your library stays on your phone, with an optional backup to your own Google Drive.
+
+Open source (MPL-2.0): https://github.com/Koisuji02/OneTracker
+
+Data and images from TMDB, IGDB, HowLongToBeat, AniList, MyAnimeList, MangaDex, Open Library, Comic Vine and OMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.
+Music: original, composed for this trailer.
+
+#OneTracker #TVTimeAlternative #AndroidApp
+```
+
+**Tags**
+
+```
+OneTracker, TV Time alternative, TV Time, TV show tracker, series tracker, anime tracker, movie tracker, book tracker, manga tracker, video game tracker, game backlog, watchlist app, media tracker app, episode tracker, HowLongToBeat, Android app, free app, open source app
+```
+
+### Italiano
+
+**Titolo**
+
+```
+OneTracker: serie TV, anime, film, libri e giochi in un'unica app (Trailer)
+```
+
+**Descrizione**
+
+```
+OneTracker è un'app gratuita per tenere traccia di tutto quello che guardi, leggi e giochi: serie TV, anime, film, libri, manga, fumetti e videogiochi, in un unico posto.
+
+L'app è in fase di test su Android. Vuoi provarla prima dell'uscita?
+1. Entra nel gruppo dei tester: https://groups.google.com/g/onetracker-testers
+2. Diventa tester e installala da Google Play: https://play.google.com/apps/testing/io.github.koisuji02.onetracker
+Oppure provala subito dal browser: https://onetracker.onetracker.workers.dev
+
+Cosa fa
+– Riprendi da dove eri rimasto: tocchi ✓ e passi all'episodio dopo
+– Ogni episodio e ogni stagione, con i voti dei principali siti
+– Giochi con le durate di HowLongToBeat e le ore di ogni partita
+– Libri, manga e fumetti, capitolo per capitolo
+– La cronologia mese per mese e un recap mensile da condividere
+– Widget per la Home di Android, temi AMOLED e chiari
+– Arrivi da TV Time? Importi l'export e tieni tutta la tua cronologia
+
+Gratis, senza pubblicità, senza account obbligatorio. La libreria resta sul telefono, con backup facoltativo sul tuo Google Drive.
+
+Open source (MPL-2.0): https://github.com/Koisuji02/OneTracker
+
+Dati e immagini da TMDB, IGDB, HowLongToBeat, AniList, MyAnimeList, MangaDex, Open Library, Comic Vine e OMDb. This product uses the TMDB API but is not endorsed or certified by TMDB.
+Musica: originale, composta per questo trailer.
+
+#OneTracker #TVTime #AppAndroid
+```
+
+**Tag**
+
+```
+OneTracker, alternativa a TV Time, TV Time, app serie TV, tracker serie TV, app anime, app film, app libri, app manga, app videogiochi, backlog giochi, watchlist, tenere traccia serie TV, episodi visti, app Android, app gratis, open source
+```
+
+### Upload settings (both videos)
+
+| Setting | Value |
+|---|---|
+| Playlist | a new one, "OneTracker", with both videos |
+| Audience | **No, it's not made for kids** |
+| Age restriction | No |
+| Paid promotion | No (it's your own app, nobody paid for the video) |
+| Altered or synthetic content | **No** (real screens of the app, motion graphics) |
+| Automatic chapters / Featured places / Concepts | off (too short to need them) |
+| Video language | English / Italian, to match the video |
+| Caption certification | None |
+| License | Standard YouTube License |
+| Allow embedding | Yes |
+| Publish to subscriptions feed | Yes |
+| Category | **Science & Technology** |
+| Comments | On, "hold potentially inappropriate comments for review" |
+| Show like count | Yes |
+| End screen | optional: one "Subscribe" element in a top corner (the end card fills the centre) |
+| Cards | none |
+| Visibility | Public, or Scheduled (e.g. both at 18:00 the same day) |
+
+Once both are up, add a line at the end of each description pointing to the other
+one ("Versione italiana: <link>" / "English version: <link>").
