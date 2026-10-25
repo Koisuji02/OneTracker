@@ -1,7 +1,10 @@
 package com.onetracker.app;
 
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.os.Build;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -40,6 +43,26 @@ public class OneWidgetPlugin extends Plugin {
         }
         JSObject ret = new JSObject();
         ret.put("actions", actions);
+        call.resolve(ret);
+    }
+
+    /**
+     * "Add to Home screen" from Settings: the launcher shows its own sheet with
+     * the widget (Android 8+). pinned=false when it can't, so the app explains
+     * the long-press way instead.
+     */
+    @PluginMethod
+    public void requestPin(PluginCall call) {
+        boolean pinned = false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Context ctx = getContext();
+            AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+            if (mgr.isRequestPinAppWidgetSupported()) {
+                pinned = mgr.requestPinAppWidget(new ComponentName(ctx, OneWidgetProvider.class), null, null);
+            }
+        }
+        JSObject ret = new JSObject();
+        ret.put("pinned", pinned);
         call.resolve(ret);
     }
 }

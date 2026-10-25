@@ -20,6 +20,7 @@ import {
   setGameStatus,
 } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
 import { formatDate } from '../util'
@@ -127,6 +128,8 @@ export default function GamesPage() {
     [],
   )
 
+  useTour('games', items !== undefined)
+
   if (!items) return null
 
   const active = items.filter((i) => !i.archived)
@@ -156,7 +159,7 @@ export default function GamesPage() {
         }
       />
 
-      <section className="px-4">
+      <section data-tour="continue" className="px-4">
         <SectionTitle text={t('games.playing')} />
         {playing.length === 0 ? (
           <EmptyState icon={<Gamepad2 size={32} />} text={t('games.emptyPlaying')} />
@@ -169,7 +172,7 @@ export default function GamesPage() {
         )}
       </section>
 
-      <section className="mt-8 px-4">
+      <section data-tour="planned" className="mt-8 px-4">
         <SectionTitle text={t('games.toPlay')} />
         {backlog.length === 0 ? (
           <EmptyState icon={<Gamepad2 size={32} />} text={t('games.empty')} />
@@ -183,7 +186,7 @@ export default function GamesPage() {
       </section>
 
       {waiting.length > 0 && (
-        <section className="mt-8 px-4">
+        <section data-tour="waiting" className="mt-8 px-4">
           <SectionTitle text={t('common.waiting')} />
           {lay(
             waiting.map((item) => (

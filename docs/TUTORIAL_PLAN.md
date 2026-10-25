@@ -1,5 +1,10 @@
 # First-visit tutorials, Help page, README — plan
 
+> **Status: shipped in 1.0.52 (2026-10-25).** The code is the reference now —
+> `src/tours.ts` (steps per screen), `src/pages/HelpPage.tsx`, Settings → Widget /
+> Aiuto, `scripts/store/docs-images.mjs`. The `history` / `clash` /
+> `achievements` / `lists` one-step tours (phase 2) were not done.
+
 Tester feedback (2026-10-24): the first time the user opens each screen, explain it
 with a highlight on the thing being explained (series, books + the Comic Vine key,
 profile, settings + the widget with a preview, the detail page). Seen once, then

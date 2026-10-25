@@ -28,6 +28,8 @@ interface WidgetPlugin {
   update(opts: { data: string }): Promise<void>
   /** returns the ✓-taps queued while the app was closed, and clears them */
   drain(): Promise<{ actions: string[] }>
+  /** asks the launcher to place the widget (Android 8+); false = it can't */
+  requestPin(): Promise<{ pinned: boolean }>
 }
 const OneWidget = registerPlugin<WidgetPlugin>('OneWidget')
 
@@ -216,6 +218,20 @@ export async function syncWidget(): Promise<void> {
     await OneWidget.update({ data: JSON.stringify(payload) })
   } catch {
     // best-effort: also swallows the "not implemented" reject on web/older builds
+  }
+}
+
+/**
+ * "Aggiungi alla Home" (Settings → Widget): the launcher shows its own
+ * confirmation with the widget in it. False when the launcher can't pin
+ * (or off Android): the caller explains the long-press way instead.
+ */
+export async function pinWidget(): Promise<boolean> {
+  if (Capacitor.getPlatform() !== 'android') return false
+  try {
+    return (await OneWidget.requestPin()).pinned
+  } catch {
+    return false
   }
 }
 

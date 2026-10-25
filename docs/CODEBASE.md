@@ -92,9 +92,9 @@ every 10 minutes, and when the app goes to the background.
 |---|---|
 | `src/main.tsx` | Mounts React. Ten lines |
 | `src/App.tsx` | Routes (HashRouter), the bottom nav, and four invisible workers: `NetworkSync` (catch-up pass), `DriveAutoSync` (backup timer), the widget drain, and the Android back-button handler. Also mounts `MedalDefs` (the medals' shared gradients), `AchievementToaster` (the "achievement unlocked" pop-up) and `RecapLauncher` (the end-of-month recap) once for the whole app. The back handler asks `back.ts` first, so an open overlay closes instead of the page navigating |
-| `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, two animations |
+| `src/index.css` | Theme variables, the **radius scale** (tightened to 3/5/7/9/11 px — change corner rounding HERE, not at call sites), safe-area helpers, the animations, and the tutorials' popover (driver.js restyled with the theme tokens, class `ot-tour`) |
 | `src/themes.ts` | The theme presets, including the AMOLED family built by the `amoled()` helper. `applyTheme` writes the CSS variables on `<html>` |
-| `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Holds the user's OWN provider keys (`tmdbKey`, `igdbClientId/Secret`, `comicvineKey`, `omdbKey` — never in backups) and `dismissedGuides`; build-time `.env` values are defaults only for the gateway and Google client ids |
+| `src/settings.ts` | All preferences in one localStorage object, with a `useSettings()` hook. Holds the user's OWN provider keys (`tmdbKey`, `igdbClientId/Secret`, `comicvineKey`, `omdbKey` — never in backups) and `dismissedGuides`; build-time `.env` values are defaults only for the gateway and Google client ids. `seenTours` / `toursOff` are the tutorials' state (they travel in the backup) |
 | `src/keys.ts` | The keyed services. TMDB (Serie TV + Film) and IGDB (Giochi) are BUILT IN — the gateway's own keys behind its shared cache — and a user may add their own in Settings → Chiavi personali; Comic Vine (western comics, guide on Libri) and OMDb (optional ratings, suggested once in Settings) are the user's own. Link, colours, fields, `hasKey`, `serviceReady`, `guideDue` |
 | `src/i18n.ts` | Two flat dictionaries (en/it) and `useT()`. No interpolation by design: values are composed in JSX |
 | `src/net.ts` | Online/offline state in one place, so screens can degrade instead of erroring |
@@ -111,6 +111,7 @@ every 10 minutes, and when the app goes to the background.
 | `src/sync.ts` | The catch-up pass: refresh the items that can have changed (still airing, date arrived), fill in missing game lengths and low-res game art, run the one-off `BACKFILLS` keyed on the details-cache version (MangaDex readership, IGDB key-art backdrop + add-on links), then push the Drive backup. Bounded, throttled to 30 min, silent on failure |
 | `src/achievements.ts` | **The medagliere, derived.** A fixed taxonomy of media + tag rows (Anime \| Shōnen, Videogiochi \| Azione…) plus "feats" (marathons, late nights, ratings, clashes…), four medals each. `computeAchievements` rebuilds it from items + episodes + clashes, so it is retroactive by construction; the tag matching is language-blind (TMDB answers "Azione" or "Action" depending on when the title was fetched). Row names and fun grade names live here as `{ it, en }` pairs, like theme names. The only stored state is per-device: which medals the pop-up already announced and which the medagliere already showed |
 | `src/history.ts` | The month-by-month history and the end-of-month recap, DERIVED from timestamps already stored (episode `watchedAt`, movie/book `completedAt`, each game run's `at`), plus a game's play span (`playStartedAt` while it is being played, the run's `startedAt` once beaten) so a game shows up "in corso" in every month from its start to the month it is beaten in. `monthHistory()` builds a month, `monthRecap()` the story, `recapCandidate()` says which month's recap is due (the current one on its last day, otherwise the one just ended), `recapSeen`/`markRecapSeen` remember it per device. Known limit by design: an episode or a film keeps only its LATEST date, so a rewatch moves it to the rewatch's month |
+| `src/tours.ts` | **First-visit tutorials** (driver.js). `TOURS` lists the steps per screen; each points at a `data-tour="…"` anchor in the page and reads `tour.<id>.<text>.title/.body` from i18n. `useTour(id, ready)` runs a tour once per screen, after the data loaded and never over an open overlay; finished, closed or skipped it lands in `seenTours`. A step whose anchor isn't on screen is dropped (or becomes a centred card with its `fallback` text). `replayTour` / `replayAllTours` serve the Guide |
 | `src/back.ts` | Android back button for overlays: `useBackInterceptor(active, onBack)` makes the newest open overlay take the press instead of `nav(-1)` navigating the page underneath |
 | `src/clash.ts` | The favourites tournament: a knockout bracket with automatic byes, as immutable states (undo = pop the stack). Also the slot that keeps an unfinished clash alive across the back button |
 | `src/recapShare.ts` | Shares the month recap as ONE 1080×1920 image (Instagram-story size) drawn on a canvas: month on the theme colour, covers, tiles. Native: written to the cache dir and handed to `@capacitor/share` (only the file — no text, no link); web: Web Share API with a file, else a download |
@@ -181,7 +182,8 @@ every 10 minutes, and when the app goes to the background.
 | `ClashPage.tsx` | Clash home (`/clash`: pools, last champions, hall of fame, resume) and the duels + champion screen (`/clash/play`) |
 | `CatalogPage.tsx`, `FavoritesPage.tsx`, `ArchivedPage.tsx`, `OwnedPage.tsx`, `ToBuyPage.tsx` | Library grids over the same components, differing only in the filter |
 | `ListsPage.tsx`, `ListDetailPage.tsx` | User lists |
-| `SettingsPage.tsx` | Language, theme, layout, API keys, diagnostics, Google/Drive, TV Time import, export/clear |
+| `SettingsPage.tsx` | Language, theme, layout, extra sections, the widget (Android: preview + "Aggiungi alla Home"), API keys, diagnostics, Google/Drive, TV Time import, export/clear, Help (the Guide + the tutorials switch) |
+| `HelpPage.tsx` | `/help`, the Guide: one card per screen with "Mostra il tutorial" (replays that screen's tour), then the cross-screen topics (keys, backup, TV Time, the recap, the widget with its preview) and "Rivedi tutti i tutorial" |
 | `AboutPage.tsx` | Credits and the mandatory TMDB notice — a release requirement, not decoration |
 | `OnboardingPage.tsx` | First-run wizard |
 | `AvatarPage.tsx` | Avatar picker: every favourite grouped by media (there used to be a 40-cover cap that silently dropped the older ones), then the rest of the library a page at a time |
@@ -192,8 +194,9 @@ Android-only. `src/widget.ts` returns early on any other platform (`getPlatform(
 
 | File | What it is |
 |---|---|
-| `src/widget.ts` | Computes the same "Continue" list as the app, plus the theme colours, and pushes it to the native side. Also drains the ✓ taps queued while the app was closed |
-| `OneWidgetPlugin.java` | The Capacitor bridge: receives that JSON, stores it, refreshes the widgets |
+| `src/widget.ts` | Computes the same "Continue" list as the app, plus the theme colours, and pushes it to the native side. Also drains the ✓ taps queued while the app was closed, and `pinWidget()` asks the launcher to place the widget |
+| `OneWidgetPlugin.java` | The Capacitor bridge: receives that JSON, stores it, refreshes the widgets; `requestPin` = `AppWidgetManager.requestPinAppWidget` (Android 8+, false when the launcher can't) |
+| `public/help/widget-<lang>.webp` | The widget preview in Settings and the Guide, cut from the store's home-screen capture by `scripts/store/docs-images.mjs` |
 | `OneWidgetProvider.java` | Draws the widget with RemoteViews: rounded background, the media bar, the theme tints |
 | `OneWidgetService.java` | The list adapter. Reads the selected medium from SharedPreferences **on every refresh** — that is what lets a category switch rebind rows instead of rebuilding the ListView (which looked like a "pop") |
 | `OneWidgetActionReceiver.java` | Handles taps: open the app on an item, queue a ✓, switch category |

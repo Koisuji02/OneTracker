@@ -9,9 +9,11 @@ import {
   Download,
   Info,
   Languages,
+  LifeBuoy,
   Loader2,
   LogOut,
   Moon,
+  Plus,
   Sun,
   Trash2,
   Tv,
@@ -36,11 +38,13 @@ import { useOnline } from '../net'
 import { KEY_SERVICES, guideDue, hasKey, serviceReady, type KeyService } from '../keys'
 import { getSettings, updateSettings, useSettings, type DetailLayout, type Language } from '../settings'
 import { THEMES } from '../themes'
+import { useTour } from '../tours'
 import { cn } from '../util'
+import { pinWidget } from '../widget'
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, tour, children }: { title: string; tour?: string; children: ReactNode }) {
   return (
-    <section className="mt-6 px-4">
+    <section data-tour={tour} className="mt-6 px-4">
       <h2 className="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-ink3">
         {title}
       </h2>
@@ -118,6 +122,28 @@ function KeyRow({ service }: { service: KeyService }) {
           <KeyGuide service={service} editing onSaved={() => setOpen(false)} className="bg-surface" />
         </div>
       )}
+    </div>
+  )
+}
+
+/** The home-screen widget (Android only): a preview and "Aggiungi alla Home". */
+function WidgetRow() {
+  const t = useT()
+  const { language } = useSettings()
+  const [hint, setHint] = useState<string | null>(null)
+  return (
+    <div className="flex items-center gap-4 px-4 py-4">
+      <img src={`/help/widget-${language ?? 'en'}.webp`} alt="" className="w-28 shrink-0 rounded-lg" />
+      <div className="min-w-0 flex-1">
+        <p className="text-xs leading-relaxed text-ink2">{t('help.widget.body')}</p>
+        <button
+          onClick={async () => setHint(t((await pinWidget()) ? 'widget.confirm' : 'widget.manual'))}
+          className="mt-3 flex items-center gap-1.5 rounded-xl bg-brand px-3 py-2 text-xs font-bold text-black transition-transform active:scale-[0.98]"
+        >
+          <Plus size={14} strokeWidth={3} /> {t('widget.add')}
+        </button>
+        {hint && <p className="mt-2 text-[11px] leading-snug text-ink3">{hint}</p>}
+      </div>
     </div>
   )
 }
@@ -210,6 +236,7 @@ export default function SettingsPage() {
   const [health, setHealth] = useState<ProviderHealth[] | null>(null)
   const [importProg, setImportProg] = useState<ImportProgress | null>(null)
   const [importResult, setImportResult] = useState<TvTimeImportResult | null>(null)
+  useTour('settings', true)
 
   useEffect(() => {
     if (!toast) return
@@ -306,7 +333,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title={t('settings.theme')}>
+      <Section title={t('settings.theme')} tour="theme">
         <div className="grid grid-cols-4 gap-3 px-4 py-4">
           {THEMES.map((th) => (
             <button
@@ -348,7 +375,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title={t('settings.detailLayout')}>
+      <Section title={t('settings.detailLayout')} tour="layout">
         <div className="flex gap-2 px-4 py-4">
           {(
             [
@@ -373,7 +400,7 @@ export default function SettingsPage() {
         </div>
       </Section>
 
-      <Section title={t('settings.sections')}>
+      <Section title={t('settings.sections')} tour="sections">
         <ToggleRow
           label={t('settings.showBooks')}
           checked={settings.showBooks}
@@ -386,7 +413,13 @@ export default function SettingsPage() {
         />
       </Section>
 
-      <Section title={t('keys.section')}>
+      {Capacitor.getPlatform() === 'android' && (
+        <Section title={t('settings.widget')} tour="widget">
+          <WidgetRow />
+        </Section>
+      )}
+
+      <Section title={t('keys.section')} tour="keys">
         <p className="px-4 pt-3 text-xs text-ink3">{t('keys.sectionHint')}</p>
         {settings.showBooks && <KeyRow service="comicvine" />}
         <KeyRow service="omdb" />
@@ -425,7 +458,7 @@ export default function SettingsPage() {
         ))}
       </Section>
 
-      <Section title={t('settings.google')}>
+      <Section title={t('settings.google')} tour="google">
         {!online && (
           <div className="px-4 pb-3">
             <OfflineChip text={t('offline.driveHint')} />
@@ -631,6 +664,15 @@ export default function SettingsPage() {
 
       {/* the providers' attribution now lives in full on the About screen,
           which is where TMDB's terms ask for it (an About/Credits section) */}
+      <Section title={t('settings.help')} tour="help">
+        <ActionRow label={t('help.entry')} icon={<LifeBuoy size={18} />} onClick={() => nav('/help')} />
+        <ToggleRow
+          label={t('help.toursOn')}
+          checked={!settings.toursOff}
+          onChange={(v) => updateSettings({ toursOff: !v })}
+        />
+      </Section>
+
       <Section title={t('about.title')}>
         <ActionRow
           label={t('settings.about')}

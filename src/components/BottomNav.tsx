@@ -27,6 +27,7 @@ export default function BottomNav() {
     <NavLink
       key={tab.to}
       to={tab.to}
+      data-tour={`nav-${tab.to.slice(1)}`}
       className={({ isActive }) =>
         cn(
           'flex flex-col items-center justify-center gap-1 transition-colors',
@@ -55,6 +56,7 @@ export default function BottomNav() {
     <>
       {/* mobile: bottom bar */}
       <nav
+        data-tour="nav"
         className="fixed inset-x-0 bottom-0 z-40 flex border-t border-line bg-surface/90 backdrop-blur-md md:hidden"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -62,7 +64,7 @@ export default function BottomNav() {
       </nav>
 
       {/* desktop: left rail */}
-      <nav className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col items-center gap-1 border-r border-line bg-surface py-5 md:flex">
+      <nav data-tour="nav" className="fixed inset-y-0 left-0 z-40 hidden w-20 flex-col items-center gap-1 border-r border-line bg-surface py-5 md:flex">
         <div className="mb-4 grid h-11 w-11 place-items-center rounded-2xl bg-brand">
           <Tv size={22} strokeWidth={2.5} className="text-black" />
         </div>

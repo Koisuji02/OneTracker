@@ -1,156 +1,77 @@
-<p align="center"><img src="public/logo.svg" alt="OneTracker" width="128"/></p>
+<p align="center"><img src="docs/img/icon.png" alt="OneTracker" width="96"/></p>
 
-# OneTracker
+<h1 align="center">OneTracker</h1>
 
-A modern, local-first tracker for **TV series, anime, movies, manga/comics, books and games**, built as a personal replacement for TV Time (shut down July 15, 2026). Yellow-and-black UI inspired by TV Time and Stash, 8 switchable themes, English/Italian. Runs as a web app on PC and as a native Android app via Capacitor. All data stays on your device, with JSON export/import and optional Google Drive backup — no server anywhere.
+<p align="center">One app to keep track of the shows, anime, movies, books, manga, comics and games in your life.<br/>Free, no ads, no account needed.</p>
+
+<p align="center"><img src="docs/img/feature-graphic.webp" alt="OneTracker" width="720"/></p>
+
+<p align="center">
+  <img src="docs/img/screenshot-1.webp" alt="Shows, movies, books and games in one app" width="180"/>
+  <img src="docs/img/screenshot-2.webp" alt="The home screen widget" width="180"/>
+  <img src="docs/img/screenshot-3.webp" alt="Every episode, every season" width="180"/>
+  <img src="docs/img/screenshot-4.webp" alt="Games with real hours" width="180"/>
+</p>
+<p align="center">
+  <img src="docs/img/screenshot-5.webp" alt="Books, manga and comics" width="180"/>
+  <img src="docs/img/screenshot-6.webp" alt="Your history, month by month" width="180"/>
+  <img src="docs/img/screenshot-7.webp" alt="The monthly recap" width="180"/>
+  <img src="docs/img/screenshot-8.webp" alt="Themes" width="180"/>
+</p>
+
+## Get it
+
+- **Android** — on Google Play soon (closed testing now).
+- **Web** — [onetracker.onetracker.workers.dev](https://onetracker.onetracker.workers.dev), on any computer or phone.
+- **iPhone** — the app is ready; publishing on the App Store depends on how many people want it.
 
 ## What it does
 
-**Tracking**
-- **Series & anime** — per-episode check-off with **cascade marking** (checking ep. 4 marks 1–3 too), "Continue watching" with next-episode card, remaining count `+N` and progress bar. Anime are TMDB entries: **one entry per show with real seasons** (saga names, localized episode titles), no cross-provider duplicates with TV Time imports.
-- **Ongoing works never auto-complete**: when you're caught up they move to **Waiting** with the **next episode air date** (TMDB/AniList) — and come back to "Continue" the moment an episode is out, including the day it airs.
-- **Manga & comics** — chapter checklists (blocks of 100), same cascade rules. Chapter counts of ongoing manga come from **MangaDex**; western comics runs (with issue counts) from **Comic Vine**.
-- **Movies & books** — one-tap watched/read.
-- **Games** — three states (*To play / Playing / Completed*) plus personal hours played.
-- **Rewatch** — tapping an already-checked unit opens a dialog: *unmark* or *mark as rewatched* (x2, x3…). Rewatching ep. N raises every earlier episode below that grade to the same grade. Rewatches count as extra watch time.
+- **Shows and anime**: tap ✓ for the next episode, "Continue" shows where you left off, rewatches are counted.
+- **Movies, books, manga and comics**: from "to start" to "finished", chapter by chapter where it makes sense.
+- **Games**: HowLongToBeat lengths and the hours of each playthrough.
+- **Your month**: a month-by-month history and a recap at the end of each month, ready to share.
+- **Stats and collections**: total time, ratings, achievements, favorites, lists and a knockout "Clash" between your favorites.
+- **Home screen widget** on Android, themes (AMOLED in eight colours, light and more), English and Italian.
+- **Coming from TV Time?** Import its export (GDPR zip or the plugin's JSON) and your history comes with you.
+- A short **tutorial** on each screen the first time you open it, and a Guide in Settings.
 
-**Profile**
-- Hero header with **rotating favorite artwork** (every 30 min), custom display name and a customizable **avatar** (uploaded photo, poster from your library, or built-in character presets).
-- **Watch time** total + expandable breakdown (TV / anime / movies / games, episode & chapter counts). Game time uses your tracked hours, or the expected average until you set them.
-- **Personal ratings 0–10** (decimal slider with emoji face). Badges on covers: white circle up to 8.4, then bronze / silver / gold trophies, pulsing diamond for 10.
-- **Critic ratings** on detail pages: IMDb + Rotten Tomatoes/Metacritic (via OMDb), AniList + MyAnimeList + MangaDex, Metacritic + RAWG, Open Library.
-- **Catalog** rows (Series / Movies / Books / Games) with everything started or finished — hourglass = in progress/ongoing, flag = completed — expandable to **full grid views**.
-- **Custom lists** with a name and color, preview box on the profile, dedicated pages with a library picker.
+## Your data
 
-**Layout**
-- **List ⇄ grid** switch at the top right of each media tab, remembered **per tab** — series as rows while games are a wall of covers, if that's what you want. The grid keeps everything the list has: next episode, progress bar and the one-tap check.
-- Cover grids are **three columns** on a phone, so browsing a real library isn't endless scrolling.
+Your library lives on your device and works offline. Signing in with Google is
+optional: it backs your library up to a private app folder in **your own** Google
+Drive and keeps your devices in sync. No ads, no tracking.
+[Privacy policy](https://onetracker.onetracker.workers.dev/privacy).
 
-**Offline**
-- The app is a tracker first: **library, progress and covers work with no connection**. Artwork of anything you track is stored on the device the first time it's shown (48 MB budget, least-used dropped first, deleted with the item).
-- Metadata already downloaded stays available, so detail pages open offline too.
-- What genuinely needs the internet — search, a title you never opened, Drive sync — shows a **"no connection"** screen instead of pretending there are no results.
-- Back online, the app **catches up by itself**: it refreshes what can have changed (new episodes, new chapters, announced dates) and pushes the pending Drive backup.
+## Optional keys
 
-**Import from TV Time** — Settings → Import: drop the official GDPR zip or the JSON plugin export zip; shows resolve via their TVDB ids, movies via IMDb ids or title+year, rewatch counts and favorites included, merging idempotently into the library.
+Everything works out of the box. Two free keys add a little more, each with a
+step-by-step guide inside the app:
 
-**First-run wizard** — language → Books opt-in → Games opt-in → account: continue as Guest or connect Google (library backed up to Drive and auto-restored when signing in on a new device; auto-sync while the app is open).
+- **Comic Vine** — western comics (Marvel, DC…).
+- **OMDb** — IMDb, Rotten Tomatoes and Metacritic ratings.
 
-**Search** — live search-as-you-type in horizontal bands per catalog, with quick-add. Results are kept when you navigate into an item and back. Bands are exclusive: anime are filtered out of the TV band (they have their own), manga out of the Books band (western comics stay).
-
-## Data sources
-
-| Catalog | Provider | API key |
-|---|---|---|
-| TV series, anime & movies | [TMDB](https://www.themoviedb.org/) | required (free) |
-| Manga (search, details, chapters, rating) | [MangaDex](https://mangadex.org/) | none |
-| Anime/manga scores + niche-anime search tail | [AniList](https://anilist.co/) | none |
-| Books | [Open Library](https://openlibrary.org/) | none |
-| Comics | [Comic Vine](https://comicvine.gamespot.com/api/) | required (free) |
-| Games | [RAWG](https://rawg.io/apidocs) | required (free) |
-| Game box art (console/older titles) | Wikipedia infobox images | none |
-| IMDb / Rotten Tomatoes scores | [OMDb](https://www.omdbapi.com/) | required (free) |
-| MyAnimeList scores | [Jikan](https://jikan.moe/) | none |
-
-Search rows are **one source each, every result in exactly one row**: a single
-memoized TMDB search feeds both the TV and Anime rows (split by Animation genre +
-east-asian original language, so western animation stays in TV), AniList only appends
-niche anime TMDB doesn't index, and the memoized MangaDex response keeps manga titles
-(including single "Vol. N" editions) out of the Books and Comics rows.
-
-Keys go in **Settings → API keys** (stored in localStorage) or in `.env` (see `.env.example`).
-
-## Repo layout
-
-```
-src/
-  api/            provider modules (one per external API) + dispatcher
-    index.ts        getDetails()/getEpisodes() routing + episode cache
-    tmdb.ts         TV/anime/movies (shared search + anime auto-detect, OMDb hook)
-    anilist.ts      score enrichment + niche-anime tail (+ legacy chain items)
-    mangadex.ts     manga search/details/chapters/rating (keyless)
-    titleMatch.ts   cross-source title normalization/dedup
-    comicvine.ts    comics via JSONP (no CORS on that API)
-    openlibrary.ts  books (+ manga filter, community rating)
-    rawg.ts         games (+ metacritic/rawg scores)
-    ratings.ts      OMDb / Jikan / rating assembly helpers
-    errors.ts       ApiKeyMissingError
-  components/     shared UI (TrackCard, GridCard, PosterCard, PosterGrid,
-                  ViewToggle, Cover, OfflineNotice, CheckButton, RatingBadge,
-                  RatingModal, RewatchDialog, Avatar, MediaRow, BottomNav…)
-  pages/          one file per screen (Series, Movies, Books, Games, Search,
-                  Detail, Account, Favorites, Catalog, Lists, ListDetail,
-                  Avatar, Settings)
-  db.ts           Dexie schema + the whole library service layer
-  net.ts          connectivity state (useOnline / onReconnect)
-  imageCache.ts   offline artwork: blobs in IndexedDB, LRU under a size budget
-  sync.ts         catch-up pass: stale metadata refresh + Drive push
-  backup.ts       JSON export/import (v2: items + episodes + lists)
-  drive.ts        Google sign-in + Drive appDataFolder backup
-  settings.ts     localStorage settings store (useSettings hook)
-  themes.ts       8 theme presets applied as CSS variables
-  i18n.ts         EN/IT dictionaries (flat keys) + useT hook
-  types.ts        all shared TypeScript types
-docs/
-  API.md          internal service-layer reference (functions & contracts)
-  openapi.yaml    every external endpoint the app consumes
-scripts/
-  smoke.mjs       end-to-end smoke test (Playwright, headless Chromium)
-android/          Capacitor Android project (generated)
-```
-
-### How it works (short version)
-
-1. **Search** calls one provider per band; results carry `(provider, mediaType, providerId)`.
-2. **Detail** calls `getDetails()` → normalized `MediaDetails` (metadata + seasons + ongoing flag + release dates + critic ratings). Opening a detail also runs `refreshItemMetadata()`, so new episodes/chapters of tracked works are picked up — and `syncLibrary()` does the same in the background for what's still releasing, so you don't have to open anything.
-3. **Adding** snapshots the metadata into the `items` table with `status: planned`.
-4. **Checking units** writes rows into `episodes` (`count` = rewatch grade); status is re-derived after every change (`planned → watching → completed`, ongoing works capped at `watching`).
-5. **Stats** aggregate runtime × rewatch count per media type; games add tracked or expected hours.
-6. **Backup** serializes settings + items + episodes + lists to JSON — downloadable or synced to your own Google Drive appDataFolder.
-
-Full function-level contract: [`docs/API.md`](docs/API.md).
-
-## Development
+## Build it yourself
 
 ```bash
 npm install
-npm run dev        # web app at http://localhost:5173
-npm run build      # typecheck + production build in dist/
-npm run smoke      # E2E smoke test (dev server must be running)
+npm run dev            # the web app at http://localhost:5173
+npm run build          # typecheck + production build
+npm run android:sync   # build + copy into the Android project (Capacitor)
 ```
 
-## Android (Capacitor)
+How the code is organised, file by file: [docs/CODEBASE.md](docs/CODEBASE.md).
 
-Requires JDK 17+ and the Android SDK (Android Studio optional).
+## Credits
 
-```bash
-npm run android:apk    # build web assets + sync + assemble the debug APK
-npm run android:sync   # build web assets + sync into android/
-npm run android:open   # …and open the project in Android Studio
-```
-
-The APK lands in `android/app/build/outputs/apk/debug/app-debug.apk`.
-See [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) for how API keys are baked/overridden
-and how to share the app with other people.
-
-Quick alternatives to test the mobile experience:
-- **Browser responsive mode** (F12 → device toolbar / Ctrl+Shift+M in Firefox).
-- **Real phone on the same Wi-Fi**: `npm run dev -- --host`, then open `http://<PC-IP>:5173` on the phone.
-- **Debug APK**: `cd android && ./gradlew assembleDebug` → `android/app/build/outputs/apk/debug/app-debug.apk`.
-
-## Google Drive backup
-
-1. Google Cloud Console → new project → enable **Google Drive API**.
-2. OAuth consent screen (External, add yourself as test user).
-3. Create an **OAuth Client ID** (*Web application*) with your origins (e.g. `http://localhost:5173`).
-4. Paste the client ID in **Settings → Google Drive sync** → *Connect Google account*.
-
-Backups live in the app-private `appDataFolder` (invisible in your Drive UI, doesn't use your quota view).
-
-## Stack
-
-React 19 + TypeScript + Vite + Tailwind CSS v4 · Dexie (IndexedDB) · React Router (hash) · Capacitor 7 · lucide-react · Playwright (smoke tests).
+Data and images from [TMDB](https://www.themoviedb.org/), [IGDB](https://www.igdb.com/),
+[HowLongToBeat](https://howlongtobeat.com/), [AniList](https://anilist.co/),
+[MangaDex](https://mangadex.org/), [Open Library](https://openlibrary.org/),
+[Comic Vine](https://comicvine.gamespot.com/), [OMDb](https://www.omdbapi.com/) and
+[Jikan](https://jikan.moe/), under their own terms.
+This product uses the TMDB API but is not endorsed or certified by TMDB.
 
 ## License
 
-OneTracker is open source under the [Mozilla Public License 2.0](LICENSE): use it, study it, change it; modified files of OneTracker must stay open under the same licence. The data it shows belongs to its providers (TMDB, IGDB, HowLongToBeat, AniList, MangaDex, Open Library, Comic Vine, OMDb…) under their own terms.
+[Mozilla Public License 2.0](LICENSE): use it, study it, change it. Modified files of
+OneTracker stay open under the same licence.

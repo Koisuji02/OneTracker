@@ -33,6 +33,7 @@ import CatalogPage from './pages/CatalogPage'
 import DetailPage from './pages/DetailPage'
 import FavoritesPage from './pages/FavoritesPage'
 import GamesPage from './pages/GamesPage'
+import HelpPage from './pages/HelpPage'
 import HistoryPage from './pages/HistoryPage'
 import ListDetailPage from './pages/ListDetailPage'
 import ListsPage from './pages/ListsPage'
@@ -342,6 +343,7 @@ export default function App() {
             <Route path="/avatar" element={<AvatarPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/help" element={<HelpPage />} />
             <Route path="/media/:provider/:mediaType/:id" element={<DetailPage />} />
             <Route path="*" element={<Navigate to="/series" replace />} />
           </Routes>

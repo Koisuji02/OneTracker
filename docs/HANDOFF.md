@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.51** (versionCode 51) — `android/app/build.gradle` is the single source |
+| Version | **1.0.52** (versionCode 52) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.51/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.51 handed over** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.52/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.52 handed over** |
 
 ## 2. What has been done (in order)
 
@@ -219,12 +219,16 @@ The user's stated plan: **Play Store first, then check the user load, then iOS**
 
 ### 3b. Claude's next tasks
 
-**Next up (planned for 2026-10-25): first-visit tutorials + Help page + README** — a
-tester's request; the full plan is in [TUTORIAL_PLAN.md](TUTORIAL_PLAN.md) (driver.js,
-`tours.ts` + `useTour`, one tour per screen, widget preview + pin, `/help`, a
-user-first README). Ship it as 1.0.52 on the closed track.
+**Done 2026-10-25 (1.0.52): first-visit tutorials + Help page + README** — a tester's
+request ([TUTORIAL_PLAN.md](TUTORIAL_PLAN.md)). driver.js tours per screen
+(`src/tours.ts`, `data-tour` anchors, `useTour`), Settings → Widget (preview + "Aggiungi
+alla Home" via `OneWidget.requestPin`) and Aiuto (Guide + tutorials switch), `/help`, a
+user-first README with the store images (`docs/img/`, from `scripts/store/docs-images.mjs`).
+Verified in the browser preview (every tour, IT, dark + light); the widget pin and the
+back button closing a tour are for the user to check on the phone. This is also the
+"update after feedback" for Play's production questions.
 
-**After that: the learning rebuild.** The user wants to rebuild OneTracker from scratch
+**Next: the learning rebuild.** The user wants to rebuild OneTracker from scratch
 in a **separate, didactic-only project**, incrementally, to understand every part.
 **The user writes all the code; Claude explains, gives the next step and reviews —
 never creates or edits files there on its own.** Plan the milestones with the user

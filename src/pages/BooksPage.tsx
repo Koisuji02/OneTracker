@@ -29,6 +29,7 @@ import {
   unitActivity,
 } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { guideDue } from '../keys'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
@@ -221,6 +222,8 @@ export default function BooksPage() {
   const items = useLiveQuery(() => db.items.where('mediaType').anyOf('book', 'manga').toArray(), [])
   const eps = useLiveQuery(() => db.episodes.toArray(), [])
 
+  useTour('books', items !== undefined && eps !== undefined)
+
   if (!items || !eps) return null
 
   const counts = new Map<string, number>()
@@ -296,9 +299,13 @@ export default function BooksPage() {
         }
       />
 
-      {guideDue('comicvine', settings) && <KeyGuide service="comicvine" className="mx-4 mb-6" />}
+      {guideDue('comicvine', settings) && (
+        <div data-tour="comicvine" className="mx-4 mb-6">
+          <KeyGuide service="comicvine" />
+        </div>
+      )}
 
-      <section className="px-4">
+      <section data-tour="continue" className="px-4">
         <SectionTitle text={t('books.continue')} />
         {continuing.length === 0 ? (
           <EmptyState icon={<BookOpen size={32} />} text={t('books.emptyContinue')} />
@@ -320,7 +327,7 @@ export default function BooksPage() {
         )}
       </section>
 
-      <section className="mt-8 px-4">
+      <section data-tour="planned" className="mt-8 px-4">
         <SectionTitle text={t('books.toRead')} />
         {toRead.length === 0 ? (
           <EmptyState icon={<BookOpen size={32} />} text={t('books.empty')} />
@@ -330,7 +337,7 @@ export default function BooksPage() {
       </section>
 
       {waiting.length > 0 && (
-        <section className="mt-8 px-4">
+        <section data-tour="waiting" className="mt-8 px-4">
           <SectionTitle text={t('common.waiting')} />
           {lay(waiting.map((i) => card(i, 'watching')))}
         </section>

@@ -40,6 +40,7 @@ import PosterCard from '../components/PosterCard'
 import { computeStats, db, isEpisodic, rewatchGrades } from '../db'
 import { monthKey, monthLabel } from '../history'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { updateSettings, useSettings } from '../settings'
 import type { LibraryItem } from '../types'
 import { cn, formatWatchTime, hideBrokenImg, showLoadedImg } from '../util'
@@ -113,6 +114,8 @@ export default function AccountPage() {
     const timer = setInterval(() => setSlot(Math.floor(Date.now() / ROTATION_MS)), 60_000)
     return () => clearInterval(timer)
   }, [])
+
+  useTour('account', !!(items && stats && lists && eps && clashes && achRows))
 
   if (!items || !stats || !lists || !eps || !clashes || !achRows) return null
 
@@ -195,6 +198,7 @@ export default function AccountPage() {
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-surface to-transparent" />
           <Link
             to="/settings"
+            data-tour="settings-link"
             aria-label={t('settings.title')}
             className="absolute right-4 top-safe-lg grid h-10 w-10 place-items-center rounded-xl bg-black/40 text-white backdrop-blur transition-colors hover:bg-black/60"
           >
@@ -203,7 +207,7 @@ export default function AccountPage() {
         </div>
 
         {/* profile overlapping the hero */}
-        <div className="relative -mt-10 flex items-end gap-4 px-4">
+        <div data-tour="profile" className="relative -mt-10 flex items-end gap-4 px-4">
           <Link to="/avatar" aria-label={t('avatar.title')} className="shrink-0">
             <Avatar className="h-20 w-20 border-4 border-surface text-3xl" />
           </Link>
@@ -255,6 +259,7 @@ export default function AccountPage() {
       <div className="mx-4 mt-5 rounded-2xl border border-line bg-card">
         <button
           onClick={() => setExpanded(!expanded)}
+          data-tour="watch-time"
           className="block w-full p-5 pb-4 text-left"
         >
           <div className="flex items-center justify-between">
@@ -289,7 +294,7 @@ export default function AccountPage() {
             </div>
           )}
         </button>
-        <div className="space-y-2 px-5 pb-5">
+        <div data-tour="history" className="space-y-2 px-5 pb-5">
           {/* month by month, with the end-of-month recap */}
           <Link
             to="/history"
@@ -327,34 +332,36 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* favorites */}
-      <Link
-        to="/favorites"
-        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
-          <Heart size={18} fill="currentColor" />
-        </span>
-        <span className="flex-1 font-bold">{t('account.favorites')}</span>
-        <span className="text-sm text-ink3">{favoritesCount}</span>
-        <ChevronRight size={18} className="text-ink4" />
-      </Link>
+      {/* favorites and clash, one stop of the tutorial */}
+      <div data-tour="favorites">
+        <Link
+          to="/favorites"
+          className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
+            <Heart size={18} fill="currentColor" />
+          </span>
+          <span className="flex-1 font-bold">{t('account.favorites')}</span>
+          <span className="text-sm text-ink3">{favoritesCount}</span>
+          <ChevronRight size={18} className="text-ink4" />
+        </Link>
 
-      {/* clash — the favorites box turned inside out: theme fill, dark ink */}
-      <Link
-        to="/clash"
-        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-brand bg-brand p-4 text-black transition-transform active:scale-[0.99]"
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-black/10">
-          <Swords size={18} />
-        </span>
-        <span className="flex-1 font-bold">{t('account.clash')}</span>
-        <span className="text-sm text-black/60">{clashes.length}</span>
-        <ChevronRight size={18} className="text-black/50" />
-      </Link>
+        {/* clash — the favorites box turned inside out: theme fill, dark ink */}
+        <Link
+          to="/clash"
+          className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-brand bg-brand p-4 text-black transition-transform active:scale-[0.99]"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-black/10">
+            <Swords size={18} />
+          </span>
+          <span className="flex-1 font-bold">{t('account.clash')}</span>
+          <span className="text-sm text-black/60">{clashes.length}</span>
+          <ChevronRight size={18} className="text-black/50" />
+        </Link>
+      </div>
 
       {/* lists */}
-      <div className="mt-6">
+      <div data-tour="lists" className="mt-6">
         <Link to="/lists" className="mb-2 flex items-center gap-2 px-4">
           <ListVideo size={18} className="text-accent" />
           <h2 className="text-base font-bold">{t('lists.title')}</h2>
@@ -388,7 +395,9 @@ export default function AccountPage() {
 
       {/* catalog */}
       <div className="mt-8 space-y-7">
-        <CatalogRow title={t('nav.series')} icon={<Tv size={18} />} to="/catalog/series" items={catSeries} grades={grades} />
+        <div data-tour="catalog">
+          <CatalogRow title={t('nav.series')} icon={<Tv size={18} />} to="/catalog/series" items={catSeries} grades={grades} />
+        </div>
         <CatalogRow
           title={t('nav.movies')}
           icon={<Clapperboard size={18} />}
@@ -405,43 +414,45 @@ export default function AccountPage() {
       </div>
 
       {/* archive — same box style as favorites, below every catalog section */}
-      <Link
-        to="/archived"
-        className="mx-4 mt-8 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
-          <Archive size={18} />
-        </span>
-        <span className="flex-1 font-bold">{t('account.archived')}</span>
-        <span className="text-sm text-ink3">{archivedCount}</span>
-        <ChevronRight size={18} className="text-ink4" />
-      </Link>
+      <div data-tour="collections">
+        <Link
+          to="/archived"
+          className="mx-4 mt-8 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
+            <Archive size={18} />
+          </span>
+          <span className="flex-1 font-bold">{t('account.archived')}</span>
+          <span className="text-sm text-ink3">{archivedCount}</span>
+          <ChevronRight size={18} className="text-ink4" />
+        </Link>
 
-      {/* owned — same box style, right below Archived */}
-      <Link
-        to="/owned"
-        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
-          <Key size={18} />
-        </span>
-        <span className="flex-1 font-bold">{t('account.owned')}</span>
-        <span className="text-sm text-ink3">{ownedCount}</span>
-        <ChevronRight size={18} className="text-ink4" />
-      </Link>
+        {/* owned — same box style, right below Archived */}
+        <Link
+          to="/owned"
+          className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
+            <Key size={18} />
+          </span>
+          <span className="flex-1 font-bold">{t('account.owned')}</span>
+          <span className="text-sm text-ink3">{ownedCount}</span>
+          <ChevronRight size={18} className="text-ink4" />
+        </Link>
 
-      {/* to buy — the mirror of Owned, same box style, right below it */}
-      <Link
-        to="/tobuy"
-        className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
-      >
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
-          <DollarSign size={18} />
-        </span>
-        <span className="flex-1 font-bold">{t('account.toBuy')}</span>
-        <span className="text-sm text-ink3">{toBuyCount}</span>
-        <ChevronRight size={18} className="text-ink4" />
-      </Link>
+        {/* to buy — the mirror of Owned, same box style, right below it */}
+        <Link
+          to="/tobuy"
+          className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent/50"
+        >
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand/10 text-accent">
+            <DollarSign size={18} />
+          </span>
+          <span className="flex-1 font-bold">{t('account.toBuy')}</span>
+          <span className="text-sm text-ink3">{toBuyCount}</span>
+          <ChevronRight size={18} className="text-ink4" />
+        </Link>
+      </div>
     </div>
   )
 }

@@ -18,6 +18,7 @@ import OfflineNotice from '../components/OfflineNotice'
 import PosterCard from '../components/PosterCard'
 import { addToLibrary, db } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { useOnline } from '../net'
 import { useSettings } from '../settings'
 import type { SearchResult } from '../types'
@@ -201,11 +202,12 @@ export default function SearchPage() {
   }
 
   const active = q.trim().length >= 2
+  useTour('search', true)
 
   return (
     <div>
       <div className="sticky top-0 z-30 bg-surface/95 px-4 pb-3 pt-safe backdrop-blur">
-        <div className="relative">
+        <div data-tour="search-input" className="relative">
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink3" />
           <input
             autoFocus

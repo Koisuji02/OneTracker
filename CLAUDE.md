@@ -73,7 +73,8 @@ Map of the docs:
 
 - `.claude/launch.json` → `vite-dev` on port 5173. The app uses a **HashRouter**
   (`location.hash = '#/account'`).
-- Skip onboarding: `localStorage['onetracker.settings'] = {"language":"it","onboarded":true,"showBooks":true,"showGames":true}`, reload.
+- Skip onboarding: `localStorage['onetracker.settings'] = {"language":"it","onboarded":true,"showBooks":true,"showGames":true,"toursOff":true}`, reload
+  (`toursOff` keeps the first-visit tutorials out of the way; drop it to test them).
 - Seed data through the app's own module: `const m = await import('/src/db.ts')`, then
   `m.db.items.bulkPut(...)` / `m.db.episodes.bulkPut(...)`. Use provider ids that don't
   exist (the sync pass overwrites real TMDB ids with real titles). Clear the tables and

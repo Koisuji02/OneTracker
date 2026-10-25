@@ -23,6 +23,8 @@ export interface BackupData {
     avatar?: string | null
     detailLayout?: DetailLayout
     librarySort?: SortMode
+    seenTours?: string[]
+    toursOff?: boolean
   }
   items: LibraryItem[]
   episodes: WatchedEpisode[]
@@ -55,6 +57,8 @@ export async function buildBackup(): Promise<string> {
       avatar: s.avatar,
       detailLayout: s.detailLayout,
       librarySort: s.librarySort,
+      seenTours: s.seenTours,
+      toursOff: s.toursOff,
     },
     items,
     episodes,
@@ -223,6 +227,11 @@ export async function applyBackup(json: string): Promise<void> {
       ...(s.avatar !== undefined ? { avatar: s.avatar } : {}),
       ...(s.detailLayout ? { detailLayout: s.detailLayout } : {}),
       ...(s.librarySort ? { librarySort: s.librarySort } : {}),
+      // tutorials already seen on the other phone stay seen here
+      ...(Array.isArray(s.seenTours)
+        ? { seenTours: [...new Set([...getSettings().seenTours, ...s.seenTours])] }
+        : {}),
+      ...(s.toursOff ? { toursOff: true } : {}),
     })
   }
 }

@@ -47,6 +47,10 @@ export interface Settings {
   comicvineKey: string
   /** key guides the user waved away ("Non ora"): only the optional ones can be */
   dismissedGuides: string[]
+  /** first-visit tutorials already shown (src/tours.ts) */
+  seenTours: string[]
+  /** "Non mostrare più i tutorial": no tour starts on its own */
+  toursOff: boolean
   /** avatar: null = default icon · `emoji:<char>:<bg>` preset · otherwise an image URL/dataURL */
   avatar: string | null
   /** optional API gateway (Cloudflare Worker) — empty = call providers directly */
@@ -105,6 +109,8 @@ const defaults: Settings = {
   omdbKey: '',
   comicvineKey: '',
   dismissedGuides: [],
+  seenTours: [],
+  toursOff: false,
   avatar: null,
   gatewayUrl: (import.meta.env.VITE_GATEWAY_URL as string) ?? '',
   gatewayToken: (import.meta.env.VITE_GATEWAY_TOKEN as string) ?? '',

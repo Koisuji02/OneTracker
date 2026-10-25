@@ -38,7 +38,7 @@ export default function ViewToggle({
   )
 
   return (
-    <div className="flex shrink-0 items-center gap-0.5 rounded-xl border border-line bg-card p-0.5">
+    <div data-tour="view" className="flex shrink-0 items-center gap-0.5 rounded-xl border border-line bg-card p-0.5">
       {half('list', t('view.list'), <List size={17} strokeWidth={2.5} />)}
       {half('grid', t('view.grid'), <LayoutGrid size={17} strokeWidth={2.5} />)}
     </div>

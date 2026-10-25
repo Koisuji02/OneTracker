@@ -334,3 +334,99 @@ html.light .medal-shadow {
     display: none;
   }
 }
+
+/*
+ * First-visit tutorials (src/tours.ts): driver.js's popover in the app's own
+ * clothes — the theme's card, line and ink, the squared radius scale, and
+ * buttons like the app's (brand fill for "next", hollow for "back").
+ */
+.driver-popover.ot-tour {
+  font-family: var(--font-sans);
+  background: var(--card);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-2xl);
+  padding: 16px;
+  min-width: 260px;
+  max-width: min(320px, calc(100vw - 32px));
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.5);
+}
+.ot-tour .driver-popover-title {
+  padding-right: 24px;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+.ot-tour .driver-popover-description {
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.ot-tour .driver-popover-close-btn {
+  top: 6px;
+  right: 6px;
+  color: var(--ink3);
+}
+.ot-tour .driver-popover-close-btn:hover,
+.ot-tour .driver-popover-close-btn:focus-visible {
+  color: var(--ink);
+}
+.ot-tour .driver-popover-footer {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.ot-tour .driver-popover-progress-text {
+  color: var(--ink3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.ot-tour .driver-popover-footer-btn {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--ink2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-shadow: none;
+}
+.ot-tour .driver-popover-footer-btn:hover,
+.ot-tour .driver-popover-footer-btn:focus {
+  background: var(--card2);
+}
+.ot-tour .driver-popover-next-btn,
+.ot-tour .driver-popover-next-btn:hover,
+.ot-tour .driver-popover-next-btn:focus {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #000;
+}
+/* nothing to go back to on the first step (driver.js sets display inline) */
+.ot-tour .driver-popover-prev-btn.driver-popover-btn-disabled {
+  display: none !important;
+}
+/* "Non mostrare i tutorial", on its own line under the buttons */
+.ot-tour .ot-tour-off {
+  all: unset;
+  order: 3;
+  flex-basis: 100%;
+  color: var(--ink3);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: underline;
+}
+.ot-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--card);
+}
+.ot-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--card);
+}
+.ot-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--card);
+}
+.ot-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--card);
+}

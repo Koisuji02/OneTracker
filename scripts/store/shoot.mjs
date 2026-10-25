@@ -28,6 +28,8 @@ page.on('pageerror', (e) => console.log(`PAGEERROR ${e.message}`))
 const settings = (language) => ({
   language,
   onboarded: true,
+  // no first-visit tutorial on top of the screenshots
+  toursOff: true,
   showBooks: true,
   showGames: true,
   profileName: 'Alex',

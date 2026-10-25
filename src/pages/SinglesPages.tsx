@@ -10,6 +10,7 @@ import TrackCard from '../components/TrackCard'
 import ViewToggle from '../components/ViewToggle'
 import { db, isWaiting, lastActivity, setSingleStatus } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { LibraryItem } from '../types'
 import { formatDate } from '../util'
@@ -106,6 +107,8 @@ export function MoviesPage() {
     [],
   )
 
+  useTour('movies', items !== undefined)
+
   if (!items) return null
 
   const active = items.filter((i) => !i.archived)
@@ -138,7 +141,7 @@ export function MoviesPage() {
         }
       />
 
-      <section className="px-4">
+      <section data-tour="continue" className="px-4">
         <SectionTitle text={t('movies.watching')} />
         {watching.length === 0 ? (
           <EmptyState icon={<Clapperboard size={32} />} text={t('movies.emptyContinue')} />
@@ -151,7 +154,7 @@ export function MoviesPage() {
         )}
       </section>
 
-      <section className="mt-8 px-4">
+      <section data-tour="planned" className="mt-8 px-4">
         <SectionTitle text={t('movies.toWatch')} />
         {toWatch.length === 0 ? (
           <EmptyState icon={<Clapperboard size={32} />} text={t('movies.empty')} />
@@ -165,7 +168,7 @@ export function MoviesPage() {
       </section>
 
       {waiting.length > 0 && (
-        <section className="mt-8 px-4">
+        <section data-tour="waiting" className="mt-8 px-4">
           <SectionTitle text={t('common.waiting')} />
           {lay(
             waiting.map((item) => (

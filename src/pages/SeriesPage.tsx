@@ -24,6 +24,7 @@ import {
   unitAired,
 } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { updateSettings, useSettings, type ViewMode } from '../settings'
 import type { EpisodeInfo, LibraryItem, WatchedEpisode } from '../types'
 import { formatDate, seasonEpisodeLabel } from '../util'
@@ -255,6 +256,8 @@ export default function SeriesPage() {
   const parkedNow = (i: LibraryItem) =>
     isWaiting(i, watchedKeys, (season, slot) => airDates.get(`${i.id}:${season}:${slot}`))
 
+  useTour('series', items !== undefined && eps !== undefined)
+
   if (!items || !eps) return null
 
   const byRecent = byActivity(activity)
@@ -309,7 +312,7 @@ export default function SeriesPage() {
         }
       />
 
-      <section className="px-4">
+      <section data-tour="continue" className="px-4">
         <SectionTitle text={t('series.continue')} />
         {continuing.length === 0 ? (
           <EmptyState icon={<Tv size={32} />} text={t('series.emptyContinue')} />
@@ -338,7 +341,7 @@ export default function SeriesPage() {
         )}
       </section>
 
-      <section className="mt-8 px-4">
+      <section data-tour="planned" className="mt-8 px-4">
         <SectionTitle text={t('series.toWatch')} />
         {planned.length === 0 ? (
           <EmptyState icon={<Tv size={32} />} text={t('series.emptyToWatch')} />
@@ -359,7 +362,7 @@ export default function SeriesPage() {
       </section>
 
       {waiting.length > 0 && (
-        <section className="mt-8 px-4">
+        <section data-tour="waiting" className="mt-8 px-4">
           <SectionTitle text={t('common.waiting')} />
           {lay(
             waiting.map((item) => (

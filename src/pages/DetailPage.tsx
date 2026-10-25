@@ -78,6 +78,7 @@ import {
   unmarkUnit,
 } from '../db'
 import { useT } from '../i18n'
+import { useTour } from '../tours'
 import { useOnline } from '../net'
 import { useSettings } from '../settings'
 import type {
@@ -484,6 +485,8 @@ export default function DetailPage() {
     if (details) return addToLibrary(details)
     return null
   }, [canonicalId, details])
+
+  useTour('detail', meta != null)
 
   if (!meta) {
     // a title never opened before has nothing cached to fall back on: say
@@ -917,7 +920,10 @@ export default function DetailPage() {
             <div className="relative flex w-full justify-center">
               {posterImg('aspect-[2/3] w-56 rounded-2xl border border-line shadow-2xl')}
               {/* rail hugs the screen edge, vertically centered ON THE COVER */}
-              <div className="absolute -right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2.5">
+              <div
+                data-tour="detail-icons"
+                className="absolute -right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-2.5"
+              >
                 {railButtons}
               </div>
             </div>
@@ -980,11 +986,13 @@ export default function DetailPage() {
       )}
 
       {/* actions */}
-      <div className="mt-5 flex items-center gap-2.5 px-4">{mainAction}</div>
+      <div data-tour="detail-main" className="mt-5 flex items-center gap-2.5 px-4">
+        {mainAction}
+      </div>
       {/* icon actions: one centered row between the progress bar and the
           ratings (the poster layout keeps its vertical rail on the art) */}
       {detailLayout !== 'poster' && (
-        <div className="mt-3.5 flex items-center justify-center gap-6 px-4">
+        <div data-tour="detail-icons" className="mt-3.5 flex items-center justify-center gap-6 px-4">
           {ownedBtn}
           {starBtn}
           {heartBtn}
@@ -998,12 +1006,14 @@ export default function DetailPage() {
 
       {/* critic ratings — the scenic layouts center them like everything else */}
       {details?.externalRatings && (
-        <RatingsBanners list={details.externalRatings} centered={detailLayout !== 'classic'} />
+        <div data-tour="detail-ratings">
+          <RatingsBanners list={details.externalRatings} centered={detailLayout !== 'classic'} />
+        </div>
       )}
 
       {/* manga: chapter checklist */}
       {isManga && (
-        <section className="mt-6 px-4">
+        <section data-tour="detail-units" className="mt-6 px-4">
           <div className="mb-3 flex items-center gap-2.5">
             <h2 className="text-lg font-bold">{t('books.chapters')}</h2>
             {meta.ongoing && (
@@ -1133,7 +1143,7 @@ export default function DetailPage() {
 
       {/* seasons & episodes */}
       {episodic && meta.seasons && meta.seasons.length > 0 && (
-        <section className="mt-6 px-4">
+        <section data-tour="detail-units" className="mt-6 px-4">
           <h2 className="mb-3 text-lg font-bold">{t('detail.seasons')}</h2>
           <div className="space-y-3">
             {meta.seasons

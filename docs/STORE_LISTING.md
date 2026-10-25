@@ -16,6 +16,7 @@ node scripts/store/shoot.mjs shots it         # raw screens  -> builds/store/raw
 node scripts/store/shoot.mjs shots en
 node scripts/store/compose.mjs it             # Play images  -> builds/store/play/<lang>/
 node scripts/store/compose.mjs en
+node scripts/store/docs-images.mjs            # README images -> docs/img/, widget preview -> public/help/
 ```
 
 | Asset | File | Play requirement |
