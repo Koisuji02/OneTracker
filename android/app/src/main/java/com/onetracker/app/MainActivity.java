@@ -14,8 +14,9 @@ import ee.forgr.capacitor.social.login.SocialLoginPlugin;
 public class MainActivity extends BridgeActivity implements ModifiedMainActivityForSocialLoginPlugin {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // register the widget bridge before the Capacitor bridge starts
+        // register our own bridges (widget, backup file) before the Capacitor bridge starts
         registerPlugin(OneWidgetPlugin.class);
+        registerPlugin(BackupFilePlugin.class);
         super.onCreate(savedInstanceState);
     }
 

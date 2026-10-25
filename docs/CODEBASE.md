@@ -107,7 +107,7 @@ every 10 minutes, and when the app goes to the background.
 | File | What it is |
 |---|---|
 | `src/db.ts` | **The heart, 1200 lines.** Dexie schema + migrations (v8 = per-playthrough game times, v9 = the `clashes` table) and every mutation. Status derivation, rewatch grades, game playthroughs, the stats (`statsOf` is the pure core of `computeStats`), the sort helpers, `recordClash`. If behaviour is wrong, it is almost always here |
-| `src/backup.ts` | Backup/restore format (`version: 5`, clashes included) and the file export. Deliberately excludes API keys and the Google refresh token |
+| `src/backup.ts` | Backup/restore format (`version: 5`, clashes included) and the file export: a download on the web, the Download folder on Android 10+ (`BackupFilePlugin`, MediaStore — a WebView can't follow a download link), the share sheet on older Android and iPhone. Deliberately excludes API keys and the Google refresh token |
 | `src/sync.ts` | The catch-up pass: refresh the items that can have changed (still airing, date arrived), fill in missing game lengths and low-res game art, run the one-off `BACKFILLS` keyed on the details-cache version (MangaDex readership, IGDB key-art backdrop + add-on links), then push the Drive backup. Bounded, throttled to 30 min, silent on failure |
 | `src/achievements.ts` | **The medagliere, derived.** A fixed taxonomy of media + tag rows (Anime \| Shōnen, Videogiochi \| Azione…) plus "feats" (marathons, late nights, ratings, clashes…), four medals each. `computeAchievements` rebuilds it from items + episodes + clashes, so it is retroactive by construction; the tag matching is language-blind (TMDB answers "Azione" or "Action" depending on when the title was fetched). Row names and fun grade names live here as `{ it, en }` pairs, like theme names. The only stored state is per-device: which medals the pop-up already announced and which the medagliere already showed |
 | `src/history.ts` | The month-by-month history and the end-of-month recap, DERIVED from timestamps already stored (episode `watchedAt`, movie/book `completedAt`, each game run's `at`), plus a game's play span (`playStartedAt` while it is being played, the run's `startedAt` once beaten) so a game shows up "in corso" in every month from its start to the month it is beaten in. `monthHistory()` builds a month, `monthRecap()` the story, `recapCandidate()` says which month's recap is due (the current one on its last day, otherwise the one just ended), `recapSeen`/`markRecapSeen` remember it per device. Known limit by design: an episode or a film keeps only its LATEST date, so a rewatch moves it to the rewatch's month |
@@ -164,6 +164,7 @@ every 10 minutes, and when the app goes to the background.
 | `RatingsBanners.tsx` | Critic scores in each service's own colours, logos drawn inline as SVG |
 | `PlatformChips.tsx` | Platform slugs → short labels (PS3, XSX…) |
 | `Gallery.tsx` | Fullscreen screenshot viewer |
+| `UpdatePrompt.tsx` | "Nuova versione disponibile": on Android, when Google Play has a newer build (`@capawesome/capacitor-app-update`), a sheet at each opening — Aggiorna (Play's immediate update, else the store page) or Ricordamelo (back on the next cold start or after 30 min away). Silent on a sideloaded APK, the web and iPhone |
 | `Avatar.tsx`, `ViewToggle.tsx`, `SortMenu.tsx`, `BottomNav.tsx`, `OfflineNotice.tsx` | Small, self-explanatory |
 
 ### Pages
@@ -200,7 +201,8 @@ Android-only. `src/widget.ts` returns early on any other platform (`getPlatform(
 | `OneWidgetProvider.java` | Draws the widget with RemoteViews: rounded background, the media bar, the theme tints |
 | `OneWidgetService.java` | The list adapter. Reads the selected medium from SharedPreferences **on every refresh** — that is what lets a category switch rebind rows instead of rebuilding the ListView (which looked like a "pop") |
 | `OneWidgetActionReceiver.java` | Handles taps: open the app on an item, queue a ✓, switch category |
-| `MainActivity.java` | Registers the widget plugin and forwards the Google authorisation result the social-login plugin needs |
+| `BackupFilePlugin.java` | `saveToDownloads`: the JSON backup into Download through MediaStore (Android 10+, no permission); `saved=false` below, and the app falls back to the share sheet |
+| `MainActivity.java` | Registers the widget and backup-file plugins and forwards the Google authorisation result the social-login plugin needs |
 | `res/layout/widget_*.xml` | The widget layouts. `overScrollMode="never"` on the list is what stops the stretch wobble |
 | `res/font/figtree_*.ttf`, `values*/widget_text.xml` | The app's font (Figtree) in the widget: static regular/bold TTFs instanced from the web app's variable woff2 (fontTools), applied through the `WidgetText` / `WidgetTextTitle` styles — Figtree from Android 8 (`values-v26`), the system font below |
 

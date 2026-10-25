@@ -16,6 +16,7 @@ import AchievementToaster from './components/AchievementToaster'
 import BottomNav from './components/BottomNav'
 import { MedalDefs } from './components/Medal'
 import { RecapLauncher } from './components/MonthRecap'
+import UpdatePrompt from './components/UpdatePrompt'
 import { consumeBack } from './back'
 import { db } from './db'
 import { syncDrive } from './drive'
@@ -319,6 +320,8 @@ export default function App() {
       <AchievementToaster />
       {/* the end-of-month recap, once a month, by itself */}
       <RecapLauncher />
+      {/* a newer build on Google Play: offered at each opening */}
+      <UpdatePrompt />
       <div className="min-h-full pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-10 md:pl-20">
         <div className="mx-auto w-full max-w-3xl">
           <Routes>

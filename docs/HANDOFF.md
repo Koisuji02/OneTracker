@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.52** (versionCode 52) — `android/app/build.gradle` is the single source |
+| Version | **1.0.53** (versionCode 53) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.52/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.52 handed over** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.53/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.53 handed over** |
 
 ## 2. What has been done (in order)
 
@@ -227,6 +227,16 @@ user-first README with the store images (`docs/img/`, from `scripts/store/docs-i
 Verified in the browser preview (every tour, IT, dark + light); the widget pin and the
 back button closing a tour are for the user to check on the phone. This is also the
 "update after feedback" for Play's production questions.
+
+**1.0.53 (2026-10-25).** Update prompt (`UpdatePrompt.tsx`, Play in-app updates via
+`@capawesome/capacitor-app-update`: "Aggiorna" / "Ricordamelo") — it can only be seen
+once a build NEWER than the installed one is on Play. "Esporta backup (JSON)" now
+lands in Download on Android 10+ (`BackupFilePlugin`), share sheet elsewhere native.
+**Git history rewritten** the same day: the old `Co-Authored-By: Claude` trailers were
+stripped from every commit message (`git filter-branch --msg-filter`, trees, authors and
+dates unchanged) and the three branches force-pushed; GitHub now lists one contributor.
+Local backups of the old history: tags `backup/pre-rewrite/<branch>` and
+`refs/original/` (never pushed; delete when no longer wanted).
 
 **Next: the learning rebuild.** The user wants to rebuild OneTracker from scratch
 in a **separate, didactic-only project**, incrementally, to understand every part.

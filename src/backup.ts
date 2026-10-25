@@ -1,3 +1,6 @@
+import { Capacitor, registerPlugin } from '@capacitor/core'
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { db } from './db'
 import { getSettings, updateSettings, type DetailLayout, type SortMode } from './settings'
 import type { ClashResult, GamePlaythrough, LibraryItem, WatchList, WatchedEpisode } from './types'
@@ -68,14 +71,42 @@ export async function buildBackup(): Promise<string> {
   return JSON.stringify(data, null, 2)
 }
 
-export function downloadBackup(json: string): void {
+const BackupFile = registerPlugin<{
+  saveToDownloads(opts: { name: string; data: string }): Promise<{ saved: boolean }>
+}>('BackupFile')
+
+/**
+ * Hand the backup file to the user:
+ * - web: a normal download;
+ * - Android 10+: straight into the Download folder ('saved' — the WebView can't
+ *   follow a download link, so this is a small native bridge, BackupFilePlugin);
+ * - older Android and iPhone: the share sheet ("Salva su File", Drive…).
+ */
+export async function downloadBackup(json: string): Promise<'saved' | 'shared' | 'downloaded'> {
+  const name = `onetracker-backup-${new Date().toISOString().slice(0, 10)}.json`
+  if (Capacitor.getPlatform() === 'android') {
+    const { saved } = await BackupFile.saveToDownloads({ name, data: json })
+    if (saved) return 'saved'
+  }
+  if (Capacitor.isNativePlatform()) {
+    const { uri } = await Filesystem.writeFile({
+      path: name,
+      data: json,
+      directory: Directory.Cache,
+      encoding: Encoding.UTF8,
+    })
+    // closing the sheet without picking a target is not an error
+    await Share.share({ files: [uri] }).catch(() => {})
+    return 'shared'
+  }
   const blob = new Blob([json], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `onetracker-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = name
   a.click()
   URL.revokeObjectURL(url)
+  return 'downloaded'
 }
 
 /**

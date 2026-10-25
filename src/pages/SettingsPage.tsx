@@ -618,8 +618,8 @@ export default function SettingsPage() {
           icon={<Download size={18} />}
           onClick={() =>
             run('export', async () => {
-              downloadBackup(await buildBackup())
-              return null
+              const where = await downloadBackup(await buildBackup())
+              return where === 'saved' ? t('settings.exportSaved') : null
             })
           }
         />
