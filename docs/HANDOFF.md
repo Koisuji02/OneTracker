@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.53** (versionCode 53) — `android/app/build.gradle` is the single source |
+| Version | **1.0.54** (versionCode 54) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.53/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.53 handed over** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.54/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.54 handed over** |
 
 ## 2. What has been done (in order)
 
@@ -237,6 +237,13 @@ stripped from every commit message (`git filter-branch --msg-filter`, trees, aut
 dates unchanged) and the three branches force-pushed; GitHub now lists one contributor.
 Local backups of the old history: tags `backup/pre-rewrite/<branch>` and
 `refs/original/` (never pushed; delete when no longer wanted).
+
+**1.0.54 (2026-10-28) — search "+" feedback.** A tester saw the + sometimes add a
+title without turning into ✓. Two causes: adding first fetches the title's details
+(seconds on a cold title — a TV show waits for its ratings, an anime also for
+AniList/Jikan), and an AniList season is stored under its chain's root id, which
+the page didn't recognise. Now the ✓ shows at once while adding (a failure takes it
+back with a message) and hits are also matched through the details-cache aliases.
 
 **YouTube material (2026-10-25).** `scripts/store/youtube.mjs`: a 55 s trailer (motion
 design in a page, recorded frame by frame, piped into Playwright's own ffmpeg → 1080p

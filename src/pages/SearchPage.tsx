@@ -122,14 +122,47 @@ export default function SearchPage() {
    */
   const libraryMatch = (r: SearchResult): LibMatch | null => {
     if (!libraryIndex) return null
-    const exact = libraryIndex.byId.get(`${r.provider}:${r.providerId}`)
+    const key = `${r.provider}:${r.providerId}`
+    const exact = libraryIndex.byId.get(key)
     if (exact) return exact
+    const alias = aliases?.get(key)
+    const viaAlias = alias ? libraryIndex.byId.get(alias) : undefined
+    if (viaAlias) return viaAlias
     if (r.mediaType !== 'anime' && r.mediaType !== 'manga') return null
     const twins = libraryIndex.byTitle.get(`${r.mediaType}:${normalizeTitle(r.title)}`) ?? []
     return (
       twins.find((x) => x.year == null || r.year == null || Math.abs(x.year - r.year) <= 1) ?? null
     )
   }
+
+  /**
+   * A hit can be saved under ANOTHER id than its own: an AniList season is
+   * stored as its whole chain (the root id). getDetails records that alias in
+   * the details cache, so the visible hits are looked up there as well — or a
+   * title added from here would never turn its + into a ✓.
+   */
+  const hitIds = Object.values(rows).flatMap((row) => row.items.map((r) => `${r.provider}:${r.providerId}`))
+  const aliases = useLiveQuery(async () => {
+    const entries = await db.detailsCache.bulkGet(hitIds)
+    const map = new Map<string, string>()
+    entries.forEach((e, i) => {
+      if (e && e.details.id !== hitIds[i]) map.set(hitIds[i], e.details.id)
+    })
+    return map
+  }, [hitIds.join('|')])
+
+  /**
+   * Hits being added right now. Adding has to fetch the title's details first
+   * (a second or more on a cold title, longer when a ratings service is slow),
+   * so the ✓ shows at once and stays; a failure takes it back and says so.
+   */
+  const [adding, setAdding] = useState<Set<string>>(() => new Set())
+  const [toast, setToast] = useState<string | null>(null)
+  useEffect(() => {
+    if (!toast) return
+    const h = setTimeout(() => setToast(null), 2600)
+    return () => clearTimeout(h)
+  }, [toast])
 
   const configs = useMemo<RowConfig[]>(() => {
     const list: RowConfig[] = [
@@ -193,11 +226,20 @@ export default function SearchPage() {
   }, [q, configs, online])
 
   const quickAdd = async (r: SearchResult) => {
+    const id = `${r.provider}:${r.providerId}`
+    if (adding.has(id)) return
+    setAdding((s) => new Set(s).add(id))
     try {
       const details = await getDetails(r.provider, r.mediaType, r.providerId)
       await addToLibrary(details)
+      // the ✓ stays: from here the library itself (or the alias) says so
     } catch {
-      // ignore — user can retry from the detail page
+      setAdding((s) => {
+        const next = new Set(s)
+        next.delete(id)
+        return next
+      })
+      setToast(t('search.addFailed'))
     }
   }
 
@@ -268,7 +310,7 @@ export default function SearchPage() {
                           title={r.title}
                           year={r.year}
                           poster={lib ? (lib.poster ?? r.poster) : r.poster}
-                          inLibrary={lib != null}
+                          inLibrary={lib != null || adding.has(id)}
                           onAdd={() => quickAdd(r)}
                           onClick={() =>
                             nav(`/media/${target.provider}/${target.mediaType}/${target.providerId}`)
@@ -280,6 +322,12 @@ export default function SearchPage() {
               </MediaRow>
             )
           })}
+        </div>
+      )}
+
+      {toast && (
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-black shadow-2xl md:bottom-10">
+          {toast}
         </div>
       )}
     </div>
