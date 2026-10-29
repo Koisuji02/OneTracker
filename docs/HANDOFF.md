@@ -252,7 +252,12 @@ VP8 WebM; titles + service marks only; original music composed in code on the sa
 (2560×1440, logo in the 1546×423 safe area, English for the channel) and the 800×800
 channel picture, all in `builds/store/youtube/`.
 
-**Next: the learning rebuild.** The user wants to rebuild OneTracker from scratch
+**Next: the learning rebuild** — set up 2026-10-29 in `../OneTracker-Learn` (own git
+repo): `CLAUDE.md` (coach rules), `PERCORSO.md` (the roadmap), `.coach/watch.mjs` (a
+file watcher Claude runs with the Monitor tool: an event when a burst of edits ends,
+with the TypeScript verdict, and when he has been still for 4 min),
+`.vscode/settings.json` (autosave 1.5 s, no inline completions). He works in VS Code
+with the Claude Code panel and says "iniziamo". The user wants to rebuild OneTracker from scratch
 in a **separate, didactic-only project**, incrementally, to understand every part.
 **The user writes all the code; Claude explains, gives the next step and reviews —
 never creates or edits files there on its own.** Plan the milestones with the user
