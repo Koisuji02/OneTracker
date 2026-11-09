@@ -184,9 +184,9 @@ function BookCard({
   const parts: string[] = []
   if (item.authors?.length) parts.push(item.authors.join(', '))
   else if (item.year) parts.push(String(item.year))
-  // re-read in progress (Rileggi x2): the round's grade rides on the card until
-  // the ✓ closes it, so it reads like a series/manga rewatch
-  const round = stage === 'watching' && (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
+  // open re-read round (Ri-inizia x2): the book goes back to Start and the
+  // round's grade replaces the ✓ there and in Continue, until it is closed
+  const round = (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
   const shared = {
     poster: item.poster,
     title: item.title,
@@ -269,7 +269,8 @@ export default function BooksPage() {
   const waiting = active
     .filter((i) => i.status === 'watching' && isWaiting(i, watchedKeys))
     .sort(byRecent)
-  const toRead = active.filter((i) => i.status === 'planned').sort((a, b) => b.addedAt - a.addedAt)
+  // newest first — a re-read round just opened counts as new, so it sits on top
+  const toRead = active.filter((i) => i.status === 'planned').sort(byRecent)
 
   const card = (item: LibraryItem, stage: 'planned' | 'watching') =>
     item.mediaType === 'manga' ? (

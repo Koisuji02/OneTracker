@@ -665,7 +665,8 @@ export default function DetailPage() {
             )}
           >
             <Check size={18} strokeWidth={3} />
-            {libItem?.status === 'planned' && t('detail.start')}
+            {libItem?.status === 'planned' &&
+              `${t('detail.start')}${(libItem?.watchCount ?? 1) >= 2 ? ` x${libItem?.watchCount}` : ''}`}
             {libItem?.status === 'watching' &&
               `${t(singleLabels[meta.mediaType]?.[0] ?? 'detail.markWatched')}${
                 (libItem?.watchCount ?? 1) >= 2 ? ` x${libItem?.watchCount}` : ''
@@ -1183,7 +1184,7 @@ export default function DetailPage() {
           label={meta.title}
           count={libItem?.watchCount ?? 1}
           onUnmark={() => setSingleStatus(canonicalId, 'watching')}
-          // one-shot media get both: back into Continue for a round you are
+          // one-shot media get both: back into Start for a round you are
           // about to do, or straight to the log for one you already did
           onRestart={() => rewatchSingle(canonicalId)}
           onRewatch={() => logSingleView(canonicalId)}

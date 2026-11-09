@@ -880,13 +880,13 @@ export async function setSingleWatched(id: string, watched: boolean): Promise<vo
 }
 
 /**
- * START a new viewing/reading of a finished movie or book — "Ri-inizia xN".
+ * Open a new viewing/reading of a finished movie or book — "Ri-inizia xN".
  *
- * One-shot media have no episodes to tick off, so this is their equivalent of
- * re-watching a series: the item goes BACK to `watching` and sits in Continue
- * with the round on its card, and the ✓ there closes it with
- * `setSingleStatus('completed')`. The count is bumped right away so the round
- * is visible, while `finishedViews` deliberately does NOT count it until it is
+ * One-shot media have no episodes to tick off, so a round walks the same three
+ * steps as a first time, with its grade on the card: it lands at the TOP of
+ * Start (planned), the xN there begins it (Continue), and the xN in Continue
+ * closes it (completed). The count is bumped right away so the round is
+ * visible, while `finishedViews` deliberately does NOT count it until it is
  * closed — the time follows only finished viewings.
  *
  * For an instant "seen it again" with no round, see logSingleView.
@@ -896,7 +896,7 @@ export async function rewatchSingle(id: string): Promise<void> {
   if (!item) return
   await db.items.update(id, {
     watchCount: (item.watchCount ?? 1) + 1,
-    status: 'watching',
+    status: 'planned',
     completedAt: null,
     lastReadAt: Date.now(),
   })
@@ -928,10 +928,13 @@ export async function logSingleView(id: string): Promise<void> {
  */
 export async function setSingleStatus(id: string, status: ItemStatus): Promise<void> {
   const item = await db.items.get(id)
+  // an open round (Ri-inizia xN, planned or watching) keeps its count through
+  // its steps; going back from `completed` is an un-mark and clears it
+  const round = item && item.status !== 'completed' ? item.watchCount : undefined
   await db.items.update(id, {
     status,
     completedAt: status === 'completed' ? Date.now() : null,
-    watchCount: status === 'completed' ? (item?.watchCount ?? 1) : undefined,
+    watchCount: status === 'completed' ? (item?.watchCount ?? 1) : round,
     lastReadAt: Date.now(),
   })
 }
@@ -1195,9 +1198,9 @@ export function gamePlaythroughs(item: LibraryItem): GamePlaythrough[] {
 /**
  * Times a movie/book was actually FINISHED.
  *
- * `rewatchSingle` bumps the count and sends the item back to `watching`, so a
- * rewatch in progress means "watched N times, watching it again" — the N
- * viewings already done keep their time, and the one underway earns it only
+ * `rewatchSingle` bumps the count and sends the item back to Start, so an
+ * open round means "watched N-1 times, watching it again" — the viewings
+ * already done keep their time, and the one underway earns it only
  * when it is closed. Same rule as a game's playthroughs, without the per-run
  * hours: nothing to type, a 2nd viewing is simply the runtime again.
  */

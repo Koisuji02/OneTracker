@@ -6,8 +6,8 @@ import { useT } from '../i18n'
  * movie, book): remove the check, or count another time through.
  *
  * `onRestart` is what a ONE-SHOT medium adds: a film or a book has no episodes
- * to tick off, so "Ri-inizia xN" is its way of being in progress again — it
- * goes back to Continue and the ✓ there closes the round. Units (episodes,
+ * to tick off, so "Ri-inizia xN" opens a new round — it goes back to Start,
+ * and its xN moves it to Continue and then closes it. Units (episodes,
  * chapters) don't pass it: a single episode is simply re-watched at once.
  */
 interface RewatchDialogProps {

@@ -49,9 +49,9 @@ function MovieCard({
   const { language } = useSettings()
 
   const when = item.releaseDate ? formatDate(item.releaseDate, language) : t('common.waiting')
-  // rewatch in progress: "Guarda di nuovo (x2)" sends the film back to Continue
-  // and the round's grade rides on the card until the ✓ closes it
-  const round = stage === 'watching' && (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
+  // open rewatch round ("Ri-inizia x2"): the film goes back to Start and the
+  // round's grade replaces the ✓ there and in Continue, until it is closed
+  const round = stage !== 'waiting' && (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
   const subtitle =
     stage === 'waiting' ? (
       <span className="inline-flex items-center gap-1.5 text-accent">
@@ -118,9 +118,10 @@ export function MoviesPage() {
     .filter((i) => i.status === 'watching')
     .sort((a, b) => lastActivity(b) - lastActivity(a))
   const waiting = active.filter((i) => isWaiting(i, NO_KEYS)).sort((a, b) => b.addedAt - a.addedAt)
+  // newest first — a rewatch round just opened counts as new, so it sits on top
   const toWatch = active
     .filter((i) => i.status === 'planned' && !isWaiting(i, NO_KEYS))
-    .sort((a, b) => b.addedAt - a.addedAt)
+    .sort((a, b) => lastActivity(b) - lastActivity(a))
 
   const lay = (children: ReactNode) =>
     viewMovies === 'grid' ? (

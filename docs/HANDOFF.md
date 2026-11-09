@@ -6,13 +6,13 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 
 | | |
 |---|---|
-| Version | **1.0.54** (versionCode 54) — `android/app/build.gradle` is the single source |
+| Version | **1.0.55** (versionCode 55) — `android/app/build.gradle` is the single source |
 | Branches | work on `release/store-launch`; `main` is fast-forwarded to it (both pushed, in sync) |
 | Repo | `github.com/Koisuji02/OneTracker` — **public** (never commit secrets) |
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
-| Builds | gitignored `builds/<version>/` up to `builds/1.0.54/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.54 handed over** |
+| Builds | gitignored `builds/<version>/` up to `builds/1.0.55/` (debug + release APK, AAB, unsigned IPA) |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.55 handed over; production access granted 2026-11-09** |
 
 ## 2. What has been done (in order)
 
@@ -245,6 +245,13 @@ AniList/Jikan), and an AniList season is stored under its chain's root id, which
 the page didn't recognise. Now the ✓ shows at once while adding (a failure takes it
 back with a message) and hits are also matched through the details-cache aliases.
 
+**1.0.55 (2026-11-09) — rewatch rounds for films and books.** "Ri-inizia xN" now
+sends the item to the TOP of Start (planned, ordered by last activity), not straight
+to Continue; the xN replaces the ✓ there, a tap moves it to Continue, the next closes
+it as completed xN. `setSingleStatus` keeps the round's count between planned and
+watching (from completed it is still an un-mark and clears it). Series/manga rounds are
+unchanged (they start by marking an episode, so they belong in Continue); games too.
+
 **YouTube material (2026-10-25).** `scripts/store/youtube.mjs`: a 55 s trailer (motion
 design in a page, recorded frame by frame, piped into Playwright's own ffmpeg → 1080p
 VP8 WebM; titles + service marks only; original music composed in code on the same
@@ -267,7 +274,7 @@ Capacitor + the widget → the gateway Worker → iOS CI), using `docs/CODEBASE.
 map. It supersedes the file-by-file walkthrough below (item 4).
 
 0. **Play Store, to production** — closed test running since 2026-10-24 (12+ testers);
-   "Richiedi per la produzione" unlocks around **2026-11-07**. Then: draft the answers
+   **production access granted 2026-11-09**; the first production release is 1.0.55. Then: draft the answers
    to Play's production questions with the user (feedback received: tutorials, search
    +, update prompt, JSON export — 1.0.52–1.0.54), production release, then switch
    "coming soon" to the Play link in the YouTube descriptions, README and launch posts.
