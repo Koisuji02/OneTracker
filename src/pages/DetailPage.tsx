@@ -533,8 +533,8 @@ export default function DetailPage() {
   const gameRuns = isGame && libItem ? gamePlaythroughs(libItem) : []
   /** last hours the user typed for a run, prefilled into the next one */
   const lastTypedHours = [...gameRuns].reverse().find((r) => r.hours != null)?.hours ?? null
-  /** playing a game that was already beaten at least once ("Ri-inizia xN") */
-  const inGameRound = isGame && libItem?.status === 'watching' && gameRuns.length > 0
+  /** a new run of a game already beaten at least once ("Ri-inizia xN"): to play or playing */
+  const inGameRound = isGame && libItem?.status !== 'completed' && gameRuns.length > 0
   const chapterTotal = meta.totalEpisodes ?? null
   const chaptersDone = isManga ? watchedCount : 0
   // Chapter rows must ALWAYS be usable: fall back to the highest chapter the
@@ -688,7 +688,8 @@ export default function DetailPage() {
                 : 'bg-brand text-black',
             )}
           >
-            {libItem?.status === 'planned' && t('games.toPlay')}
+            {libItem?.status === 'planned' &&
+              `${t('games.toPlay')}${inGameRound ? ` x${gameRuns.length + 1}` : ''}`}
             {libItem?.status === 'watching' &&
               `${t('games.playing')}${inGameRound ? ` x${gameRuns.length + 1}` : ''}`}
             {libItem?.status === 'completed' &&
@@ -1248,7 +1249,7 @@ export default function DetailPage() {
                   }}
                   className={cn(
                     'rounded-2xl border py-3 text-sm font-bold transition-colors',
-                    libItem?.status === s && !(s === 'watching' && inGameRound)
+                    libItem?.status === s && !inGameRound
                       ? 'border-accent bg-brand text-black'
                       : 'border-line text-ink2 hover:border-accent hover:text-accent',
                   )}

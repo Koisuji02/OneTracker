@@ -60,9 +60,9 @@ function GameCard({
   }
 
   const when = item.releaseDate ? formatDate(item.releaseDate, language) : t('common.waiting')
-  // replay in progress: "Rigiocato (x2)" sends the game back to Continue and
-  // the round's grade rides on the card until the ✓ closes it
-  const round = playing && (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
+  // open replay round ("Ri-inizia x2"): the game goes back to Start and the
+  // round's grade replaces the ✓ there and in Continue, until it is closed
+  const round = stage !== 'waiting' && (item.watchCount ?? 1) >= 2 ? `x${item.watchCount}` : null
   const subtitle =
     stage === 'waiting' ? (
       <span className="inline-flex items-center gap-1.5 text-accent">
@@ -139,9 +139,10 @@ export default function GamesPage() {
     .filter((i) => i.status === 'watching')
     .sort((a, b) => lastActivity(b) - lastActivity(a))
   const waiting = active.filter((i) => isWaiting(i, NO_KEYS)).sort((a, b) => b.addedAt - a.addedAt)
+  // newest first — a replay round just opened counts as new, so it sits on top
   const backlog = active
     .filter((i) => i.status === 'planned' && !isWaiting(i, NO_KEYS))
-    .sort((a, b) => b.addedAt - a.addedAt)
+    .sort((a, b) => lastActivity(b) - lastActivity(a))
 
   const lay = (children: ReactNode) =>
     viewGames === 'grid' ? (

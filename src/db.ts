@@ -1006,18 +1006,20 @@ export async function removeGamePlaythrough(id: string, index: number): Promise<
 }
 
 /**
- * START a new playthrough of a game already beaten — "Ri-inizia xN".
+ * Open a new playthrough of a game already beaten — "Ri-inizia xN".
  *
  * The runs behind it stay recorded (and keep their time in the totals); the
- * game moves back to Continue, where its ✓ opens the time sheet and records
- * this run with logGamePlaythrough. That is the difference from
- * `setGameStatus(id, 'watching')`, which means "it wasn't finished after all"
- * and un-records the last run.
+ * game goes to the TOP of Start with xN on its card, like a film's rewatch:
+ * the xN there starts playing it (setGameStatus 'watching', runs untouched),
+ * and in Continue it opens the time sheet that records this run with
+ * logGamePlaythrough. That is the difference from setGameStatus on a
+ * COMPLETED game, which means "it wasn't finished after all" and un-records
+ * the last run.
  */
 export async function startGameReplay(id: string): Promise<void> {
   const item = await db.items.get(id)
   if (!item) return
-  await putPlaythroughs(item, gamePlaythroughs(item), 'watching')
+  await putPlaythroughs(item, gamePlaythroughs(item), 'planned')
 }
 
 /**
