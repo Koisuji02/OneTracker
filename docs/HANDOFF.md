@@ -12,7 +12,7 @@ Last updated: **2026-10-16**. Read this first when the user says "ripartiamo".
 | Web app | https://onetracker.onetracker.workers.dev — `/` app, `/home` page for Google, `/privacy` policy |
 | Gateway | `onetracker-api` Worker (`worker/`), `/health` reports keys, pools and advice |
 | Builds | gitignored `builds/<version>/` up to `builds/1.0.56/` (debug + release APK, AAB, unsigned IPA) |
-| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); 1.0.56 handed over; production access granted 2026-11-09** |
+| Phone status | 1.0.37 release confirmed working on the user's Android. 1.0.39 approved by the user (recap share image refined in 1.0.40). **1.0.50 from Play's internal test works (Drive restore, widget); **ON GOOGLE PLAY (production) since 2026-11-11 with 1.0.56** (the user, still enrolled as a tester, sees it as "(Beta)") |
 
 ## 2. What has been done (in order)
 
@@ -275,14 +275,14 @@ the library pages → detail → episodes → Cronologia / recap → backup + Dr
 Capacitor + the widget → the gateway Worker → iOS CI), using `docs/CODEBASE.md` as the
 map. It supersedes the file-by-file walkthrough below (item 4).
 
-0. **Play Store, to production** — closed test running since 2026-10-24 (12+ testers);
-   **production access granted 2026-11-09**; the first production release is 1.0.56. Then: draft the answers
-   to Play's production questions with the user (feedback received: tutorials, search
-   +, update prompt, JSON export — 1.0.52–1.0.54), production release, then switch
-   "coming soon" to the Play link in the YouTube descriptions, README and launch posts.
-   The user is adding the two trailers to the store listing (Video field, IT + EN).
-   After that: delete RAWG_KEY, OMDB_KEY, COMICVINE_KEY from the Worker (ask first);
-   TMDB_KEY and IGDB_* stay.
+0. **Play Store — DONE.** Production live 2026-11-11 (1.0.56, 177 countries + rest of
+   the world, managed publishing off). README and docs/LAUNCH_POSTS.md now point to
+   the Play link; the tester posts are retired. The legacy Worker secrets RAWG_KEY,
+   OMDB_KEY, COMICVINE_KEY were deleted 2026-11-11 (TMDB_KEY, IGDB_*, GOOGLE_*,
+   APP_TOKEN stay). Left to the user: the Play link in the two YouTube descriptions,
+   the trailers in the store listing (Video field) if not done, the launch posts
+   (LAUNCH_POSTS §3–4). Every new version = a new Production release in Play Console
+   (upload the AAB, notes, "Invia modifiche per la revisione").
 1. **Phone checks only the user can do**: the update prompt (1.0.53 → 1.0.54 from
    Play), "Aggiungi alla Home" for the widget, Android back closing a tutorial,
    "Esporta backup" landing in Download.

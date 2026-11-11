@@ -40,8 +40,9 @@ the public URL, e.g. `https://onetracker-api.<your-subdomain>.workers.dev`.
 > `IGDB_CLIENT_ID` / `IGDB_CLIENT_SECRET`, ONE of each — no pools); a user can
 > send their own instead (`X-OT-Key`, IGDB `X-IGDB-Client-Id` / `-Secret`),
 > used only to fetch a miss and never stored. Comic Vine and OMDb are always the
-> user's own key. `RAWG_KEY`, `OMDB_KEY` and `COMICVINE_KEY` only serve builds
-> older than 1.0.43: delete them once every phone is updated. Capacity, request
+> user's own key. `RAWG_KEY`, `OMDB_KEY` and `COMICVINE_KEY` only served builds
+> older than 1.0.43 and were deleted on 2026-11-11 (the code still reads them, so
+> a pool can come back with one `secret put`). Capacity, request
 > by request: docs/LOAD_TEST.md.
 
 Run each line and paste the value when prompted (nothing is written to disk):

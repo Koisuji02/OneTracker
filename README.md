@@ -21,7 +21,7 @@
 
 ## Get it
 
-- **Android** — on Google Play soon (closed testing now).
+- **Android** — [Google Play](https://play.google.com/store/apps/details?id=io.github.koisuji02.onetracker).
 - **Web** — [onetracker.onetracker.workers.dev](https://onetracker.onetracker.workers.dev), on any computer or phone.
 - **iPhone** — the app is ready; publishing on the App Store depends on how many people want it.
 
